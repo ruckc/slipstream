@@ -30,10 +30,46 @@
     const videoExts = new Set(['mp4', 'webm', 'ogv', 'mov', 'avi', 'mkv'])
     const audioExts = new Set(['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'])
     const codeExts = new Set([
-      'ts', 'tsx', 'js', 'jsx', 'mjs', 'html', 'htm', 'css', 'scss', 'sass', 'less',
-      'json', 'jsonc', 'yaml', 'yml', 'toml', 'svelte', 'vue', 'py', 'rs', 'go',
-      'java', 'kt', 'swift', 'c', 'h', 'cpp', 'cc', 'cs', 'sh', 'bash', 'ps1',
-      'sql', 'graphql', 'proto', 'rb', 'php', 'lua', 'r', 'scala',
+      'ts',
+      'tsx',
+      'js',
+      'jsx',
+      'mjs',
+      'html',
+      'htm',
+      'css',
+      'scss',
+      'sass',
+      'less',
+      'json',
+      'jsonc',
+      'yaml',
+      'yml',
+      'toml',
+      'svelte',
+      'vue',
+      'py',
+      'rs',
+      'go',
+      'java',
+      'kt',
+      'swift',
+      'c',
+      'h',
+      'cpp',
+      'cc',
+      'cs',
+      'sh',
+      'bash',
+      'ps1',
+      'sql',
+      'graphql',
+      'proto',
+      'rb',
+      'php',
+      'lua',
+      'r',
+      'scala',
     ])
     const textExts = new Set(['md', 'mdx', 'txt', 'log', 'env', 'ini', 'cfg', 'conf', 'xml'])
     const baseName = name.toLowerCase()
@@ -81,7 +117,10 @@
   class:file-row--selected={selected}
   style="padding-left: calc(var(--space-2) + {depth * 16}px)"
   onclick={() => onOpenFile(path)}
-  oncontextmenu={(e) => { e.preventDefault(); onContextMenu(e, entry, path) }}
+  oncontextmenu={(e) => {
+    e.preventDefault()
+    onContextMenu(e, entry, path)
+  }}
   title={path}
   aria-label={entry.name}
 >

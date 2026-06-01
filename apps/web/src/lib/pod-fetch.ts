@@ -37,7 +37,7 @@ export async function podFetch(
   namespaceSlug: string,
   projectSlug: string,
   podPath: string,
-  init?: RequestInit,
+  init?: RequestInit
 ): Promise<Response> {
   const base = podProxyBase(namespaceSlug, projectSlug)
   const url = base + (podPath.startsWith('/') ? podPath : '/' + podPath)
@@ -55,12 +55,9 @@ export async function podFetch(
  * @param projectSlug    - Project slug
  * @param podPath        - Path on the pod, e.g. '/sessions/abc/attach'
  */
-export function podWsUrl(
-  namespaceSlug: string,
-  projectSlug: string,
-  podPath: string,
-): string {
-  const proto = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+export function podWsUrl(namespaceSlug: string, projectSlug: string, podPath: string): string {
+  const proto =
+    typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = typeof window !== 'undefined' ? window.location.host : 'localhost'
   const base = podProxyBase(namespaceSlug, projectSlug)
   const path = base + (podPath.startsWith('/') ? podPath : '/' + podPath)

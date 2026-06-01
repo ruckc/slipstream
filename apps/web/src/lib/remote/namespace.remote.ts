@@ -39,7 +39,7 @@ export async function getUserNamespace(userId: string): Promise<Namespace> {
 }
 
 export async function listUserProjects(
-  userId: string,
+  userId: string
 ): Promise<Array<Project & { namespaceSlug: string }>> {
   // Get user's own namespace
   const userRows = await db

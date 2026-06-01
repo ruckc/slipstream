@@ -175,10 +175,7 @@ pub async fn create_session(
     require_permission(&claims, "shell")?;
     state.idle.touch();
 
-    let session_id = state
-        .sessions
-        .create()
-        .map_err(AppError::Internal)?;
+    let session_id = state.sessions.create().map_err(AppError::Internal)?;
 
     Ok((
         axum::http::StatusCode::CREATED,
@@ -309,7 +306,10 @@ async fn handle_ws(socket: WebSocket, session_arc: Arc<Mutex<Session>>, state: A
                     })
                     .to_string();
 
-                    if rt.block_on(out_tx_reader.send(Message::Text(msg))).is_err() {
+                    if rt
+                        .block_on(out_tx_reader.send(Message::Text(msg.into())))
+                        .is_err()
+                    {
                         break;
                     }
                 }
@@ -401,7 +401,8 @@ async fn handle_ws(socket: WebSocket, session_arc: Arc<Mutex<Session>>, state: A
                                             "seq": seq,
                                             "data": BASE64.encode(data),
                                         })
-                                        .to_string(),
+                                        .to_string()
+                                        .into(),
                                     )
                                 })
                                 .collect::<Vec<_>>()

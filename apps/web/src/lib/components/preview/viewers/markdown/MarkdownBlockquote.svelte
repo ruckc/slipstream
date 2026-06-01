@@ -1,12 +1,12 @@
 <script lang="ts">
-  import type { Tokens, Token } from 'marked'
+  import type { Tokens } from 'marked'
   import MarkdownRenderer from './MarkdownRenderer.svelte'
 
   let { token }: { token: Tokens.Blockquote } = $props()
 </script>
 
 <blockquote class="md-blockquote">
-  <MarkdownRenderer tokens={(token as any).tokens ?? []} />
+  <MarkdownRenderer tokens={token.tokens} />
 </blockquote>
 
 <style>

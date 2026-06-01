@@ -69,9 +69,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // 2. JWKS cache — fetches immediately, fails fast if unreachable.
-    let jwks = Arc::new(
-        JwksCache::new(config.jwks_url.clone(), config.project_id.clone()).await?,
-    );
+    let jwks = Arc::new(JwksCache::new(config.jwks_url.clone(), config.project_id.clone()).await?);
 
     // 3. Session store + idle tracker.
     let sessions = Arc::new(SessionStore::new());

@@ -18,24 +18,18 @@
   <table class="md-table">
     <thead>
       <tr>
-        {#each token.header as cell, i}
-          <th
-            class="md-th"
-            style:text-align={alignStyle(token.align[i] as Align)}
-          >
+        {#each token.header as cell, i (i)}
+          <th class="md-th" style:text-align={alignStyle(token.align[i] as Align)}>
             <MarkdownInline tokens={cell.tokens ?? []} />
           </th>
         {/each}
       </tr>
     </thead>
     <tbody>
-      {#each token.rows as row}
+      {#each token.rows as row, ri (ri)}
         <tr class="md-tr">
-          {#each row as cell, i}
-            <td
-              class="md-td"
-              style:text-align={alignStyle(token.align[i] as Align)}
-            >
+          {#each row as cell, i (i)}
+            <td class="md-td" style:text-align={alignStyle(token.align[i] as Align)}>
               <MarkdownInline tokens={cell.tokens ?? []} />
             </td>
           {/each}

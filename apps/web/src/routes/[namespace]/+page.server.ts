@@ -1,6 +1,6 @@
 import { redirect, error } from '@sveltejs/kit'
 import type { PageServerLoad } from './$types'
-import { db, namespaces, projects, organizations, orgMembers, users } from '$lib/server/db'
+import { db, namespaces, projects, organizations, orgMembers } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       .from(organizations)
       .innerJoin(
         orgMembers,
-        and(eq(orgMembers.orgId, organizations.id), eq(orgMembers.userId, locals.user.id)),
+        and(eq(orgMembers.orgId, organizations.id), eq(orgMembers.userId, locals.user.id))
       )
       .where(eq(organizations.namespaceId, namespace.id))
       .limit(1)
@@ -57,10 +57,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   }
 
   // Load projects in this namespace
-  const projectRows = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.namespaceId, namespace.id))
+  const projectRows = await db.select().from(projects).where(eq(projects.namespaceId, namespace.id))
 
   return {
     namespace,

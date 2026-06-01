@@ -12,7 +12,7 @@ export async function createProject(
   actorUserId: string,
   namespaceId: string,
   slug: string,
-  displayName: string,
+  displayName: string
 ): Promise<Project> {
   // Validate actor has access to create in this namespace
   await assertNamespaceAccess(actorUserId, namespaceId)
@@ -29,11 +29,7 @@ export async function createProject(
   }
 
   // Get namespace to find k8s namespace
-  const nsRows = await db
-    .select()
-    .from(namespaces)
-    .where(eq(namespaces.id, namespaceId))
-    .limit(1)
+  const nsRows = await db.select().from(namespaces).where(eq(namespaces.id, namespaceId)).limit(1)
 
   if (nsRows.length === 0) {
     throw error(404, 'Namespace not found')
@@ -75,7 +71,7 @@ export async function createProject(
 
 export async function getProject(
   namespaceSlug: string,
-  projectSlug: string,
+  projectSlug: string
 ): Promise<(Project & { namespace: Namespace }) | null> {
   const rows = await db
     .select({ project: projects, namespace: namespaces })
@@ -205,12 +201,9 @@ export async function deleteProject(actorUserId: string, projectId: string): Pro
 
 export async function updateProjectStatus(
   projectId: string,
-  status: Project['status'],
+  status: Project['status']
 ): Promise<void> {
-  await db
-    .update(projects)
-    .set({ status, updatedAt: new Date() })
-    .where(eq(projects.id, projectId))
+  await db.update(projects).set({ status, updatedAt: new Date() }).where(eq(projects.id, projectId))
 }
 
 // ---------------------------------------------------------------------------
@@ -218,11 +211,7 @@ export async function updateProjectStatus(
 // ---------------------------------------------------------------------------
 
 async function getProjectById(projectId: string): Promise<Project> {
-  const rows = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1)
+  const rows = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1)
 
   if (rows.length === 0) {
     throw error(404, 'Project not found')
@@ -232,11 +221,7 @@ async function getProjectById(projectId: string): Promise<Project> {
 }
 
 async function getNamespaceById(namespaceId: string): Promise<Namespace> {
-  const rows = await db
-    .select()
-    .from(namespaces)
-    .where(eq(namespaces.id, namespaceId))
-    .limit(1)
+  const rows = await db.select().from(namespaces).where(eq(namespaces.id, namespaceId)).limit(1)
 
   if (rows.length === 0) {
     throw error(404, 'Namespace not found')
@@ -261,11 +246,7 @@ async function assertNamespaceAccess(userId: string, namespaceId: string): Promi
 
   const user = userRows[0]
 
-  const nsRows = await db
-    .select()
-    .from(namespaces)
-    .where(eq(namespaces.id, namespaceId))
-    .limit(1)
+  const nsRows = await db.select().from(namespaces).where(eq(namespaces.id, namespaceId)).limit(1)
 
   if (nsRows.length === 0) throw error(404, 'Namespace not found')
 
@@ -281,7 +262,7 @@ async function assertNamespaceAccess(userId: string, namespaceId: string): Promi
       .from(organizations)
       .innerJoin(
         orgMembers,
-        and(eq(orgMembers.orgId, organizations.id), eq(orgMembers.userId, userId)),
+        and(eq(orgMembers.orgId, organizations.id), eq(orgMembers.userId, userId))
       )
       .where(eq(organizations.namespaceId, namespaceId))
       .limit(1)

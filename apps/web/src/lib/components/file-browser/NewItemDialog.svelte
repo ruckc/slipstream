@@ -55,10 +55,7 @@
   }
 </script>
 
-<Modal
-  bind:open
-  title={mode === 'file' ? 'New File' : 'New Folder'}
->
+<Modal bind:open title={mode === 'file' ? 'New File' : 'New Folder'}>
   <form class="dialog-form" onsubmit={handleSubmit}>
     <p class="dialog-hint">
       Creating in: <code class="dialog-path">{parentPath}</code>
@@ -66,7 +63,7 @@
     <Input
       label={mode === 'file' ? 'File name' : 'Folder name'}
       bind:value={name}
-      error={error}
+      {error}
       placeholder={mode === 'file' ? 'untitled.txt' : 'new-folder'}
       required
     />

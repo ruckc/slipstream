@@ -12,7 +12,14 @@
   let clampedValue = $derived(Math.max(0, Math.min(100, value)))
 </script>
 
-<div class="progress-container" role="progressbar" aria-valuenow={clampedValue} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
+<div
+  class="progress-container"
+  role="progressbar"
+  aria-valuenow={clampedValue}
+  aria-valuemin={0}
+  aria-valuemax={100}
+  aria-label={label}
+>
   {#if label}
     <div class="progress-label">
       <span>{label}</span>
@@ -20,10 +27,7 @@
     </div>
   {/if}
   <div class="progress-track">
-    <div
-      class="progress-fill progress-fill--{variant}"
-      style="width: {clampedValue}%"
-    ></div>
+    <div class="progress-fill progress-fill--{variant}" style="width: {clampedValue}%"></div>
   </div>
 </div>
 

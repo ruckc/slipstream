@@ -22,11 +22,7 @@
 </script>
 
 <div class="project-header">
-  <a
-    href="/{namespaceSlug}"
-    class="project-header-ns"
-    aria-label="Namespace: {namespaceSlug}"
-  >
+  <a href="/{namespaceSlug}" class="project-header-ns" aria-label="Namespace: {namespaceSlug}">
     <Icon name={namespaceType === 'org' ? 'org' : 'user'} size={12} />
     <span>{namespaceSlug}</span>
   </a>
@@ -40,12 +36,7 @@
     <span class="project-header-name">{displayName}</span>
   </a>
   <div class="project-header-status">
-    <ProjectStatusChip
-      {status}
-      size="sm"
-      {onStart}
-      {onStop}
-    />
+    <ProjectStatusChip {status} size="sm" {onStart} {onStop} />
   </div>
   <div class="project-header-actions">
     <a
@@ -141,7 +132,9 @@
     color: var(--color-statusbar-fg);
     opacity: 0.7;
     text-decoration: none;
-    transition: opacity var(--transition-fast), background var(--transition-fast);
+    transition:
+      opacity var(--transition-fast),
+      background var(--transition-fast);
   }
 
   .header-action-btn:hover {

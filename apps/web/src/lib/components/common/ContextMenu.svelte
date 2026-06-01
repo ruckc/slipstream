@@ -7,6 +7,7 @@
     separator?: boolean
   }
 
+  import { untrack } from 'svelte'
   import Icon from './Icon.svelte'
 
   let {
@@ -24,9 +25,10 @@
   let menuEl = $state<HTMLElement | null>(null)
   let focusedIndex = $state(-1)
 
-  // Adjusted position to keep menu in viewport
-  let adjustedX = $state(x)
-  let adjustedY = $state(y)
+  // Adjusted position to keep menu in viewport — initialized with untrack to avoid
+  // capturing the reactive prop; the $effect below sets real values once the menu mounts.
+  let adjustedX = $state(untrack(() => x))
+  let adjustedY = $state(untrack(() => y))
 
   $effect(() => {
     if (open && menuEl) {
@@ -93,7 +95,7 @@
     items.reduce<number[]>((acc, item, i) => {
       if (!item.separator && !item.disabled) acc.push(i)
       return acc
-    }, []),
+    }, [])
   )
 </script>
 
@@ -104,9 +106,9 @@
     bind:this={menuEl}
     style="left: {adjustedX}px; top: {adjustedY}px;"
   >
-    {#each items as item, i}
+    {#each items as item, i (i)}
       {#if item.separator}
-        <hr class="context-menu-separator" role="separator" />
+        <hr class="context-menu-separator" />
       {:else}
         {@const selectableIdx = selectableMap.indexOf(i)}
         <button
@@ -116,7 +118,9 @@
           role="menuitem"
           disabled={item.disabled}
           onclick={() => handleItemClick(item)}
-          onmouseenter={() => { focusedIndex = selectableIdx }}
+          onmouseenter={() => {
+            focusedIndex = selectableIdx
+          }}
         >
           {#if item.icon}
             <span class="context-menu-item-icon">
@@ -145,8 +149,14 @@
   }
 
   @keyframes menu-appear {
-    from { opacity: 0; transform: scale(0.96); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   .context-menu-separator {

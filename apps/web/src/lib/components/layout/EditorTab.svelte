@@ -30,9 +30,11 @@
   aria-label={label + (dirty ? ' (unsaved)' : '')}
   tabindex={active ? 0 : -1}
   onclick={() => onActivate(id)}
-  onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') onActivate(id) }}
-  onmouseenter={() => hovered = true}
-  onmouseleave={() => hovered = false}
+  onkeydown={(e) => {
+    if (e.key === 'Enter' || e.key === ' ') onActivate(id)
+  }}
+  onmouseenter={() => (hovered = true)}
+  onmouseleave={() => (hovered = false)}
 >
   {#if icon}
     <span class="editor-tab-icon">
@@ -46,7 +48,10 @@
     class="editor-tab-close"
     class:editor-tab-close--dirty={dirty && !hovered}
     class:editor-tab-close--visible={hovered || dirty}
-    onclick={(e) => { e.stopPropagation(); onClose(id) }}
+    onclick={(e) => {
+      e.stopPropagation()
+      onClose(id)
+    }}
     aria-label="Close {label}"
     type="button"
     tabindex={-1}
@@ -78,7 +83,9 @@
     user-select: none;
     min-width: 0;
     max-width: 200px;
-    transition: background var(--transition-fast), color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      color var(--transition-fast);
   }
 
   .editor-tab:hover:not(.editor-tab--active) {
@@ -120,7 +127,9 @@
     color: var(--color-text-muted);
     flex-shrink: 0;
     opacity: 0;
-    transition: background var(--transition-fast), opacity var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      opacity var(--transition-fast);
     margin-left: var(--space-1);
   }
 

@@ -3,11 +3,11 @@
 
   let {
     tabs,
-    activeTab = $bindable(''),
+    activeTab = $bindable(null as string | null),
     onClose,
   }: {
     tabs: Array<{ id: string; label: string; icon?: string; dirty?: boolean }>
-    activeTab?: string
+    activeTab?: string | null
     onClose: (id: string) => void
   } = $props()
 
@@ -25,7 +25,7 @@
       dirty={tab.dirty ?? false}
       active={activeTab === tab.id}
       onActivate={activateTab}
-      onClose={onClose}
+      {onClose}
     />
   {/each}
 </div>

@@ -1,8 +1,5 @@
 use crate::error::AppError;
-use axum::{
-    extract::FromRequestParts,
-    http::request::Parts,
-};
+use axum::{extract::FromRequestParts, http::request::Parts};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use parking_lot::RwLock;
@@ -69,9 +66,7 @@ const CACHE_TTL: Duration = Duration::from_secs(300); // 5 minutes
 
 impl JwksCache {
     pub async fn new(url: String, project_id: String) -> anyhow::Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()?;
+        let client = Client::builder().timeout(Duration::from_secs(10)).build()?;
 
         let instance = Self {
             client,
@@ -120,10 +115,7 @@ impl JwksCache {
     }
 
     fn find_key<'a>(cached: &'a CachedKeys, kid: &str) -> Option<&'a JwkKey> {
-        cached
-            .keys
-            .iter()
-            .find(|k| k.kid == kid && k.kty == "RSA")
+        cached.keys.iter().find(|k| k.kid == kid && k.kty == "RSA")
     }
 
     pub async fn validate(&self, token: &str) -> Result<Claims, AppError> {
@@ -163,9 +155,9 @@ impl JwksCache {
         if decoding_key_opt.is_none() {
             // kid not found — attempt one re-fetch in case of key rotation.
             warn!("kid '{}' not found in JWKS cache, re-fetching", kid);
-            self.fetch_keys().await.map_err(|e| {
-                AppError::Unauthorized(format!("Failed to refresh JWKS: {}", e))
-            })?;
+            self.fetch_keys()
+                .await
+                .map_err(|e| AppError::Unauthorized(format!("Failed to refresh JWKS: {}", e)))?;
         }
 
         let decoding_key = self
@@ -193,13 +185,16 @@ impl JwksCache {
 
     fn build_decoding_key(&self, kid: &str) -> Option<DecodingKey> {
         let guard = self.cache.read();
-        guard.as_ref().and_then(|c| Self::find_key(c, kid)).and_then(|k| {
-            let n = k.n.as_deref()?;
-            let e = k.e.as_deref()?;
-            let n_bytes = URL_SAFE_NO_PAD.decode(n).ok()?;
-            let e_bytes = URL_SAFE_NO_PAD.decode(e).ok()?;
-            Some(DecodingKey::from_rsa_raw_components(&n_bytes, &e_bytes))
-        })
+        guard
+            .as_ref()
+            .and_then(|c| Self::find_key(c, kid))
+            .and_then(|k| {
+                let n = k.n.as_deref()?;
+                let e = k.e.as_deref()?;
+                let n_bytes = URL_SAFE_NO_PAD.decode(n).ok()?;
+                let e_bytes = URL_SAFE_NO_PAD.decode(e).ok()?;
+                Some(DecodingKey::from_rsa_raw_components(&n_bytes, &e_bytes))
+            })
     }
 }
 
@@ -227,7 +222,6 @@ pub struct JwksCacheExt(pub Arc<JwksCache>);
 
 pub struct AuthUser(pub Claims);
 
-#[axum::async_trait]
 impl<S> FromRequestParts<S> for AuthUser
 where
     S: Send + Sync,
@@ -249,11 +243,9 @@ where
             .and_then(|v| v.to_str().ok())
             .ok_or_else(|| AppError::Unauthorized("Missing Authorization header".to_string()))?;
 
-        let token = auth_header
-            .strip_prefix("Bearer ")
-            .ok_or_else(|| {
-                AppError::Unauthorized("Authorization header must be Bearer token".to_string())
-            })?;
+        let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
+            AppError::Unauthorized("Authorization header must be Bearer token".to_string())
+        })?;
 
         let claims = jwks_ext.0.validate(token).await?;
 

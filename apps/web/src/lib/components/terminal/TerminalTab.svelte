@@ -24,17 +24,16 @@
   aria-controls="terminal-pane-{sessionId}"
   tabindex={active ? 0 : -1}
 >
-  <button
-    class="terminal-tab-label"
-    onclick={() => onActivate(sessionId)}
-    title={label}
-  >
+  <button class="terminal-tab-label" onclick={() => onActivate(sessionId)} title={label}>
     <Icon name="terminal" size={12} />
     <span class="terminal-tab-name">{label}</span>
   </button>
   <button
     class="terminal-tab-close"
-    onclick={(e) => { e.stopPropagation(); onClose(sessionId) }}
+    onclick={(e) => {
+      e.stopPropagation()
+      onClose(sessionId)
+    }}
     aria-label="Close {label}"
     title="Close terminal"
   >
@@ -52,7 +51,9 @@
     color: var(--color-tab-fg);
     flex-shrink: 0;
     cursor: pointer;
-    transition: background var(--transition-fast), color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      color var(--transition-fast);
     max-width: 180px;
     min-width: 80px;
     position: relative;
@@ -103,7 +104,10 @@
     border-radius: var(--radius-sm);
     color: var(--color-text-disabled);
     opacity: 0;
-    transition: background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      color var(--transition-fast),
+      opacity var(--transition-fast);
     flex-shrink: 0;
   }
 

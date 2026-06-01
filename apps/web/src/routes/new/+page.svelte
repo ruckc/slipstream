@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { enhance } from '$app/forms'
   import type { PageData, ActionData } from './$types'
   import Button from '$lib/components/common/Button.svelte'
@@ -9,7 +10,7 @@
   let activeTab = $state<'project' | 'org'>('project')
 
   // Project form state
-  let projectNamespaceId = $state(data.userNamespace.id)
+  let projectNamespaceId = $state(untrack(() => data.userNamespace.id))
   let projectSlug = $state('')
   let projectDisplayName = $state('')
   let projectLoading = $state(false)
@@ -20,7 +21,11 @@
   let orgLoading = $state(false)
 
   const allNamespaces = $derived([
-    { id: data.userNamespace.id, slug: data.userNamespace.slug, label: `${data.userNamespace.slug} (personal)` },
+    {
+      id: data.userNamespace.id,
+      slug: data.userNamespace.slug,
+      label: `${data.userNamespace.slug} (personal)`,
+    },
     ...data.orgNamespaces.map((ns) => ({ id: ns.id, slug: ns.slug, label: `${ns.slug} (org)` })),
   ])
 
@@ -104,9 +109,7 @@
           required
           error={projectError && !projectSlug ? projectError : undefined}
         />
-        <p class="field-hint">
-          Lowercase letters, numbers, and hyphens. Used in the URL.
-        </p>
+        <p class="field-hint">Lowercase letters, numbers, and hyphens. Used in the URL.</p>
 
         <Input
           label="Display name"
@@ -122,9 +125,7 @@
 
         <div class="form-actions">
           <a href="/" class="cancel-link">Cancel</a>
-          <Button type="submit" variant="primary" loading={projectLoading}>
-            Create project
-          </Button>
+          <Button type="submit" variant="primary" loading={projectLoading}>Create project</Button>
         </div>
       </form>
     {/if}
@@ -169,9 +170,7 @@
 
         <div class="form-actions">
           <a href="/" class="cancel-link">Cancel</a>
-          <Button type="submit" variant="primary" loading={orgLoading}>
-            Create organization
-          </Button>
+          <Button type="submit" variant="primary" loading={orgLoading}>Create organization</Button>
         </div>
       </form>
     {/if}

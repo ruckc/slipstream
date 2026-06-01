@@ -29,7 +29,7 @@
     [...entries].sort((a, b) => {
       if (a.type !== b.type) return a.type === 'dir' ? -1 : 1
       return a.name.localeCompare(b.name)
-    }),
+    })
   )
 
   function entryPath(entry: FileEntry): string {
@@ -40,7 +40,7 @@
   function handleKeydown(e: KeyboardEvent) {
     if (!containerEl) return
     const rows = Array.from(
-      containerEl.querySelectorAll<HTMLButtonElement>('button.file-row, button.dir-row'),
+      containerEl.querySelectorAll<HTMLButtonElement>('button.file-row, button.dir-row')
     )
     const focused = document.activeElement as HTMLButtonElement | null
     const idx = focused ? rows.indexOf(focused) : -1
@@ -60,11 +60,11 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="file-tree"
   role="tree"
   aria-label="File tree"
+  tabindex="0"
   bind:this={containerEl}
   onkeydown={handleKeydown}
 >

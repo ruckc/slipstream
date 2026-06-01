@@ -14,7 +14,7 @@ export async function recordUsageSample(
   projectId: string,
   metric: MetricType,
   value: number,
-  sampledAt: Date,
+  sampledAt: Date
 ): Promise<void> {
   // Verify project exists
   const projectRows = await db
@@ -39,14 +39,10 @@ export async function getProjectUsage(
   actorUserId: string,
   projectId: string,
   from: Date,
-  to: Date,
+  to: Date
 ): Promise<Array<{ metric: string; value: number; sampledAt: Date }>> {
   // Actor must have project:manage permission
-  const userRows = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, actorUserId))
-    .limit(1)
+  const userRows = await db.select().from(users).where(eq(users.id, actorUserId)).limit(1)
 
   if (userRows.length === 0) {
     throw error(403, 'Forbidden')
@@ -68,8 +64,8 @@ export async function getProjectUsage(
       and(
         eq(usageSamples.projectId, projectId),
         gte(usageSamples.sampledAt, from),
-        lte(usageSamples.sampledAt, to),
-      ),
+        lte(usageSamples.sampledAt, to)
+      )
     )
 
   return rows.map((r) => ({

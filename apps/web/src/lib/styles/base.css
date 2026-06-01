@@ -137,8 +137,8 @@ pre {
 
 /* Prevent text selection on interactive elements */
 button,
-[role="button"],
-[role="tab"] {
+[role='button'],
+[role='tab'] {
   user-select: none;
   -webkit-user-select: none;
 }

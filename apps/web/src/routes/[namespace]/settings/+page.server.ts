@@ -1,12 +1,6 @@
 import { redirect, error, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import {
-  db,
-  namespaces,
-  organizations,
-  orgMembers,
-  users,
-} from '$lib/server/db'
+import { db, namespaces, organizations, orgMembers, users } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import {
   listOrgMembers,
@@ -48,7 +42,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     .from(organizations)
     .innerJoin(
       orgMembers,
-      and(eq(orgMembers.orgId, organizations.id), eq(orgMembers.userId, locals.user.id)),
+      and(eq(orgMembers.orgId, organizations.id), eq(orgMembers.userId, locals.user.id))
     )
     .where(eq(organizations.namespaceId, namespace.id))
     .limit(1)
@@ -125,10 +119,7 @@ export const actions: Actions = {
         .where(eq(users.namespaceId, nsRows[0].id))
         .limit(1)
       if (userRows.length === 0) throw error(404)
-      await db
-        .update(users)
-        .set({ idleTimeoutSeconds })
-        .where(eq(users.id, userRows[0].id))
+      await db.update(users).set({ idleTimeoutSeconds }).where(eq(users.id, userRows[0].id))
     } else {
       const orgRows = await db
         .select({ org: organizations })

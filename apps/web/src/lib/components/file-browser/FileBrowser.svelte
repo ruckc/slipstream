@@ -59,9 +59,14 @@
     loading = true
     loadError = null
     try {
-      const res = await podFetch(projectId, namespaceSlug, projectSlug, '/fs?path=' + encodeURIComponent(path))
+      const res = await podFetch(
+        projectId,
+        namespaceSlug,
+        projectSlug,
+        '/fs?path=' + encodeURIComponent(path)
+      )
       if (!res.ok) throw new Error('Failed to load directory: ' + res.status)
-      const data = await res.json() as { entries: FileEntry[] }
+      const data = (await res.json()) as { entries: FileEntry[] }
       rootEntries = data.entries ?? []
       currentPath = path
     } catch (err) {
@@ -130,14 +135,26 @@
   async function handleCreate(path: string) {
     const isFolder = newItemMode === 'folder'
     if (isFolder) {
-      const res = await podFetch(projectId, namespaceSlug, projectSlug, '/fs/mkdir?path=' + encodeURIComponent(path), { method: 'POST' })
+      const res = await podFetch(
+        projectId,
+        namespaceSlug,
+        projectSlug,
+        '/fs/mkdir?path=' + encodeURIComponent(path),
+        { method: 'POST' }
+      )
       if (!res.ok) throw new Error('Create folder failed: ' + res.status)
     } else {
-      const res = await podFetch(projectId, namespaceSlug, projectSlug, '/fs/write?path=' + encodeURIComponent(path), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: new Uint8Array(0),
-      })
+      const res = await podFetch(
+        projectId,
+        namespaceSlug,
+        projectSlug,
+        '/fs/write?path=' + encodeURIComponent(path),
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: new Uint8Array(0),
+        }
+      )
       if (!res.ok) throw new Error('Create file failed: ' + res.status)
     }
     await loadDirectory(currentPath)
@@ -154,9 +171,15 @@
   }
 
   async function handleDelete(path: string) {
-    const res = await podFetch(projectId, namespaceSlug, projectSlug, '/fs/delete?path=' + encodeURIComponent(path), {
-      method: 'DELETE',
-    })
+    const res = await podFetch(
+      projectId,
+      namespaceSlug,
+      projectSlug,
+      '/fs/delete?path=' + encodeURIComponent(path),
+      {
+        method: 'DELETE',
+      }
+    )
     if (!res.ok) throw new Error('Delete failed: ' + res.status)
     await loadDirectory(currentPath)
   }
@@ -170,7 +193,9 @@
         filename: file.name,
         progress: 0,
         error: null,
-        cancel: () => { cancelled = true },
+        cancel: () => {
+          cancelled = true
+        },
       }
       uploadItems = [...uploadItems, item]
       const dest = (targetPath.endsWith('/') ? targetPath : targetPath + '/') + file.name
@@ -189,14 +214,20 @@
         }
         const end = Math.min(offset + CHUNK_SIZE, total)
         const chunk = file.slice(offset, end)
-        const res = await podFetch(projectId, namespaceSlug, projectSlug, '/fs/upload?path=' + encodeURIComponent(destPath), {
-          method: 'POST',
-          headers: {
-            'Content-Range': `bytes ${offset}-${end - 1}/${total}`,
-            'Content-Type': 'application/octet-stream',
-          },
-          body: chunk,
-        })
+        const res = await podFetch(
+          projectId,
+          namespaceSlug,
+          projectSlug,
+          '/fs/upload?path=' + encodeURIComponent(destPath),
+          {
+            method: 'POST',
+            headers: {
+              'Content-Range': `bytes ${offset}-${end - 1}/${total}`,
+              'Content-Type': 'application/octet-stream',
+            },
+            body: chunk,
+          }
+        )
         if (!res.ok) throw new Error('Upload failed: ' + res.status)
         offset = end
         const progress = total === 0 ? 100 : Math.round((offset / total) * 100)
@@ -213,13 +244,11 @@
   }
 
   function updateUpload(id: string, patch: Partial<Pick<UploadItem, 'progress' | 'error'>>) {
-    uploadItems = uploadItems.map(item =>
-      item.id === id ? { ...item, ...patch } : item,
-    )
+    uploadItems = uploadItems.map((item) => (item.id === id ? { ...item, ...patch } : item))
   }
 
   function dismissUpload(id: string) {
-    uploadItems = uploadItems.filter(i => i.id !== id)
+    uploadItems = uploadItems.filter((i) => i.id !== id)
   }
 
   let hasActiveUploads = $derived(uploadItems.length > 0)
@@ -306,11 +335,7 @@
   onCreate={handleCreate}
 />
 
-<RenameDialog
-  bind:open={renameOpen}
-  currentPath={renamePath}
-  onRename={handleRename}
-/>
+<RenameDialog bind:open={renameOpen} currentPath={renamePath} onRename={handleRename} />
 
 <DeleteConfirmDialog
   bind:open={deleteOpen}
@@ -370,7 +395,9 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .file-browser-error {

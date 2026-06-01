@@ -1,6 +1,7 @@
 <script lang="ts">
   import FileTreeDirectory from './FileTreeDirectory.svelte'
   import FileTreeFile from './FileTreeFile.svelte'
+  import FileTreeNode from './FileTreeNode.svelte'
   import type { FileEntry } from './FileTreeFile.svelte'
   import { podFetch } from '$lib/pod-fetch'
 
@@ -37,9 +38,14 @@
     loadingChildren = true
     loadError = null
     try {
-      const res = await podFetch(projectId, namespaceSlug, projectSlug, '/fs?path=' + encodeURIComponent(path))
+      const res = await podFetch(
+        projectId,
+        namespaceSlug,
+        projectSlug,
+        '/fs?path=' + encodeURIComponent(path)
+      )
       if (!res.ok) throw new Error('Failed to load directory: ' + res.status)
-      const data = await res.json() as { entries: FileEntry[] }
+      const data = (await res.json()) as { entries: FileEntry[] }
       children = (data.entries ?? []).slice().sort((a, b) => {
         // Directories first, then alphabetical
         if (a.type !== b.type) return a.type === 'dir' ? -1 : 1
@@ -90,7 +96,7 @@
         </div>
       {:else}
         {#each children as child (child.name)}
-          <svelte:self
+          <FileTreeNode
             entry={child}
             depth={depth + 1}
             path={childPath(child)}

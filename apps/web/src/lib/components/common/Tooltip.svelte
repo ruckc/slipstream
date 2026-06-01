@@ -70,8 +70,12 @@
   }
 
   @keyframes tooltip-fade {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   .tooltip--top {

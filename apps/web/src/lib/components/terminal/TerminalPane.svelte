@@ -65,7 +65,8 @@
 
     terminal = new Terminal({
       theme: XTERM_THEME,
-      fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, 'Courier New', monospace",
+      fontFamily:
+        "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, 'Courier New', monospace",
       fontSize: 13,
       lineHeight: 1.3,
       cursorBlink: true,
@@ -84,10 +85,12 @@
 
     terminal.onData((data) => {
       if (!ws || ws.readyState !== WebSocket.OPEN) return
-      ws.send(JSON.stringify({
-        type: 'input',
-        data: btoa(unescape(encodeURIComponent(data))),
-      }))
+      ws.send(
+        JSON.stringify({
+          type: 'input',
+          data: btoa(unescape(encodeURIComponent(data))),
+        })
+      )
     })
 
     terminal.onResize(({ cols, rows }) => {
@@ -130,11 +133,13 @@
         // Send current terminal dimensions
         if (terminal && fitAddon) {
           fitAddon.fit()
-          ws.send(JSON.stringify({
-            type: 'resize',
-            cols: terminal.cols,
-            rows: terminal.rows,
-          }))
+          ws.send(
+            JSON.stringify({
+              type: 'resize',
+              cols: terminal.cols,
+              rows: terminal.rows,
+            })
+          )
         }
       }
 
@@ -142,7 +147,9 @@
         if (!terminal) return
         try {
           const msg = JSON.parse(
-            typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data as ArrayBuffer),
+            typeof event.data === 'string'
+              ? event.data
+              : new TextDecoder().decode(event.data as ArrayBuffer)
           ) as { type: string; seq?: number; data?: string; code?: number }
 
           if (msg.type === 'output' && msg.data) {
@@ -151,7 +158,9 @@
             terminal.write(decoded)
             if (msg.seq !== undefined) lastSeq = msg.seq
           } else if (msg.type === 'exit') {
-            terminal.write('\r\n\x1b[90m[Process exited with code ' + (msg.code ?? 0) + ']\x1b[0m\r\n')
+            terminal.write(
+              '\r\n\x1b[90m[Process exited with code ' + (msg.code ?? 0) + ']\x1b[0m\r\n'
+            )
           } else if (msg.type === 'error') {
             terminal.write('\r\n\x1b[31m[Error: ' + (msg.data ?? 'Unknown error') + ']\x1b[0m\r\n')
           }
@@ -174,7 +183,7 @@
         if (destroyed) return
         scheduleReconnect()
       }
-    } catch (err) {
+    } catch {
       if (!destroyed) scheduleReconnect()
     }
   }
@@ -216,12 +225,7 @@
 </script>
 
 <div class="terminal-pane" id="terminal-pane-{sessionId}">
-  <TerminalToolbar
-    {sessionLabel}
-    onClear={clearTerminal}
-    onRename={onRename}
-    onKill={killSession}
-  />
+  <TerminalToolbar {sessionLabel} onClear={clearTerminal} {onRename} onKill={killSession} />
   <div class="terminal-container">
     <div class="xterm-host" bind:this={terminalEl}></div>
     {#if statusMessage}

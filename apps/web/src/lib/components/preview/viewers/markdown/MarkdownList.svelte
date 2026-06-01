@@ -6,17 +6,14 @@
 </script>
 
 {#if token.ordered}
-  <ol
-    class="md-list md-list--ordered"
-    start={token.start || undefined}
-  >
-    {#each token.items as item}
+  <ol class="md-list md-list--ordered" start={token.start || undefined}>
+    {#each token.items as item, i (i)}
       <MarkdownListItem {item} />
     {/each}
   </ol>
 {:else}
   <ul class="md-list md-list--unordered">
-    {#each token.items as item}
+    {#each token.items as item, i (i)}
       <MarkdownListItem {item} />
     {/each}
   </ul>
@@ -37,7 +34,7 @@
     list-style: decimal;
   }
 
-  .md-list .md-list {
+  :global(.md-list .md-list) {
     margin: 0.25em 0;
   }
 </style>

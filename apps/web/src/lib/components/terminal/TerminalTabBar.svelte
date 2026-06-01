@@ -25,7 +25,7 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (!sessions.length) return
-    const idx = sessions.findIndex(s => s.id === activeSessionId)
+    const idx = sessions.findIndex((s) => s.id === activeSessionId)
     if (e.key === 'ArrowLeft' && idx > 0) {
       activeSessionId = sessions[idx - 1].id
     } else if (e.key === 'ArrowRight' && idx < sessions.length - 1) {
@@ -34,11 +34,11 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="tab-bar"
   role="tablist"
   aria-label="Terminal sessions"
+  tabindex="0"
   onkeydown={handleKeydown}
 >
   {#each sessions as session (session.id)}
@@ -86,7 +86,9 @@
     flex-shrink: 0;
     color: var(--color-text-muted);
     border-radius: 0;
-    transition: background var(--transition-fast), color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      color var(--transition-fast);
   }
 
   .new-session-btn:hover {

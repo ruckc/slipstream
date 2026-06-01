@@ -3,3 +3,65 @@ node = "lts"
 npm = "latest"
 pnpm = "latest"
 rust = "latest"
+go = "latest"
+
+[tasks."format:web"]
+description = "Format the web app with Prettier"
+dir = "apps/web"
+run = "pnpm format"
+
+[tasks."format:rust"]
+description = "Format the Rust agent with rustfmt"
+dir = "apps/agent"
+run = "cargo fmt"
+
+[tasks."format:go"]
+description = "Format the Go metrics-sidecar with gofmt"
+dir = "apps/metrics-sidecar"
+run = "gofmt -w ."
+
+[tasks.format]
+description = "Format all projects"
+depends = ["format:web", "format:rust", "format:go"]
+
+[tasks."lint:web"]
+description = "Format check and lint the web app"
+dir = "apps/web"
+run = [
+  "pnpm format:check",
+  "pnpm lint",
+]
+
+[tasks."typecheck:web"]
+description = "Type-check the web app with svelte-check"
+dir = "apps/web"
+run = "pnpm check"
+
+[tasks."lint:rust"]
+description = "Format check and clippy for the Rust agent"
+dir = "apps/agent"
+run = [
+  "cargo fmt --check",
+  "cargo clippy --all-targets --all-features -- -D warnings",
+]
+
+[tasks."lint:go"]
+description = "Format check and vet for the Go metrics-sidecar"
+dir = "apps/metrics-sidecar"
+run = """
+unformatted=$(gofmt -l .)
+if [ -n "$unformatted" ]; then
+  echo "Unformatted Go files:"
+  echo "$unformatted"
+  exit 1
+fi
+go vet ./...
+"""
+
+[tasks.lint]
+description = "Run all linters across all projects"
+depends = ["lint:web", "typecheck:web", "lint:rust", "lint:go"]
+
+[tasks."hooks:install"]
+description = "Configure git to use committed hooks in .githooks/"
+run = "git config core.hooksPath .githooks"

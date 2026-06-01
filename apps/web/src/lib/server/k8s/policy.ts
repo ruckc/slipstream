@@ -29,7 +29,7 @@ export async function createNetworkPolicy(k8sNamespace: string, projectId: strin
         policyTypes: ['Ingress', 'Egress'],
         ingress: [
           {
-            from: [
+            _from: [
               {
                 podSelector: {
                   matchLabels: {
@@ -47,12 +47,12 @@ export async function createNetworkPolicy(k8sNamespace: string, projectId: strin
               {
                 podSelector: {
                   matchLabels: {
-                    'app': 'slipstream-web',
+                    app: 'slipstream-web',
                   },
                 },
               },
             ],
-            ports: [{ protocol: 'TCP', port: 443 as any }],
+            ports: [{ protocol: 'TCP', port: 443 }],
           },
           // Allow to VictoriaMetrics on port 8428
           {
@@ -65,7 +65,7 @@ export async function createNetworkPolicy(k8sNamespace: string, projectId: strin
                 },
               },
             ],
-            ports: [{ protocol: 'TCP', port: 8428 as any }],
+            ports: [{ protocol: 'TCP', port: 8428 }],
           },
           // Allow external (non-RFC1918) traffic on ports 80 and 443
           // Achieved by allowing 0.0.0.0/0 and then blocking RFC1918 ranges via except
@@ -74,17 +74,13 @@ export async function createNetworkPolicy(k8sNamespace: string, projectId: strin
               {
                 ipBlock: {
                   cidr: '0.0.0.0/0',
-                  except: [
-                    '10.0.0.0/8',
-                    '172.16.0.0/12',
-                    '192.168.0.0/16',
-                  ],
+                  except: ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
                 },
               },
             ],
             ports: [
-              { protocol: 'TCP', port: 80 as any },
-              { protocol: 'TCP', port: 443 as any },
+              { protocol: 'TCP', port: 80 },
+              { protocol: 'TCP', port: 443 },
             ],
           },
           // Allow DNS to kube-dns
@@ -103,7 +99,7 @@ export async function createNetworkPolicy(k8sNamespace: string, projectId: strin
                 },
               },
             ],
-            ports: [{ protocol: 'UDP', port: 53 as any }],
+            ports: [{ protocol: 'UDP', port: 53 }],
           },
         ],
       },

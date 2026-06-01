@@ -13,7 +13,7 @@ export async function issueProjectToken(
   userId: string,
   projectId: string,
   permissions: string[],
-  ttlSeconds = 300,
+  ttlSeconds = 300
 ): Promise<{ token: string; expiresAt: number }> {
   const { privateKey, publicKeyJwk } = await getKeyPair()
   const now = Math.floor(Date.now() / 1000)

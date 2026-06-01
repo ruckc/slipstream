@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { enhance } from '$app/forms'
+  import { SvelteMap } from 'svelte/reactivity'
   import type { PageData, ActionData } from './$types'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
@@ -8,8 +10,8 @@
 
   let { data, form }: { data: PageData; form: ActionData } = $props()
 
-  let displayName = $state(data.project.displayName)
-  let idleTimeout = $state(String(data.project.idleTimeoutSeconds ?? ''))
+  let displayName = $state(untrack(() => data.project.displayName))
+  let idleTimeout = $state(untrack(() => String(data.project.idleTimeoutSeconds ?? '')))
   let updateLoading = $state(false)
 
   // Add user permission form
@@ -39,12 +41,17 @@
   }
 
   const grantGroups = $derived(() => {
-    const map = new Map<string, GrantGroup>()
+    const map = new SvelteMap<string, GrantGroup>()
     for (const g of data.grants) {
       const key = `${g.principalType}:${g.principalId}`
       const existing = map.get(key)
       if (existing) existing.permissions.push(g.permission)
-      else map.set(key, { principalType: g.principalType as 'user' | 'org', principalId: g.principalId, permissions: [g.permission] })
+      else
+        map.set(key, {
+          principalType: g.principalType as 'user' | 'org',
+          principalId: g.principalId,
+          permissions: [g.permission],
+        })
     }
     return Array.from(map.values())
   })
@@ -119,7 +126,7 @@
         <div class="grants-table">
           <div class="grants-header">
             <span>Principal</span>
-            {#each ALL_PERMS as perm}
+            {#each ALL_PERMS as perm (perm)}
               <span class="perm-col" title={PERM_LABELS[perm]}>{perm}</span>
             {/each}
             <span></span>
@@ -130,7 +137,7 @@
                 <Icon name={group.principalType === 'org' ? 'org' : 'user'} size={12} />
                 <span class="grants-row__id">{group.principalId}</span>
               </span>
-              {#each ALL_PERMS as perm}
+              {#each ALL_PERMS as perm (perm)}
                 <span class="perm-cell">
                   {#if group.permissions.includes(perm)}
                     <Icon name="check" size={12} />
@@ -180,7 +187,7 @@
           <div class="perm-checkboxes">
             <span class="perm-checkboxes__label">Permissions</span>
             <div class="perm-checkboxes__grid">
-              {#each ALL_PERMS as perm}
+              {#each ALL_PERMS as perm (perm)}
                 <label class="perm-checkbox">
                   <input
                     type="checkbox"
@@ -200,9 +207,7 @@
           {/if}
 
           <div class="form-actions">
-            <Button type="submit" variant="primary" loading={addUserLoading}>
-              Grant access
-            </Button>
+            <Button type="submit" variant="primary" loading={addUserLoading}>Grant access</Button>
           </div>
         </form>
       </div>
@@ -225,41 +230,32 @@
 </div>
 
 <!-- Delete modal -->
-{#if deleteModalOpen}
-  <Modal title="Delete project" onClose={() => (deleteModalOpen = false)}>
-    {#snippet children()}
-      <div class="delete-modal">
-        <p class="delete-modal__warning">
-          This will permanently delete <strong>{data.project.displayName}</strong> and all its
-          workspace data. This action cannot be undone.
-        </p>
-        <p class="delete-modal__confirm-label">
-          Type <code class="delete-modal__slug">{data.project.slug}</code> to confirm:
-        </p>
-        <input
-          class="delete-modal__input"
-          type="text"
-          bind:value={deleteConfirmText}
-          placeholder={data.project.slug}
-          autocomplete="off"
-        />
-        <div class="delete-modal__actions">
-          <Button variant="secondary" onclick={() => (deleteModalOpen = false)}>Cancel</Button>
-          <form method="POST" action="?/deleteProject">
-            <Button
-              type="submit"
-              variant="danger"
-              disabled={!canDelete}
-              loading={deleteLoading}
-            >
-              Delete project
-            </Button>
-          </form>
-        </div>
-      </div>
-    {/snippet}
-  </Modal>
-{/if}
+<Modal title="Delete project" bind:open={deleteModalOpen}>
+  <div class="delete-modal">
+    <p class="delete-modal__warning">
+      This will permanently delete <strong>{data.project.displayName}</strong> and all its workspace data.
+      This action cannot be undone.
+    </p>
+    <p class="delete-modal__confirm-label">
+      Type <code class="delete-modal__slug">{data.project.slug}</code> to confirm:
+    </p>
+    <input
+      class="delete-modal__input"
+      type="text"
+      bind:value={deleteConfirmText}
+      placeholder={data.project.slug}
+      autocomplete="off"
+    />
+    <div class="delete-modal__actions">
+      <Button variant="secondary" onclick={() => (deleteModalOpen = false)}>Cancel</Button>
+      <form method="POST" action="?/deleteProject">
+        <Button type="submit" variant="danger" disabled={!canDelete} loading={deleteLoading}>
+          Delete project
+        </Button>
+      </form>
+    </div>
+  </div>
+</Modal>
 
 <style>
   .settings-page {

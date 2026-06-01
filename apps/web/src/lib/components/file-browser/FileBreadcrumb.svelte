@@ -27,18 +27,14 @@
 </script>
 
 <nav class="breadcrumb" aria-label="File path">
-  {#each segments as segment, i}
+  {#each segments as segment, i (segment.path)}
     {#if i > 0}
       <span class="breadcrumb-sep" aria-hidden="true">/</span>
     {/if}
     {#if i === segments.length - 1}
       <span class="breadcrumb-current" aria-current="location">{segment.label}</span>
     {:else}
-      <button
-        class="breadcrumb-link"
-        onclick={() => onNavigate(segment.path)}
-        title={segment.path}
-      >
+      <button class="breadcrumb-link" onclick={() => onNavigate(segment.path)} title={segment.path}>
         {segment.label}
       </button>
     {/if}
@@ -71,7 +67,9 @@
     font-size: var(--font-size-sm);
     padding: 1px var(--space-1);
     border-radius: var(--radius-sm);
-    transition: color var(--transition-fast), background var(--transition-fast);
+    transition:
+      color var(--transition-fast),
+      background var(--transition-fast);
     max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;

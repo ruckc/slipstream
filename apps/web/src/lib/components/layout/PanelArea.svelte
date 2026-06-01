@@ -10,11 +10,7 @@
   } = $props()
 </script>
 
-<section
-  class="panel-area"
-  style="height: {height}px; min-height: {height}px;"
-  aria-label="Panel"
->
+<section class="panel-area" style="height: {height}px; min-height: {height}px;" aria-label="Panel">
   {@render children()}
 </section>
 

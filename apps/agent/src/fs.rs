@@ -31,9 +31,7 @@ fn safe_path(workspace: &Path, user_path: &str) -> Result<PathBuf, AppError> {
     let joined = workspace.join(trimmed);
 
     // Canonicalize to resolve symlinks/.. — but only if the path exists.
-    let canonical = joined
-        .canonicalize()
-        .unwrap_or_else(|_| joined.clone());
+    let canonical = joined.canonicalize().unwrap_or_else(|_| joined.clone());
 
     if !canonical.starts_with(workspace) {
         return Err(AppError::Forbidden("Path traversal not allowed".into()));
@@ -85,7 +83,11 @@ pub async fn list_dir(
 
     let mut entries = Vec::new();
 
-    while let Some(entry) = read_dir.next_entry().await.map_err(|e| AppError::Internal(e.into()))? {
+    while let Some(entry) = read_dir
+        .next_entry()
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?
+    {
         let metadata = match entry.metadata().await {
             Ok(m) => m,
             Err(e) => {
@@ -102,12 +104,13 @@ pub async fn list_dir(
             "file".to_string()
         };
 
-        let size = if metadata.is_file() { metadata.len() } else { 0 };
+        let size = if metadata.is_file() {
+            metadata.len()
+        } else {
+            0
+        };
 
-        let modified: DateTime<Utc> = metadata
-            .modified()
-            .map(|t| t.into())
-            .unwrap_or(Utc::now());
+        let modified: DateTime<Utc> = metadata.modified().map(|t| t.into()).unwrap_or(Utc::now());
 
         entries.push(DirEntry {
             name,
@@ -176,7 +179,9 @@ pub async fn download_file(
                 let end = if parts[1].is_empty() {
                     file_size.saturating_sub(1)
                 } else {
-                    parts[1].parse::<u64>().unwrap_or(file_size.saturating_sub(1))
+                    parts[1]
+                        .parse::<u64>()
+                        .unwrap_or(file_size.saturating_sub(1))
                 };
                 if start > end || end >= file_size {
                     return Err(AppError::BadRequest("Invalid Range header".to_string()));
@@ -262,10 +267,7 @@ pub async fn download_file(
             .parse()
             .unwrap(),
     );
-    response_headers.insert(
-        header::ACCEPT_RANGES,
-        "bytes".parse().unwrap(),
-    );
+    response_headers.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
 
     if is_range {
         response_headers.insert(
@@ -370,7 +372,9 @@ pub async fn upload_file(
             }
         }
 
-        return Err(AppError::BadRequest("Invalid Content-Range header".to_string()));
+        return Err(AppError::BadRequest(
+            "Invalid Content-Range header".to_string(),
+        ));
     }
 
     // No Content-Range → write entire file.
@@ -443,8 +447,5 @@ pub async fn create_dir(
         .map_err(|e| AppError::Internal(e.into()))?;
 
     info!("Created directory '{}'", params.path);
-    Ok((
-        StatusCode::CREATED,
-        Json(json!({"created": params.path})),
-    ))
+    Ok((StatusCode::CREATED, Json(json!({"created": params.path}))))
 }

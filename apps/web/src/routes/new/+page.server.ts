@@ -1,6 +1,6 @@
 import { redirect, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import { createProject, getProject } from '$lib/remote/project.remote'
+import { createProject } from '$lib/remote/project.remote'
 import { createOrganization } from '$lib/remote/organization.remote'
 import { getUserNamespace } from '$lib/remote/namespace.remote'
 import { db, organizations, orgMembers, namespaces } from '$lib/server/db'
@@ -42,12 +42,15 @@ export const actions: Actions = {
     if (!namespaceId) return fail(400, { createProject: true, error: 'Namespace is required' })
     if (!slug) return fail(400, { createProject: true, error: 'Project slug is required' })
     if (!/^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/.test(slug) && !/^[a-z0-9]$/.test(slug)) {
-      return fail(400, { createProject: true, error: 'Slug must be lowercase letters, numbers, and hyphens only' })
+      return fail(400, {
+        createProject: true,
+        error: 'Slug must be lowercase letters, numbers, and hyphens only',
+      })
     }
     if (!displayName) return fail(400, { createProject: true, error: 'Display name is required' })
 
     try {
-      const project = await createProject(locals.user.id, namespaceId, slug, displayName)
+      await createProject(locals.user.id, namespaceId, slug, displayName)
 
       // Look up namespace slug for redirect
       const ns = await db
@@ -74,7 +77,10 @@ export const actions: Actions = {
 
     if (!slug) return fail(400, { createOrg: true, error: 'Slug is required' })
     if (!/^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/.test(slug) && !/^[a-z0-9]$/.test(slug)) {
-      return fail(400, { createOrg: true, error: 'Slug must be lowercase letters, numbers, and hyphens only' })
+      return fail(400, {
+        createOrg: true,
+        error: 'Slug must be lowercase letters, numbers, and hyphens only',
+      })
     }
     if (!displayName) return fail(400, { createOrg: true, error: 'Display name is required' })
 

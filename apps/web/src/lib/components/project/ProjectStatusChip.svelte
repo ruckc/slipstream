@@ -14,12 +14,29 @@
   let busy = $state(false)
   let actionError = $state<string | null>(null)
 
-  const statusConfig: Record<string, { color: string; dot: string; label: string; pulse?: boolean }> = {
-    running:  { color: 'var(--color-success)',       dot: 'var(--color-success)',       label: 'Running' },
-    starting: { color: 'var(--color-warning)',       dot: 'var(--color-warning)',       label: 'Starting', pulse: true },
-    stopping: { color: 'var(--color-warning)',       dot: 'var(--color-warning)',       label: 'Stopping', pulse: true },
-    stopped:  { color: 'var(--color-text-muted)',    dot: 'var(--color-text-disabled)', label: 'Stopped' },
-    error:    { color: 'var(--color-danger)',        dot: 'var(--color-danger)',         label: 'Error' },
+  const statusConfig: Record<
+    string,
+    { color: string; dot: string; label: string; pulse?: boolean }
+  > = {
+    running: { color: 'var(--color-success)', dot: 'var(--color-success)', label: 'Running' },
+    starting: {
+      color: 'var(--color-warning)',
+      dot: 'var(--color-warning)',
+      label: 'Starting',
+      pulse: true,
+    },
+    stopping: {
+      color: 'var(--color-warning)',
+      dot: 'var(--color-warning)',
+      label: 'Stopping',
+      pulse: true,
+    },
+    stopped: {
+      color: 'var(--color-text-muted)',
+      dot: 'var(--color-text-disabled)',
+      label: 'Stopped',
+    },
+    error: { color: 'var(--color-danger)', dot: 'var(--color-danger)', label: 'Error' },
   }
 
   const cfg = $derived(statusConfig[status] ?? statusConfig.stopped)
@@ -74,7 +91,9 @@
       aria-label="Start project"
     >
       <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-        <path d="M3 2.5a.5.5 0 0 1 .763-.424l10 5.5a.5.5 0 0 1 0 .848l-10 5.5A.5.5 0 0 1 3 13.5v-11z"/>
+        <path
+          d="M3 2.5a.5.5 0 0 1 .763-.424l10 5.5a.5.5 0 0 1 0 .848l-10 5.5A.5.5 0 0 1 3 13.5v-11z"
+        />
       </svg>
     </button>
   {:else if onStop && canStop && !isBusy}
@@ -86,7 +105,7 @@
       aria-label="Stop project"
     >
       <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-        <path d="M3 3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H3z"/>
+        <path d="M3 3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H3z" />
       </svg>
     </button>
   {/if}
@@ -124,8 +143,15 @@
   }
 
   @keyframes dot-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.8); }
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: scale(0.8);
+    }
   }
 
   .status-label {
@@ -142,7 +168,9 @@
     border-radius: 50%;
     border: 1px solid currentColor;
     cursor: pointer;
-    transition: background var(--transition-fast), opacity var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      opacity var(--transition-fast);
     opacity: 0.7;
     margin-left: 2px;
   }

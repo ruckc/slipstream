@@ -4,7 +4,7 @@
   let objectUrl = $state('')
 
   $effect(() => {
-    const blob = new Blob([content])
+    const blob = new Blob([content.slice()])
     const url = URL.createObjectURL(blob)
     objectUrl = url
     return () => URL.revokeObjectURL(url)
@@ -13,12 +13,8 @@
 
 <div class="video-viewer">
   {#if objectUrl}
-    <video
-      src={objectUrl}
-      controls
-      class="video-element"
-      aria-label="Video file"
-    >
+    <video src={objectUrl} controls class="video-element" aria-label="Video file">
+      <track kind="captions" />
       Your browser does not support the video element.
     </video>
   {/if}

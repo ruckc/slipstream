@@ -32,21 +32,21 @@ export default [
   {
     rules: {
       // Allow unused vars prefixed with _ (common Svelte/TS pattern)
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       // Allow explicit any in server-side K8s / openid-client interop code
       '@typescript-eslint/no-explicit-any': 'warn',
       // Svelte stores use $ prefix which triggers this
       'no-undef': 'off',
+      // No base path configured — resolve() is not required
+      'svelte/no-navigation-without-resolve': 'off',
     },
   },
 
   // Ignored paths
   {
-    ignores: [
-      '.svelte-kit/**',
-      'build/**',
-      'drizzle/**',
-      'node_modules/**',
-    ],
+    ignores: ['.svelte-kit/**', 'build/**', 'drizzle/**', 'node_modules/**'],
   },
 ]

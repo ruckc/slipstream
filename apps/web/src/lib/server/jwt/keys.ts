@@ -38,14 +38,14 @@ async function initKeys(): Promise<KeyPair> {
       der,
       { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
       true,
-      ['sign'],
+      ['sign']
     )
 
     // Derive the public key via export/re-import trick — export as JWK, strip
     // private fields, then import as public key
     const privateJwk = await crypto.subtle.exportKey('jwk', importedPrivate)
     // Remove private key fields to get public JWK
-    const { d, p, q, dp, dq, qi, ...publicFields } = privateJwk
+    const { d: _d, p: _p, q: _q, dp: _dp, dq: _dq, qi: _qi, ...publicFields } = privateJwk
 
     const publicKeyJwk = {
       ...publicFields,

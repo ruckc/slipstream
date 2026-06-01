@@ -38,12 +38,20 @@
   <div class="app-shell-main">
     <!-- Sidebar -->
     {#if sidebarVisible}
-      <Sidebar bind:width={sidebarWidth} title={activityItems.find(i => i.id === activeActivityItem)?.label}>
+      <Sidebar
+        bind:width={sidebarWidth}
+        title={activityItems.find((i) => i.id === activeActivityItem)?.label}
+      >
         {#if sidebarContent}
           {@render sidebarContent()}
         {/if}
       </Sidebar>
-      <ResizableDivider direction="horizontal" bind:size={sidebarWidth} minSize={150} maxSize={600} />
+      <ResizableDivider
+        direction="horizontal"
+        bind:size={sidebarWidth}
+        minSize={150}
+        maxSize={600}
+      />
     {/if}
 
     <!-- Editor + Panel column -->
@@ -59,7 +67,13 @@
 
       <!-- Panel area -->
       {#if panelVisible}
-        <ResizableDivider direction="vertical" bind:size={panelHeight} minSize={80} maxSize={600} inverted={true} />
+        <ResizableDivider
+          direction="vertical"
+          bind:size={panelHeight}
+          minSize={80}
+          maxSize={600}
+          inverted={true}
+        />
         <PanelArea bind:height={panelHeight}>
           {#if panelContent}
             {@render panelContent()}

@@ -4,7 +4,11 @@ import { eq, and } from 'drizzle-orm'
 import type { RequestHandler } from './$types'
 import { db, users, namespaces, oidcConnections } from '$lib/server/db'
 import { handleCallback } from '$lib/server/auth/oidc'
-import { createSession, SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from '$lib/server/auth/session'
+import {
+  createSession,
+  SESSION_COOKIE_NAME,
+  SESSION_COOKIE_OPTIONS,
+} from '$lib/server/auth/session'
 import { getActiveProviders, type Provider } from '$lib/server/auth/providers'
 
 const LOGIN_ERROR_URL = '/auth/login?error=auth_failed'
@@ -84,7 +88,7 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
       redirectUri,
       url,
       oauthState.state,
-      oauthState.codeVerifier,
+      oauthState.codeVerifier
     )
   } catch (err) {
     console.error(`[auth/callback/${provider}] OIDC error:`, err)
@@ -102,10 +106,7 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
       .select()
       .from(oidcConnections)
       .where(
-        and(
-          eq(oidcConnections.provider, provider),
-          eq(oidcConnections.subject, profile.subject),
-        ),
+        and(eq(oidcConnections.provider, provider), eq(oidcConnections.subject, profile.subject))
       )
       .limit(1)
 

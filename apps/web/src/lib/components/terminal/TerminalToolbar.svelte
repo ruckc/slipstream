@@ -50,9 +50,16 @@
         maxlength={64}
       />
     {:else}
-      <span class="terminal-toolbar-label" ondblclick={startRename} title="Double-click to rename">
+      <button
+        class="terminal-toolbar-label"
+        ondblclick={startRename}
+        onclick={startRename}
+        title="Double-click to rename"
+        type="button"
+        aria-label="Rename session"
+      >
         {sessionLabel}
-      </span>
+      </button>
     {/if}
   </div>
   <div class="terminal-toolbar-right">

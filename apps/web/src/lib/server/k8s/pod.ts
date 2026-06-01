@@ -1,7 +1,7 @@
 import { getCoreV1Api } from './client'
+import type { V1Container } from '@kubernetes/client-node'
 
-const JWKS_URL =
-  'http://slipstream-web.slipstream-system.svc.cluster.local/api/jwks'
+const JWKS_URL = 'http://slipstream-web.slipstream-system.svc.cluster.local/api/jwks'
 
 function buildPodName(projectId: string): string {
   return `agent-${projectId}`.slice(0, 63)
@@ -11,7 +11,7 @@ export async function createPod(
   k8sNamespace: string,
   projectId: string,
   pvcName: string,
-  idleTimeoutSeconds: number,
+  idleTimeoutSeconds: number
 ): Promise<string> {
   const api = getCoreV1Api()
   const agentImage = process.env.AGENT_IMAGE
@@ -19,7 +19,7 @@ export async function createPod(
 
   const podName = buildPodName(projectId)
 
-  const containers: object[] = [
+  const containers: V1Container[] = [
     {
       name: 'agent',
       image: agentImage,
@@ -67,7 +67,7 @@ export async function createPod(
         namespace: k8sNamespace,
         labels: {
           'slipstream.io/project': projectId,
-          'app': `agent-${projectId}`,
+          app: `agent-${projectId}`,
         },
       },
       spec: {
@@ -78,7 +78,7 @@ export async function createPod(
           runAsUser: 1000,
           fsGroup: 1000,
         },
-        containers: containers as any,
+        containers,
         volumes: [
           {
             name: 'workspace',
@@ -102,7 +102,7 @@ export async function deletePod(k8sNamespace: string, podName: string): Promise<
 
 export async function getPodStatus(
   k8sNamespace: string,
-  podName: string,
+  podName: string
 ): Promise<'pending' | 'running' | 'succeeded' | 'failed' | 'unknown'> {
   const api = getCoreV1Api()
   try {

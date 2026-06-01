@@ -17,7 +17,9 @@
     required?: boolean
   } = $props()
 
-  const inputId = $derived(`input-${label.toLowerCase().replace(/\s+/g, '-')}-${Math.random().toString(36).slice(2, 7)}`)
+  const inputId = $derived(
+    `input-${label.toLowerCase().replace(/\s+/g, '-')}-${Math.random().toString(36).slice(2, 7)}`
+  )
 </script>
 
 <div class="input-field" class:input-field--error={!!error}>

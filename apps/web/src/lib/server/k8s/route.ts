@@ -16,7 +16,7 @@ export async function createRouteAndService(
   k8sNamespace: string,
   projectId: string,
   namespaceSlug: string,
-  projectSlug: string,
+  projectSlug: string
 ): Promise<{ routeName: string; serviceName: string }> {
   const coreApi = getCoreV1Api()
   const customApi = getCustomObjectsApi()
@@ -50,7 +50,7 @@ export async function createRouteAndService(
         ports: [
           {
             port: 8080,
-            targetPort: 8080 as any,
+            targetPort: 8080,
             protocol: 'TCP',
           },
         ],
@@ -124,7 +124,7 @@ export async function createRouteAndService(
 export async function deleteRouteAndService(
   k8sNamespace: string,
   rtName: string,
-  svcName: string,
+  svcName: string
 ): Promise<void> {
   const coreApi = getCoreV1Api()
   const customApi = getCustomObjectsApi()

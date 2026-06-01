@@ -4,7 +4,7 @@ import { error } from '@sveltejs/kit'
 
 export async function updateThemePreference(
   userId: string,
-  theme: 'system' | 'light' | 'dark',
+  theme: 'system' | 'light' | 'dark'
 ): Promise<void> {
   const result = await db
     .update(users)

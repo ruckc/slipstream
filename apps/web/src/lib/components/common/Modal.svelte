@@ -26,8 +26,8 @@
   function getFocusable(container: HTMLElement): HTMLElement[] {
     return Array.from(
       container.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      ),
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
     ).filter((el) => !el.closest('[aria-hidden="true"]'))
   }
 
@@ -71,7 +71,6 @@
 </script>
 
 {#if open}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     class="modal-backdrop"
     onclick={handleBackdropClick}
@@ -88,14 +87,11 @@
     >
       <div class="modal-header">
         <h2 id="modal-title" class="modal-title">{title}</h2>
-        <button
-          class="modal-close"
-          onclick={close}
-          aria-label="Close dialog"
-          type="button"
-        >
+        <button class="modal-close" onclick={close} aria-label="Close dialog" type="button">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-            <path d="M3.293 3.293a1 1 0 0 1 1.414 0L8 6.586l3.293-3.293a1 1 0 1 1 1.414 1.414L9.414 8l3.293 3.293a1 1 0 0 1-1.414 1.414L8 9.414l-3.293 3.293a1 1 0 0 1-1.414-1.414L6.586 8 3.293 4.707a1 1 0 0 1 0-1.414z"/>
+            <path
+              d="M3.293 3.293a1 1 0 0 1 1.414 0L8 6.586l3.293-3.293a1 1 0 1 1 1.414 1.414L9.414 8l3.293 3.293a1 1 0 0 1-1.414 1.414L8 9.414l-3.293 3.293a1 1 0 0 1-1.414-1.414L6.586 8 3.293 4.707a1 1 0 0 1 0-1.414z"
+            />
           </svg>
         </button>
       </div>
@@ -124,8 +120,12 @@
   }
 
   @keyframes backdrop-fade {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   .modal-dialog {
@@ -142,8 +142,14 @@
   }
 
   @keyframes dialog-slide {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .modal-header {
@@ -169,7 +175,9 @@
     height: 24px;
     border-radius: var(--radius-sm);
     color: var(--color-text-muted);
-    transition: background var(--transition-fast), color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      color var(--transition-fast);
   }
 
   .modal-close:hover {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { enhance } from '$app/forms'
   import type { PageData } from './$types'
   import AppShell from '$lib/components/layout/AppShell.svelte'
@@ -27,7 +28,7 @@
 
   let openFiles = $state<OpenFile[]>([])
   let activeFileId = $state<string | null>(null)
-  let projectStatus = $state(data.project.status)
+  let projectStatus = $state(untrack(() => data.project.status))
 
   const activeFile = $derived(openFiles.find((f) => f.id === activeFileId) ?? null)
 
@@ -36,7 +37,7 @@
       id: f.id,
       label: f.label,
       icon: 'file',
-    })),
+    }))
   )
 
   async function openFile(path: string) {
@@ -57,17 +58,15 @@
     try {
       const res = await fetch(
         `/env/${encodeURIComponent(data.namespace.slug)}/${encodeURIComponent(data.project.slug)}/fs/read?path=${encodeURIComponent(path)}`,
-        { credentials: 'same-origin' },
+        { credentials: 'same-origin' }
       )
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const buf = await res.arrayBuffer()
       openFiles = openFiles.map((f) =>
-        f.id === id ? { ...f, content: new Uint8Array(buf), loading: false } : f,
+        f.id === id ? { ...f, content: new Uint8Array(buf), loading: false } : f
       )
     } catch {
-      openFiles = openFiles.map((f) =>
-        f.id === id ? { ...f, loading: false } : f,
-      )
+      openFiles = openFiles.map((f) => (f.id === id ? { ...f, loading: false } : f))
     }
   }
 
@@ -83,9 +82,7 @@
 
   // Activity items for AppShell
   const activityItems = $derived([
-    ...(canReadFiles
-      ? [{ id: 'files', icon: 'files', label: 'Explorer', onClick: () => {} }]
-      : []),
+    ...(canReadFiles ? [{ id: 'files', icon: 'files', label: 'Explorer', onClick: () => {} }] : []),
     ...(canShell
       ? [{ id: 'terminal', icon: 'terminal', label: 'Terminal', onClick: () => {} }]
       : []),
@@ -126,11 +123,7 @@
   {#snippet editorContent()}
     <div class="editor-column">
       {#if editorTabs.length > 0}
-        <EditorTabBar
-          tabs={editorTabs}
-          bind:activeTab={activeFileId}
-          onClose={closeFile}
-        />
+        <EditorTabBar tabs={editorTabs} bind:activeTab={activeFileId} onClose={closeFile} />
       {/if}
 
       {#if activeFile}

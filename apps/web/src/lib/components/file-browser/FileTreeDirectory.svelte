@@ -28,7 +28,10 @@
   class:dir-row--selected={selected}
   style="padding-left: calc(var(--space-2) + {depth * 16}px)"
   onclick={onToggle}
-  oncontextmenu={(e) => { e.preventDefault(); onContextMenu(e, entry, path) }}
+  oncontextmenu={(e) => {
+    e.preventDefault()
+    onContextMenu(e, entry, path)
+  }}
   aria-expanded={expanded}
   title={path}
 >
@@ -96,7 +99,9 @@
   }
 
   @keyframes dir-spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .dir-icon {

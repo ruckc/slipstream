@@ -43,9 +43,7 @@
         <Icon name="project" size={48} />
       </div>
       <h2 class="empty-state__title">No projects yet</h2>
-      <p class="empty-state__body">
-        Create your first project to get a cloud dev environment.
-      </p>
+      <p class="empty-state__body">Create your first project to get a cloud dev environment.</p>
       <a href="/new" class="cta-btn cta-btn--primary">
         <Icon name="add" size={14} />
         Create your first project
@@ -54,10 +52,7 @@
   {:else}
     <div class="project-grid">
       {#each data.projects as project (project.id)}
-        <a
-          href="/{project.namespaceSlug}/{project.slug}"
-          class="project-card"
-        >
+        <a href="/{project.namespaceSlug}/{project.slug}" class="project-card">
           <div class="project-card__header">
             <Icon name="project" size={16} />
             <span class="project-card__slug">{project.namespaceSlug}/{project.slug}</span>

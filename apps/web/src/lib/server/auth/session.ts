@@ -16,15 +16,12 @@ const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30 // 30 days
 
 export async function createSession(userId: string): Promise<Session> {
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS)
-  const [session] = await db
-    .insert(sessions)
-    .values({ userId, expiresAt })
-    .returning()
+  const [session] = await db.insert(sessions).values({ userId, expiresAt }).returning()
   return session
 }
 
 export async function validateSession(
-  sessionId: string,
+  sessionId: string
 ): Promise<{ user: User; session: Session } | null> {
   const now = new Date()
 

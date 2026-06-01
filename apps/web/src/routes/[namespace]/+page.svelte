@@ -30,7 +30,8 @@
           {#if isOrg && data.orgData}
             <span class="ns-header__members">
               <Icon name="user" size={11} />
-              {data.orgData.memberCount} {data.orgData.memberCount === 1 ? 'member' : 'members'}
+              {data.orgData.memberCount}
+              {data.orgData.memberCount === 1 ? 'member' : 'members'}
             </span>
           {/if}
         </div>
@@ -66,10 +67,7 @@
   {:else}
     <div class="project-grid">
       {#each data.projects as project (project.id)}
-        <a
-          href="/{data.namespace.slug}/{project.slug}"
-          class="project-card"
-        >
+        <a href="/{data.namespace.slug}/{project.slug}" class="project-card">
           <div class="project-card__header">
             <Icon name="project" size={14} />
             <span class="project-card__slug">{project.slug}</span>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { enhance } from '$app/forms'
   import type { PageData, ActionData } from './$types'
   import Button from '$lib/components/common/Button.svelte'
@@ -13,13 +14,15 @@
   let inviteLoading = $state(false)
 
   let idleTimeout = $state(
-    isOrg
-      ? String(data.org?.idleTimeoutSeconds ?? '')
-      : String(data.user.idleTimeoutSeconds ?? ''),
+    untrack(() =>
+      isOrg
+        ? String(data.org?.idleTimeoutSeconds ?? '')
+        : String(data.user.idleTimeoutSeconds ?? '')
+    )
   )
   let idleLoading = $state(false)
 
-  let orgName = $state(isOrg ? (data.org?.displayName ?? '') : '')
+  let orgName = $state(untrack(() => (isOrg ? (data.org?.displayName ?? '') : '')))
   let orgNameLoading = $state(false)
 </script>
 
@@ -55,12 +58,7 @@
             }
           }}
         >
-          <Input
-            label="Display name"
-            name="displayName"
-            bind:value={orgName}
-            required
-          />
+          <Input label="Display name" name="displayName" bind:value={orgName} required />
           {#if form?.error && !form?.invite}
             <div class="form-error" role="alert">{form.error}</div>
           {/if}
@@ -78,8 +76,8 @@
     <section class="settings-section">
       <h2 class="section-title">Idle timeout</h2>
       <p class="section-desc">
-        Default idle timeout for projects in this namespace (seconds). Leave blank to use the
-        system default.
+        Default idle timeout for projects in this namespace (seconds). Leave blank to use the system
+        default.
       </p>
       <form
         method="POST"

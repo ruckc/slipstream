@@ -46,10 +46,10 @@ export async function resolvePermissions(user: User, projectId: string): Promise
     const orgRows = await db
       .select({ org: organizations, member: orgMembers })
       .from(organizations)
-      .innerJoin(orgMembers, and(
-        eq(orgMembers.orgId, organizations.id),
-        eq(orgMembers.userId, user.id),
-      ))
+      .innerJoin(
+        orgMembers,
+        and(eq(orgMembers.orgId, organizations.id), eq(orgMembers.userId, user.id))
+      )
       .where(eq(organizations.namespaceId, namespace.id))
       .limit(1)
 
@@ -69,8 +69,8 @@ export async function resolvePermissions(user: User, projectId: string): Promise
       and(
         eq(projectPermissions.projectId, projectId),
         eq(projectPermissions.principalType, 'user'),
-        eq(projectPermissions.principalId, user.id),
-      ),
+        eq(projectPermissions.principalId, user.id)
+      )
     )
 
   for (const g of userGrants) {
@@ -92,8 +92,8 @@ export async function resolvePermissions(user: User, projectId: string): Promise
         and(
           eq(projectPermissions.projectId, projectId),
           eq(projectPermissions.principalType, 'org'),
-          inArray(projectPermissions.principalId, orgIds),
-        ),
+          inArray(projectPermissions.principalId, orgIds)
+        )
       )
 
     for (const g of orgGrants) {
@@ -110,7 +110,7 @@ export async function resolvePermissions(user: User, projectId: string): Promise
 export async function hasPermission(
   user: User,
   projectId: string,
-  permission: Permission,
+  permission: Permission
 ): Promise<boolean> {
   const perms = await resolvePermissions(user, projectId)
   return perms.includes(permission)

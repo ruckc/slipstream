@@ -6,7 +6,7 @@
 </script>
 
 <div class="text-viewer">
-  <pre class="text-content" tabindex="0" aria-label="Text file content">{text}</pre>
+  <pre class="text-content" aria-label="Text file content">{text}</pre>
   <div class="text-meta">
     {lineCount} line{lineCount !== 1 ? 's' : ''}
   </div>

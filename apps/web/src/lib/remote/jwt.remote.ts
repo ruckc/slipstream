@@ -6,14 +6,10 @@ import { issueProjectToken } from '$lib/server/jwt/issue'
 
 export async function issueToken(
   userId: string,
-  projectId: string,
+  projectId: string
 ): Promise<{ token: string; expiresAt: number }> {
   // 1. Load project and verify it exists and is running
-  const projectRows = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1)
+  const projectRows = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1)
 
   if (projectRows.length === 0) {
     throw error(404, 'Project not found')
@@ -26,11 +22,7 @@ export async function issueToken(
   }
 
   // 2. Load user and resolve permissions
-  const userRows = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1)
+  const userRows = await db.select().from(users).where(eq(users.id, userId)).limit(1)
 
   if (userRows.length === 0) {
     throw error(403, 'Forbidden')

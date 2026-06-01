@@ -39,11 +39,7 @@
       <nav class="top-bar__nav">
         <a href="/settings" class="top-bar__link" aria-label="User settings">
           {#if data.user.avatarUrl}
-            <img
-              src={data.user.avatarUrl}
-              alt={data.user.displayName}
-              class="top-bar__avatar"
-            />
+            <img src={data.user.avatarUrl} alt={data.user.displayName} class="top-bar__avatar" />
           {:else}
             <span class="top-bar__avatar-placeholder">
               {data.user.displayName.charAt(0).toUpperCase()}

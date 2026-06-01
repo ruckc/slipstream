@@ -105,7 +105,9 @@
     height: 18px;
     border-radius: var(--radius-sm);
     color: var(--color-text-muted);
-    transition: background var(--transition-fast), color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      color var(--transition-fast);
   }
 
   .upload-item-cancel:hover {

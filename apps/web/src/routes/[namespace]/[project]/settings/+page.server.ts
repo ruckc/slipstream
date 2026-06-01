@@ -66,7 +66,10 @@ export const actions: Actions = {
     const data = await request.formData()
 
     // Parse grants: format is "grant[0][principalType]", "grant[0][principalId]", "grant[0][permissions][]"
-    const rawGrants: Record<string, { principalType: string; principalId: string; permissions: string[] }> = {}
+    const rawGrants: Record<
+      string,
+      { principalType: string; principalId: string; permissions: string[] }
+    > = {}
 
     for (const [key, value] of data.entries()) {
       const match = key.match(/^grant\[(\d+)]\[(\w+)]/)
@@ -124,22 +127,33 @@ export const actions: Actions = {
     const permissionsRaw = data.getAll('permissions').map(String) as Permission[]
 
     if (!email) return fail(400, { addUser: true, error: 'Email is required' })
-    if (permissionsRaw.length === 0) return fail(400, { addUser: true, error: 'Select at least one permission' })
+    if (permissionsRaw.length === 0)
+      return fail(400, { addUser: true, error: 'Select at least one permission' })
 
     // Look up user by email
     const userRows = await db.select().from(users).where(eq(users.email, email)).limit(1)
-    if (userRows.length === 0) return fail(404, { addUser: true, error: 'No user found with that email' })
+    if (userRows.length === 0)
+      return fail(404, { addUser: true, error: 'No user found with that email' })
 
     const existing = await getProjectPermissions(locals.user.id, project.id)
     const others = existing.filter(
-      (g) => !(g.principalType === 'user' && g.principalId === userRows[0].id),
+      (g) => !(g.principalType === 'user' && g.principalId === userRows[0].id)
     )
 
     await setProjectPermissions(locals.user.id, project.id, [
-      ...others.reduce<Array<{ principalType: 'user' | 'org'; principalId: string; permissions: Permission[] }>>((acc, g) => {
-        const found = acc.find((x) => x.principalType === g.principalType && x.principalId === g.principalId)
+      ...others.reduce<
+        Array<{ principalType: 'user' | 'org'; principalId: string; permissions: Permission[] }>
+      >((acc, g) => {
+        const found = acc.find(
+          (x) => x.principalType === g.principalType && x.principalId === g.principalId
+        )
         if (found) found.permissions.push(g.permission as Permission)
-        else acc.push({ principalType: g.principalType as 'user' | 'org', principalId: g.principalId, permissions: [g.permission as Permission] })
+        else
+          acc.push({
+            principalType: g.principalType as 'user' | 'org',
+            principalId: g.principalId,
+            permissions: [g.permission as Permission],
+          })
         return acc
       }, []),
       { principalType: 'user', principalId: userRows[0].id, permissions: permissionsRaw },

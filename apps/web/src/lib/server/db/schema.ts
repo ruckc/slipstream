@@ -59,7 +59,7 @@ export const oidcConnections = pgTable(
     email: text('email'),
     linkedAt: timestamp('linked_at').defaultNow(),
   },
-  (t) => [unique().on(t.provider, t.subject)],
+  (t) => [unique().on(t.provider, t.subject)]
 )
 
 export type OidcConnection = InferSelectModel<typeof oidcConnections>
@@ -112,7 +112,7 @@ export const orgMembers = pgTable(
     role: text('role').notNull(), // 'owner'|'member'
     joinedAt: timestamp('joined_at').defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.orgId, t.userId] })],
+  (t) => [primaryKey({ columns: [t.orgId, t.userId] })]
 )
 
 export type OrgMember = InferSelectModel<typeof orgMembers>
@@ -138,7 +138,7 @@ export const projects = pgTable(
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
   },
-  (t) => [unique().on(t.namespaceId, t.slug)],
+  (t) => [unique().on(t.namespaceId, t.slug)]
 )
 
 export type Project = InferSelectModel<typeof projects>
@@ -162,7 +162,7 @@ export const projectPermissions = pgTable(
       .notNull(),
     grantedAt: timestamp('granted_at').defaultNow(),
   },
-  (t) => [unique().on(t.projectId, t.principalType, t.principalId, t.permission)],
+  (t) => [unique().on(t.projectId, t.principalType, t.principalId, t.permission)]
 )
 
 export type ProjectPermission = InferSelectModel<typeof projectPermissions>

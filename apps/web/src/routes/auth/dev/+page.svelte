@@ -20,7 +20,7 @@
       </div>
     {:else}
       <div class="accounts">
-        {#each data.accounts as account}
+        {#each data.accounts as account (account.id)}
           <div class="account-card">
             <div class="account-info">
               <span class="account-name">{account.displayName}</span>

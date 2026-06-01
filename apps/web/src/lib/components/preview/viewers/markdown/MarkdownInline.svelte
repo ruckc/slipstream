@@ -1,42 +1,48 @@
 <script lang="ts">
-  import type { Token } from 'marked'
+  import type { Token, Tokens } from 'marked'
+  import MarkdownInline from './MarkdownInline.svelte'
 
   // MarkdownInline renders a list of inline tokens as DOM-safe Svelte elements.
   // Supported: text, strong, em, codespan, link, br, image (text fallback).
   // NO {@html} anywhere.
 
   let { tokens }: { tokens: Token[] } = $props()
+
+  // Marked narrows token.type checks to `SpecificType | Generic`. Generic has an index
+  // signature so TypeScript can't fully narrow the concrete type. This helper casts
+  // after the {#if} guard has already verified the type discriminant.
+  function tok<T extends Tokens.Generic>(t: Token): T {
+    return t as unknown as T
+  }
 </script>
 
-{#each tokens as token}
+{#each tokens as token, ti (ti)}
   {#if token.type === 'text'}
-    {token.text ?? ''}{#if (token as any).tokens?.length}<svelte:self tokens={(token as any).tokens} />{/if}
+    {tok<Tokens.Text>(token).text ?? ''}{#if tok<Tokens.Text>(token).tokens?.length}<MarkdownInline
+        tokens={tok<Tokens.Text>(token).tokens ?? []}
+      />{/if}
   {:else if token.type === 'strong'}
-    <strong><svelte:self tokens={(token as any).tokens ?? []} /></strong>
+    <strong><MarkdownInline tokens={tok<Tokens.Strong>(token).tokens} /></strong>
   {:else if token.type === 'em'}
-    <em><svelte:self tokens={(token as any).tokens ?? []} /></em>
+    <em><MarkdownInline tokens={tok<Tokens.Em>(token).tokens} /></em>
   {:else if token.type === 'codespan'}
-    <code class="inline-code">{(token as any).text}</code>
+    <code class="inline-code">{tok<Tokens.Codespan>(token).text}</code>
   {:else if token.type === 'link'}
-    <a
-      href={(token as any).href}
-      title={(token as any).title ?? undefined}
-      rel="noopener noreferrer"
-      target="_blank"
-    ><svelte:self tokens={(token as any).tokens ?? [{ type: 'text', text: (token as any).text, raw: (token as any).text }]} /></a>
+    {@const link = tok<Tokens.Link>(token)}
+    <a href={link.href} title={link.title ?? undefined} rel="noopener noreferrer" target="_blank"
+      ><MarkdownInline
+        tokens={link.tokens ?? [{ type: 'text', text: link.text, raw: link.text }]}
+      /></a
+    >
   {:else if token.type === 'image'}
-    <img
-      src={(token as any).href}
-      alt={(token as any).text}
-      title={(token as any).title ?? undefined}
-      class="md-image"
-    />
+    {@const img = tok<Tokens.Image>(token)}
+    <img src={img.href} alt={img.text} title={img.title ?? undefined} class="md-image" />
   {:else if token.type === 'br'}
     <br />
   {:else if token.type === 'del'}
-    <del><svelte:self tokens={(token as any).tokens ?? []} /></del>
+    <del><MarkdownInline tokens={tok<Tokens.Del>(token).tokens} /></del>
   {:else if token.type === 'escape'}
-    {(token as any).text}
+    {tok<Tokens.Escape>(token).text}
   {:else if token.type === 'html'}
     <!-- raw inline HTML intentionally dropped for security -->
   {/if}

@@ -68,13 +68,7 @@
 
 <Modal bind:open title="Rename">
   <form class="dialog-form" onsubmit={handleSubmit}>
-    <Input
-      label="New name"
-      bind:value={name}
-      error={error}
-      placeholder={currentName}
-      required
-    />
+    <Input label="New name" bind:value={name} {error} placeholder={currentName} required />
     <div class="dialog-actions">
       <Button variant="ghost" onclick={close}>Cancel</Button>
       <Button variant="primary" type="submit" {loading}>Rename</Button>

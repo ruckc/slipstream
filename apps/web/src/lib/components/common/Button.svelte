@@ -9,6 +9,7 @@
     onclick,
     children,
     type = 'button',
+    title,
   }: {
     variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
     size?: 'sm' | 'md'
@@ -17,6 +18,7 @@
     onclick?: () => void
     children: Snippet
     type?: 'button' | 'submit' | 'reset'
+    title?: string
   } = $props()
 </script>
 
@@ -24,7 +26,8 @@
   {type}
   class="btn btn--{variant} btn--{size}"
   disabled={disabled || loading}
-  onclick={onclick}
+  {onclick}
+  {title}
   aria-busy={loading}
 >
   {#if loading}
@@ -132,7 +135,9 @@
   }
 
   @keyframes btn-spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .btn-content--hidden {

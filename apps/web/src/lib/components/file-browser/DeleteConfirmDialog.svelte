@@ -38,6 +38,8 @@
       loading = false
     }
   }
+
+  const typeName = $derived(type === 'dir' ? 'Folder' : 'File')
 </script>
 
 <Modal bind:open title="Confirm Delete">
@@ -62,7 +64,7 @@
   <div class="dialog-actions">
     <Button variant="ghost" onclick={close} disabled={loading}>Cancel</Button>
     <Button variant="danger" onclick={handleDelete} {loading}>
-      Delete {type === 'dir' ? 'Folder' : 'File'}
+      Delete {typeName}
     </Button>
   </div>
 </Modal>

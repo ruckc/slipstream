@@ -1,23 +1,27 @@
 <script lang="ts">
-  import type { Tokens } from 'marked'
+  import type { Token, Tokens } from 'marked'
   import MarkdownInline from './MarkdownInline.svelte'
-  // MarkdownRenderer imported lazily via dynamic import to avoid circular dep issues
-  // We use a snippet-based approach instead
 
   let { item }: { item: Tokens.ListItem } = $props()
 
+  function tok<T extends Tokens.Generic>(t: Token): T {
+    return t as unknown as T
+  }
+
   // Separate block tokens (non-text/paragraph) from inline tokens
   let hasBlockContent = $derived(
-    (item.tokens ?? []).some(t => t.type !== 'text' && t.type !== 'paragraph' && t.type !== 'space'),
+    (item.tokens ?? []).some(
+      (t) => t.type !== 'text' && t.type !== 'paragraph' && t.type !== 'space'
+    )
   )
 
   // Inline-only tokens for tight lists
   let inlineTokens = $derived(
     item.tokens && item.tokens.length > 0 && item.tokens[0].type === 'text'
-      ? (item.tokens[0] as any).tokens ?? []
+      ? (tok<Tokens.Text>(item.tokens[0]).tokens ?? [])
       : item.tokens && item.tokens.length > 0 && item.tokens[0].type === 'paragraph'
-        ? (item.tokens[0] as any).tokens ?? []
-        : [],
+        ? (tok<Tokens.Paragraph>(item.tokens[0]).tokens ?? [])
+        : []
   )
 </script>
 
@@ -32,13 +36,13 @@
     />
   {/if}
   {#if hasBlockContent}
-    <!-- svelte-ignore avoid_inline_styles -->
     <div class="md-list-item-body">
-      {#each item.tokens ?? [] as subToken}
+      {#each item.tokens ?? [] as subToken, i (i)}
         {#if subToken.type === 'paragraph'}
-          <MarkdownInline tokens={(subToken as any).tokens ?? []} />
+          <MarkdownInline tokens={tok<Tokens.Paragraph>(subToken).tokens} />
         {:else if subToken.type === 'text'}
-          <MarkdownInline tokens={(subToken as any).tokens ?? [{ type: 'text', text: (subToken as any).text, raw: (subToken as any).raw }]} />
+          {@const t = tok<Tokens.Text>(subToken)}
+          <MarkdownInline tokens={t.tokens ?? [{ type: 'text', text: t.text, raw: t.raw }]} />
         {/if}
       {/each}
     </div>

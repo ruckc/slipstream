@@ -39,7 +39,7 @@
   let displayName = $derived(filename.split('/').pop() ?? 'file')
 
   function handleDownload() {
-    const blob = new Blob([content])
+    const blob = new Blob([content.slice()])
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -57,7 +57,9 @@
     </div>
     <button class="download-btn" onclick={handleDownload}>
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-        <path d="M8 1a.5.5 0 0 1 .5.5v6.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 .708-.708L7.5 8.293V1.5A.5.5 0 0 1 8 1zM2 13.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
+        <path
+          d="M8 1a.5.5 0 0 1 .5.5v6.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 .708-.708L7.5 8.293V1.5A.5.5 0 0 1 8 1zM2 13.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"
+        />
       </svg>
       Download
     </button>
@@ -65,18 +67,19 @@
   <div class="hex-dump" aria-label="Hex dump preview">
     <div class="hex-header" aria-hidden="true">
       <span class="hex-col-offset">Offset</span>
-      <span class="hex-col-hex">00 01 02 03 04 05 06 07  08 09 0a 0b 0c 0d 0e 0f</span>
+      <span class="hex-col-hex">00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f</span>
       <span class="hex-col-ascii">ASCII</span>
     </div>
-    {#each rows as row}
+    {#each rows as row (row.offset)}
       <div class="hex-row">
         <span class="hex-offset">{row.offsetHex}</span>
         <span class="hex-bytes">
-          {#each row.hex as byte, j}
+          {#each row.hex as byte, j (j)}
             <span class="hex-byte" class:hex-byte--gap={j === 8}>{byte}</span>
           {/each}
           {#each { length: BYTES_PER_ROW - row.hex.length } as _, j (j)}
-            <span class="hex-byte hex-byte--empty" class:hex-byte--gap={row.hex.length + j === 8}>  </span>
+            <span class="hex-byte hex-byte--empty" class:hex-byte--gap={row.hex.length + j === 8}>
+            </span>
           {/each}
         </span>
         <span class="hex-ascii">{row.ascii}</span>
@@ -92,7 +95,9 @@
     <p class="fallback-hint">This file type cannot be previewed directly.</p>
     <button class="download-btn download-btn--primary" onclick={handleDownload}>
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-        <path d="M8 1a.5.5 0 0 1 .5.5v6.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 .708-.708L7.5 8.293V1.5A.5.5 0 0 1 8 1zM2 13.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
+        <path
+          d="M8 1a.5.5 0 0 1 .5.5v6.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 .708-.708L7.5 8.293V1.5A.5.5 0 0 1 8 1zM2 13.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"
+        />
       </svg>
       Download {displayName}
     </button>
@@ -255,7 +260,9 @@
     border-radius: var(--radius-md);
     background: var(--color-bg-elevated);
     cursor: pointer;
-    transition: background var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      border-color var(--transition-fast);
     white-space: nowrap;
   }
 

@@ -44,7 +44,7 @@
 </script>
 
 <div class="theme-picker" role="group" aria-label="Color theme">
-  {#each options as opt}
+  {#each options as opt (opt.value)}
     <Tooltip text={opt.label} position="top" delay={300}>
       <button
         class="theme-btn"

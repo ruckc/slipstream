@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { enhance } from '$app/forms'
   import type { PageData, ActionData } from './$types'
   import Button from '$lib/components/common/Button.svelte'
@@ -8,11 +9,11 @@
 
   let { data, form }: { data: PageData; form: ActionData } = $props()
 
-  let displayName = $state(data.user.displayName)
-  let avatarUrl = $state(data.user.avatarUrl ?? '')
+  let displayName = $state(untrack(() => data.user.displayName))
+  let avatarUrl = $state(untrack(() => data.user.avatarUrl ?? ''))
   let profileLoading = $state(false)
 
-  let idleTimeout = $state(String(data.user.idleTimeoutSeconds ?? ''))
+  let idleTimeout = $state(untrack(() => String(data.user.idleTimeoutSeconds ?? '')))
   let timeoutLoading = $state(false)
 
   const PROVIDER_LABELS: Record<string, string> = {
@@ -134,9 +135,7 @@
     <!-- Linked accounts -->
     <section class="settings-section">
       <h2 class="section-title">Linked accounts</h2>
-      <p class="section-desc">
-        Sign-in providers linked to your account.
-      </p>
+      <p class="section-desc">Sign-in providers linked to your account.</p>
 
       {#if data.connections.length === 0}
         <p class="connections-empty">No linked providers.</p>
@@ -174,7 +173,7 @@
       <div class="link-providers">
         <p class="section-desc section-desc--small">Link another provider:</p>
         <div class="provider-links">
-          {#each ['google', 'microsoft', 'github'] as provider}
+          {#each ['google', 'microsoft', 'github'] as provider (provider)}
             {@const alreadyLinked = data.connections.some((c) => c.provider === provider)}
             <a
               href={alreadyLinked ? undefined : `/auth/login/${provider}`}

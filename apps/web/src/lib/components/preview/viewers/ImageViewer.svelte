@@ -13,7 +13,7 @@
   let naturalHeight = $state(0)
 
   $effect(() => {
-    const blob = new Blob([content])
+    const blob = new Blob([content.slice()])
     const url = URL.createObjectURL(blob)
     objectUrl = url
     // Reset pan/zoom when content changes
@@ -84,11 +84,25 @@
     />
   {/if}
   <div class="image-controls">
-    <button class="image-ctrl-btn" onclick={() => { scale = Math.min(10, scale * 1.2) }} aria-label="Zoom in">+</button>
+    <button
+      class="image-ctrl-btn"
+      onclick={() => {
+        scale = Math.min(10, scale * 1.2)
+      }}
+      aria-label="Zoom in">+</button
+    >
     <button class="image-ctrl-btn" onclick={resetView} aria-label="Reset view">1:1</button>
-    <button class="image-ctrl-btn" onclick={() => { scale = Math.max(0.1, scale / 1.2) }} aria-label="Zoom out">-</button>
+    <button
+      class="image-ctrl-btn"
+      onclick={() => {
+        scale = Math.max(0.1, scale / 1.2)
+      }}
+      aria-label="Zoom out">-</button
+    >
     {#if naturalWidth > 0}
-      <span class="image-info">{naturalWidth} x {naturalHeight} &bull; {Math.round(scale * 100)}%</span>
+      <span class="image-info"
+        >{naturalWidth} x {naturalHeight} &bull; {Math.round(scale * 100)}%</span
+      >
     {/if}
   </div>
 </div>

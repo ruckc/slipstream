@@ -6,7 +6,7 @@ import { error } from '@sveltejs/kit'
 export async function createOrganization(
   actorUserId: string,
   slug: string,
-  displayName: string,
+  displayName: string
 ): Promise<Organization> {
   // Validate slug availability
   const existing = await db
@@ -45,7 +45,7 @@ export async function createOrganization(
 }
 
 export async function getOrganization(
-  slug: string,
+  slug: string
 ): Promise<(Organization & { namespace: Namespace }) | null> {
   const rows = await db
     .select({ org: organizations, namespace: namespaces })
@@ -59,9 +59,7 @@ export async function getOrganization(
   return { ...rows[0].org, namespace: rows[0].namespace }
 }
 
-export async function listOrgMembers(
-  orgId: string,
-): Promise<Array<OrgMember & { user: User }>> {
+export async function listOrgMembers(orgId: string): Promise<Array<OrgMember & { user: User }>> {
   const rows = await db
     .select({ member: orgMembers, user: users })
     .from(orgMembers)
@@ -74,7 +72,7 @@ export async function listOrgMembers(
 export async function inviteMember(
   actorUserId: string,
   orgId: string,
-  email: string,
+  email: string
 ): Promise<OrgMember> {
   // Actor must be org owner
   await assertOrgOwner(actorUserId, orgId)
@@ -114,7 +112,7 @@ export async function inviteMember(
 export async function removeMember(
   actorUserId: string,
   orgId: string,
-  targetUserId: string,
+  targetUserId: string
 ): Promise<void> {
   // Actor must be org owner
   await assertOrgOwner(actorUserId, orgId)
@@ -140,7 +138,7 @@ export async function setMemberRole(
   actorUserId: string,
   orgId: string,
   targetUserId: string,
-  role: 'owner' | 'member',
+  role: 'owner' | 'member'
 ): Promise<void> {
   // Actor must be org owner
   await assertOrgOwner(actorUserId, orgId)

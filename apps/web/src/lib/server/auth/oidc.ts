@@ -30,13 +30,13 @@ export async function getClient(provider: Provider): Promise<Configuration> {
     config = await discovery(
       new URL('https://accounts.google.com'),
       getEnv('GOOGLE_CLIENT_ID'),
-      getEnv('GOOGLE_CLIENT_SECRET'),
+      getEnv('GOOGLE_CLIENT_SECRET')
     )
   } else if (provider === 'microsoft') {
     config = await discovery(
       new URL('https://login.microsoftonline.com/common/v2.0'),
       getEnv('MICROSOFT_CLIENT_ID'),
-      getEnv('MICROSOFT_CLIENT_SECRET'),
+      getEnv('MICROSOFT_CLIENT_SECRET')
     )
   } else if (provider === 'github') {
     // GitHub does not support OIDC discovery — configure manually
@@ -52,7 +52,7 @@ export async function getClient(provider: Provider): Promise<Configuration> {
       server,
       getEnv('GITHUB_CLIENT_ID'),
       { client_secret: getEnv('GITHUB_CLIENT_SECRET') },
-      ClientSecretPost(getEnv('GITHUB_CLIENT_SECRET')),
+      ClientSecretPost(getEnv('GITHUB_CLIENT_SECRET'))
     )
   } else {
     throw new Error(`Unknown provider: ${provider}`)
@@ -77,7 +77,7 @@ export async function generateAuthorizationUrl(
   provider: Provider,
   redirectUri: string,
   state: string,
-  codeVerifier: string,
+  codeVerifier: string
 ): Promise<string> {
   const config = await getClient(provider)
   const codeChallenge = await calculatePKCECodeChallenge(codeVerifier)
@@ -101,7 +101,7 @@ export async function handleCallback(
   redirectUri: string,
   currentUrl: URL,
   state: string,
-  codeVerifier: string,
+  codeVerifier: string
 ): Promise<{
   email: string
   name: string

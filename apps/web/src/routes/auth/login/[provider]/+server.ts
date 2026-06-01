@@ -27,17 +27,13 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
   const codeVerifier = generateCodeVerifier()
 
   // Store state + verifier in a short-lived cookie
-  cookies.set(
-    'oauth_state',
-    JSON.stringify({ state, codeVerifier, provider }),
-    {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: 60 * 10, // 10 minutes
-    },
-  )
+  cookies.set('oauth_state', JSON.stringify({ state, codeVerifier, provider }), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 10, // 10 minutes
+  })
 
   const redirectUri = `${url.origin}/auth/callback/${provider}`
   const authUrl = await generateAuthorizationUrl(provider, redirectUri, state, codeVerifier)

@@ -55,12 +55,16 @@
   <div class="code-error" role="alert">{error}</div>
 {:else}
   <div class="code-viewer-wrap">
-    <pre class="code-viewer"><code class="code-inner">{#each lines as line, i}<div class="line" data-line={i + 1}>{#each line as token}<span
-            style:color={token.color ?? undefined}
-            style:font-style={token.fontStyle === 1 ? 'italic' : undefined}
-            style:font-weight={token.fontStyle === 2 ? 'bold' : undefined}
-          >{token.content}</span>{/each}
-</div>{/each}</code></pre>
+    <pre class="code-viewer"><code class="code-inner"
+        >{#each lines as line, i (i)}<div
+            class="line"
+            data-line={i + 1}>{#each line as token, ti (ti)}<span
+                style:color={token.color ?? undefined}
+                style:font-style={token.fontStyle === 1 ? 'italic' : undefined}
+                style:font-weight={token.fontStyle === 2 ? 'bold' : undefined}>{token.content}</span
+              >{/each}
+</div>{/each}</code
+      ></pre>
     <div class="code-meta">
       {lineCount} line{lineCount !== 1 ? 's' : ''}
     </div>
@@ -87,7 +91,9 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .code-error {

@@ -91,7 +91,7 @@
 }
 
 /* Explicit dark theme */
-[data-theme="dark"] {
+[data-theme='dark'] {
   --color-bg-base: #1e1e1e;
   --color-bg-surface: #252526;
   --color-bg-elevated: #2d2d30;
@@ -138,7 +138,7 @@
 }
 
 /* Light theme — explicit attribute */
-[data-theme="light"] {
+[data-theme='light'] {
   --color-bg-base: #ffffff;
   --color-bg-surface: #f3f3f3;
   --color-bg-elevated: #ebebeb;

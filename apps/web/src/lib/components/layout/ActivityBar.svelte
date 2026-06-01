@@ -14,7 +14,7 @@
 
 <nav class="activity-bar" aria-label="Activity bar">
   <div class="activity-bar-top">
-    {#each items as item}
+    {#each items as item (item.id)}
       <ActivityBarItem
         icon={item.icon}
         label={item.label}

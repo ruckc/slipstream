@@ -1,7 +1,6 @@
 import 'dotenv/config'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { sql } from 'drizzle-orm'
 import * as schema from '../db/schema'
 import { DEV_ACCOUNTS } from './seed-accounts'
 
@@ -115,4 +114,6 @@ async function main() {
   console.log('Done.')
 }
 
-main().catch(console.error).finally(() => process.exit())
+main()
+  .catch(console.error)
+  .finally(() => process.exit())

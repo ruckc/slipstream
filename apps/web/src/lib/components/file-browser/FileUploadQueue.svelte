@@ -17,7 +17,7 @@
     onDismiss: (id: string) => void
   } = $props()
 
-  let activeCount = $derived(items.filter(i => i.progress < 100 && !i.error).length)
+  let activeCount = $derived(items.filter((i) => i.progress < 100 && !i.error).length)
 </script>
 
 <div class="upload-queue" aria-label="Upload queue">

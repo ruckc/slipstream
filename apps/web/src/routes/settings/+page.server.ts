@@ -80,11 +80,7 @@ export const actions: Actions = {
 
     if (!connectionId) return fail(400, { error: 'Connection ID is required' })
 
-    await db
-      .delete(oidcConnections)
-      .where(
-        eq(oidcConnections.id, connectionId),
-      )
+    await db.delete(oidcConnections).where(eq(oidcConnections.id, connectionId))
 
     return { unlink: true, success: true }
   },
