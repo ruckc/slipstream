@@ -1,0 +1,35 @@
+# Values used for helm lint and CI kind cluster schema validation.
+# Not for production use.
+#
+# database.url is intentionally omitted — DATABASE_URL is derived from
+# the in-chart postgresql config (password auto-generated at render time).
+
+gateway:
+  name: "slipstream"
+  namespace: "slipstream-system"
+  hostname: "slipstream.example.com"
+
+image:
+  web:
+    repository: ghcr.io/slipstream/slipstream-web
+    tag: "main"
+  agent:
+    repository: ghcr.io/slipstream/slipstream-agent
+    tag: "main"
+  metricsSidecar:
+    repository: ghcr.io/slipstream/slipstream-metrics-sidecar
+    tag: "main"
+
+web:
+  replicas: 1
+
+devMode:
+  enabled: true
+
+postgresql:
+  enabled: true
+  storage: 1Gi
+  storageClass: standard
+
+victoriametrics:
+  enabled: false

@@ -1,0 +1,36 @@
+Slipstream v{{ .Chart.AppVersion }} installed in namespace {{ .Release.Namespace }}.
+
+━━━ Post-install steps ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Run database migrations (first install only):
+
+   kubectl exec -n {{ .Release.Namespace }} \
+     $(kubectl get pod -n {{ .Release.Namespace }} \
+       -l app.kubernetes.io/component=web \
+       -o jsonpath='{.items[0].metadata.name}') \
+     -- node_modules/.bin/drizzle-kit migrate
+
+2. Confirm your Gateway API Gateway exists:
+   Name:      {{ .Values.gateway.name }}
+   Namespace: {{ .Values.gateway.namespace }}
+   Hostname:  {{ .Values.gateway.hostname }}
+{{- if .Values.devMode.enabled }}
+
+3. Seed development accounts:
+
+   kubectl exec -n {{ .Release.Namespace }} \
+     $(kubectl get pod -n {{ .Release.Namespace }} \
+       -l app.kubernetes.io/component=web \
+       -o jsonpath='{.items[0].metadata.name}') \
+     -- pnpm db:seed:dev
+
+   Dev login: {{ include "slipstream.appUrl" . }}/auth/dev
+
+━━━ WARNING: dev mode is enabled ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  /auth/dev is exposed — do not use in production.
+{{- end }}
+
+━━━ App URL ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  {{ include "slipstream.appUrl" . }}

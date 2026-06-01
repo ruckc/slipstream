@@ -1,0 +1,98 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  web:
+    # Replace OWNER with your GitHub username or org.
+    repository: ghcr.io/OWNER/slipstream-web
+    tag: ""           # defaults to chart appVersion
+    pullPolicy: IfNotPresent
+  agent:
+    repository: ghcr.io/OWNER/slipstream-agent
+    tag: ""
+    pullPolicy: IfNotPresent
+  metricsSidecar:
+    repository: ghcr.io/OWNER/slipstream-metrics-sidecar
+    tag: ""
+    pullPolicy: IfNotPresent
+
+web:
+  replicas: 2
+  # Full public URL of the app (for OIDC redirect URIs and SvelteKit ORIGIN).
+  # Defaults to https://{{ gateway.hostname }} when empty.
+  appUrl: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+database:
+  # Required when postgresql.enabled is false.
+  # Leave empty when postgresql.enabled is true — DATABASE_URL is derived automatically.
+  url: ""
+
+gateway:
+  name: ""        # required: Gateway resource name
+  namespace: ""   # required: Gateway resource namespace
+  hostname: ""    # required: public hostname served by the gateway
+
+auth:
+  # Auto-generated on first install and preserved across upgrades via secret lookup.
+  # Set explicitly if you need a known value (e.g. for multi-cluster setups).
+  sessionSecret: ""
+  # Optional base64-encoded PKCS8 PEM. Leave empty to use an ephemeral
+  # in-memory key — only suitable for single-replica deployments.
+  jwtPrivateKey: ""
+  google:
+    clientId: ""
+    clientSecret: ""
+  microsoft:
+    clientId: ""
+    clientSecret: ""
+  github:
+    clientId: ""
+    clientSecret: ""
+
+# When set, skip rendering the Secret and reference this existing Secret instead.
+# The Secret must expose all sensitive env vars (DATABASE_URL, SESSION_SECRET, etc.).
+existingSecret: ""
+
+devMode:
+  # Enables the /auth/dev login endpoint. Never set to true in production.
+  enabled: false
+
+victoriametrics:
+  enabled: true
+  namespace: metrics
+  storage: 20Gi
+  storageClass: standard
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+postgresql:
+  # Deploys a single-node PostgreSQL instance in the release namespace.
+  # Suitable for development and testing; use a managed database for production.
+  enabled: false
+  database: slipstream
+  user: slipstream
+  # Auto-generated on first install and preserved across upgrades.
+  # Set explicitly if external tools need a known credential.
+  password: ""
+  storage: 10Gi
+  storageClass: standard
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+agent:
+  storageClass: standard
+  idleTimeoutSeconds: 1800

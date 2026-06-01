@@ -58,9 +58,13 @@ fi
 go vet ./...
 """
 
+[tasks."lint:helm"]
+description = "Lint the Helm chart"
+run = "helm lint charts/slipstream -f charts/slipstream/ci/values.yaml"
+
 [tasks.lint]
 description = "Run all linters across all projects"
-depends = ["lint:web", "typecheck:web", "lint:rust", "lint:go"]
+depends = ["lint:web", "typecheck:web", "lint:rust", "lint:go", "lint:helm"]
 
 [tasks."hooks:install"]
 description = "Configure git to use committed hooks in .githooks/"

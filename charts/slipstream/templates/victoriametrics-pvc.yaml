@@ -1,0 +1,15 @@
+{{- if .Values.victoriametrics.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: victoriametrics-data
+  namespace: {{ .Values.victoriametrics.namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.victoriametrics.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.victoriametrics.storage }}
+{{- end }}

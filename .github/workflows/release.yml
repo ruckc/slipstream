@@ -12,7 +12,7 @@ on:
 
 permissions:
   contents: write   # commit version bump, create tags, create GitHub Release
-  packages: write   # push versioned images to GHCR
+  packages: write   # push versioned images and Helm chart to GHCR
 
 jobs:
   # ── Gate: only run from main ────────────────────────────────────────────────
@@ -82,11 +82,28 @@ jobs:
       - run: go build ./...
         working-directory: apps/metrics-sidecar
 
+  check-helm:
+    name: Helm — Lint · Template
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.17.0
+
+      - name: Lint
+        run: helm lint charts/slipstream
+
+      - name: Render with CI values
+        run: helm template slipstream charts/slipstream -f charts/slipstream/ci/values.yaml > /dev/null
+
   # ── Determine next version, update files, commit, push, tag ────────────────
   version-and-tag:
     name: Version & Tag
     runs-on: ubuntu-latest
-    needs: [check-web, check-rust, check-go]
+    needs: [check-web, check-rust, check-go, check-helm]
     outputs:
       version: ${{ steps.next.outputs.version }}
       tag:     ${{ steps.next.outputs.tag }}
@@ -208,11 +225,25 @@ jobs:
           open('apps/metrics-sidecar/version.go', 'w').write(content)
           PYEOF
 
+          # charts/slipstream/Chart.yaml — update both version and appVersion
+          python3 - << 'PYEOF'
+          import re, os
+          ver  = os.environ['VERSION']
+          path = 'charts/slipstream/Chart.yaml'
+          with open(path) as f:
+              content = f.read()
+          content = re.sub(r'^version:.*$', f'version: {ver}', content, flags=re.MULTILINE)
+          content = re.sub(r'^appVersion:.*$', f'appVersion: "{ver}"', content, flags=re.MULTILINE)
+          with open(path, 'w') as f:
+              f.write(content)
+          PYEOF
+
           echo ""
           echo "VERSION file:         $(cat VERSION)"
           echo "package.json:         $(node -p "require('./apps/web/package.json').version")"
           echo "Cargo.toml:           $(grep '^version' apps/agent/Cargo.toml | head -1)"
           echo "version.go:           $(cat apps/metrics-sidecar/version.go)"
+          echo "Chart.yaml:           $(grep '^version:' charts/slipstream/Chart.yaml)"
 
       # ── 5. Commit, tag, and push ─────────────────────────────────────────
       - name: Commit, tag, and push
@@ -226,7 +257,8 @@ jobs:
           git add VERSION \
                   apps/web/package.json \
                   apps/agent/Cargo.toml \
-                  apps/metrics-sidecar/version.go
+                  apps/metrics-sidecar/version.go \
+                  charts/slipstream/Chart.yaml
 
           git commit -m "chore: release ${TAG}"
           git tag -a "${TAG}" -m "Release ${TAG}"
@@ -293,16 +325,64 @@ jobs:
           cache-from: type=gha,scope=release-${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=release-${{ matrix.image.name }}
 
+  # ── Package and publish the Helm chart to GHCR OCI ─────────────────────────
+  publish-chart:
+    name: Publish Helm Chart
+    runs-on: ubuntu-latest
+    needs: version-and-tag
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ needs.version-and-tag.outputs.tag }}
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.17.0
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Package chart
+        env:
+          VERSION: ${{ needs.version-and-tag.outputs.version }}
+        run: |
+          mkdir -p /tmp/charts
+          helm package charts/slipstream \
+            --version "$VERSION" \
+            --app-version "$VERSION" \
+            --destination /tmp/charts
+
+      - name: Push to GHCR OCI registry
+        env:
+          VERSION: ${{ needs.version-and-tag.outputs.version }}
+        run: |
+          helm push /tmp/charts/slipstream-${VERSION}.tgz \
+            oci://ghcr.io/${{ github.repository_owner }}/charts
+
+      - name: Upload chart as artifact
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: helm-chart
+          path: /tmp/charts/slipstream-*.tgz
+
   # ── Create GitHub Release with auto-generated notes ─────────────────────────
   github-release:
     name: GitHub Release
     runs-on: ubuntu-latest
-    needs: [version-and-tag, build-and-push]
+    needs: [version-and-tag, build-and-push, publish-chart]
     steps:
       - uses: actions/checkout@v6.0.2
         with:
           ref: ${{ needs.version-and-tag.outputs.tag }}
           fetch-depth: 0
+
+      - name: Download chart artifact
+        uses: actions/download-artifact@v4.3.0
+        with:
+          name: helm-chart
+          path: /tmp/charts
 
       - name: Create release
         uses: softprops/action-gh-release@v3.0.0
@@ -311,10 +391,26 @@ jobs:
           name: ${{ needs.version-and-tag.outputs.tag }}
           generate_release_notes: true
           make_latest: true
+          files: /tmp/charts/slipstream-*.tgz
           append_body: true
           body: |
 
             ---
+
+            ## Helm Chart
+
+            ```bash
+            helm install slipstream \
+              oci://ghcr.io/${{ github.repository_owner }}/charts/slipstream \
+              --version ${{ needs.version-and-tag.outputs.version }} \
+              --namespace slipstream-system \
+              --create-namespace \
+              --set database.url=postgresql://... \
+              --set auth.sessionSecret=... \
+              --set gateway.name=... \
+              --set gateway.namespace=... \
+              --set gateway.hostname=...
+            ```
 
             ## Container Images
 

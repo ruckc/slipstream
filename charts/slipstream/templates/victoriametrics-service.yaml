@@ -1,0 +1,18 @@
+{{- if .Values.victoriametrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: victoriametrics
+  namespace: {{ .Values.victoriametrics.namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: victoriametrics
+  ports:
+    - name: http
+      port: 8428
+      targetPort: 8428
+      protocol: TCP
+{{- end }}

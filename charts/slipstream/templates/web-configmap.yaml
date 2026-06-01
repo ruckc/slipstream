@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slipstream-web-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+data:
+  APP_URL: {{ include "slipstream.appUrl" . | quote }}
+  ORIGIN: {{ include "slipstream.appUrl" . | quote }}
+  DEFAULT_IDLE_TIMEOUT_SECONDS: {{ .Values.agent.idleTimeoutSeconds | quote }}
+  AGENT_IMAGE: {{ include "slipstream.agentImage" . | quote }}
+  AGENT_STORAGE_CLASS: {{ .Values.agent.storageClass | quote }}
+  GATEWAY_NAME: {{ .Values.gateway.name | quote }}
+  GATEWAY_NAMESPACE: {{ .Values.gateway.namespace | quote }}
+  GATEWAY_HOSTNAME: {{ .Values.gateway.hostname | quote }}
+  {{- if .Values.victoriametrics.enabled }}
+  METRICS_SIDECAR_IMAGE: {{ include "slipstream.metricsSidecarImage" . | quote }}
+  METRICS_PUSH_URL: {{ include "slipstream.metricsPushUrl" . | quote }}
+  {{- end }}
+  {{- if .Values.devMode.enabled }}
+  DEV_MODE: "true"
+  {{- end }}

@@ -1,0 +1,93 @@
+{{/*
+Expand the name of the chart.
+*/}}
+{{- define "slipstream.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Create a default fully qualified app name.
+*/}}
+{{- define "slipstream.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Common labels applied to all managed resources.
+*/}}
+{{- define "slipstream.labels" -}}
+helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | quote }}
+{{ include "slipstream.selectorLabels" . }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Selector labels for the web deployment.
+*/}}
+{{- define "slipstream.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "slipstream.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Full image reference for the web container.
+*/}}
+{{- define "slipstream.webImage" -}}
+{{- printf "%s:%s" .Values.image.web.repository (.Values.image.web.tag | default .Chart.AppVersion) }}
+{{- end }}
+
+{{/*
+Full image reference for the agent container.
+Written into the ConfigMap so the web app can reference it when launching project pods.
+*/}}
+{{- define "slipstream.agentImage" -}}
+{{- printf "%s:%s" .Values.image.agent.repository (.Values.image.agent.tag | default .Chart.AppVersion) }}
+{{- end }}
+
+{{/*
+Full image reference for the metrics sidecar container.
+Written into the ConfigMap so the web app can reference it when launching project pods.
+*/}}
+{{- define "slipstream.metricsSidecarImage" -}}
+{{- printf "%s:%s" .Values.image.metricsSidecar.repository (.Values.image.metricsSidecar.tag | default .Chart.AppVersion) }}
+{{- end }}
+
+{{/*
+VictoriaMetrics remote-write URL (in-cluster).
+*/}}
+{{- define "slipstream.metricsPushUrl" -}}
+{{- printf "http://victoriametrics.%s.svc.cluster.local:8428/api/v1/import/prometheus" .Values.victoriametrics.namespace }}
+{{- end }}
+
+{{/*
+Public app URL — used for APP_URL and SvelteKit ORIGIN.
+Derived from gateway.hostname when web.appUrl is not set.
+*/}}
+{{- define "slipstream.appUrl" -}}
+{{- if .Values.web.appUrl -}}
+{{- .Values.web.appUrl -}}
+{{- else -}}
+{{- printf "https://%s" .Values.gateway.hostname -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Secret name: either existingSecret or the chart-managed secret.
+*/}}
+{{- define "slipstream.secretName" -}}
+{{- if .Values.existingSecret -}}
+{{- .Values.existingSecret -}}
+{{- else -}}
+slipstream-web-secret
+{{- end }}
+{{- end }}

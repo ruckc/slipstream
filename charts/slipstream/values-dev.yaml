@@ -1,0 +1,36 @@
+# Non-production dev mode overlay.
+#
+# Install with:
+#   helm install slipstream ./charts/slipstream \
+#     -f charts/slipstream/values-dev.yaml \
+#     --set gateway.name=slipstream \
+#     --set gateway.namespace=slipstream-system \
+#     --set gateway.hostname=localhost \
+#     --namespace slipstream-system \
+#     --create-namespace
+#
+# PostgreSQL is enabled by default in dev — database.url and auth.sessionSecret
+# are auto-generated and stored in the release Secret.
+
+devMode:
+  enabled: true
+
+web:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+agent:
+  idleTimeoutSeconds: 300
+
+postgresql:
+  enabled: true
+  storage: 2Gi
+
+# Disable monitoring in dev to avoid needing a second namespace and PVC.
+victoriametrics:
+  enabled: false
