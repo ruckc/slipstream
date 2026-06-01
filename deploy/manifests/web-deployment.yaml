@@ -1,0 +1,99 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: slipstream-system
+  labels:
+    kubernetes.io/metadata.name: slipstream-system
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slipstream-web-config
+  namespace: slipstream-system
+data:
+  DATABASE_URL: "postgresql://slipstream:password@postgres.slipstream-system.svc.cluster.local:5432/slipstream"
+  DEFAULT_IDLE_TIMEOUT_SECONDS: "1800"
+  ORIGIN: "https://{{GATEWAY_HOSTNAME}}"
+  AGENT_IMAGE: "{{AGENT_IMAGE}}"
+  METRICS_SIDECAR_IMAGE: "{{METRICS_SIDECAR_IMAGE}}"
+  STORAGE_CLASS: "standard"
+  GATEWAY_NAME: "slipstream-gateway"
+  GATEWAY_NAMESPACE: "slipstream-system"
+  GATEWAY_HOSTNAME: "{{GATEWAY_HOSTNAME}}"
+
+---
+# Secret values — populate via sealed-secrets or an external secret manager.
+# Do NOT commit actual values to source control.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: slipstream-web-secret
+  namespace: slipstream-system
+type: Opaque
+stringData:
+  SESSION_SECRET: "CHANGE_ME"
+  JWT_PRIVATE_KEY_PEM: "CHANGE_ME"
+  OIDC_GOOGLE_CLIENT_ID: ""
+  OIDC_GOOGLE_CLIENT_SECRET: ""
+  OIDC_MICROSOFT_CLIENT_ID: ""
+  OIDC_MICROSOFT_CLIENT_SECRET: ""
+  OIDC_GITHUB_CLIENT_ID: ""
+  OIDC_GITHUB_CLIENT_SECRET: ""
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slipstream-web
+  namespace: slipstream-system
+  labels:
+    app: slipstream-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: slipstream-web
+  template:
+    metadata:
+      labels:
+        app: slipstream-web
+    spec:
+      serviceAccountName: slipstream-web
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: web
+          image: {{WEB_IMAGE}}
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: slipstream-web-config
+            - secretRef:
+                name: slipstream-web-secret
+          readinessProbe:
+            httpGet:
+              path: /api/jwks
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/jwks
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-{{PROJECT_ID}}
+  namespace: {{K8S_NAMESPACE}}
+  labels:
+    slipstream.io/project: {{PROJECT_ID}}
+spec:
+  type: ClusterIP
+  selector:
+    slipstream.io/project: {{PROJECT_ID}}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

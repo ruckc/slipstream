@@ -1,0 +1,99 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: metrics
+  labels:
+    kubernetes.io/metadata.name: metrics
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: victoriametrics-data
+  namespace: metrics
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 20Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: victoriametrics
+  namespace: metrics
+  labels:
+    app: victoriametrics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: victoriametrics
+  template:
+    metadata:
+      labels:
+        app: victoriametrics
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: victoriametrics
+          image: victoriametrics/victoria-metrics:latest
+          args:
+            - -storageDataPath=/storage
+            - -retentionPeriod=3
+            - -httpListenAddr=:8428
+          ports:
+            - containerPort: 8428
+              name: http
+          volumeMounts:
+            - name: data
+              mountPath: /storage
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8428
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8428
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: victoriametrics-data
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: victoriametrics
+  namespace: metrics
+  labels:
+    app: victoriametrics
+spec:
+  type: ClusterIP
+  selector:
+    app: victoriametrics
+  ports:
+    - name: http
+      port: 8428
+      targetPort: 8428
+      protocol: TCP

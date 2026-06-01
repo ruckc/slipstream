@@ -1,0 +1,235 @@
+/* Slipstream Design Tokens — VS Code Dark Modern inspired */
+
+:root {
+  /* Backgrounds */
+  --color-bg-base: #1e1e1e;
+  --color-bg-surface: #252526;
+  --color-bg-elevated: #2d2d30;
+  --color-bg-input: #3c3c3c;
+  --color-bg-hover: rgba(255, 255, 255, 0.07);
+  --color-bg-active: rgba(255, 255, 255, 0.12);
+  --color-bg-selection: #264f78;
+
+  /* Borders */
+  --color-border: #3c3c3c;
+  --color-border-subtle: #2d2d2d;
+  --color-border-focus: #0078d4;
+
+  /* Text */
+  --color-text-primary: #cccccc;
+  --color-text-muted: #858585;
+  --color-text-disabled: #5a5a5a;
+  --color-text-link: #4ec9b0;
+
+  /* Accent */
+  --color-accent: #0078d4;
+  --color-accent-hover: #1084da;
+  --color-accent-text: #ffffff;
+
+  /* Semantic */
+  --color-danger: #f14c4c;
+  --color-danger-hover: #f44444;
+  --color-success: #4ec994;
+  --color-warning: #cca700;
+
+  /* Activity bar */
+  --color-activitybar-bg: #333333;
+  --color-activitybar-fg: #858585;
+  --color-activitybar-active-fg: #ffffff;
+  --color-activitybar-active-border: #0078d4;
+
+  /* Status bar */
+  --color-statusbar-bg: #0078d4;
+  --color-statusbar-fg: #ffffff;
+
+  /* Tab bar */
+  --color-tab-bg: #2d2d2d;
+  --color-tab-active-bg: #1e1e1e;
+  --color-tab-active-border: #0078d4;
+  --color-tab-fg: #858585;
+  --color-tab-active-fg: #cccccc;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, 'Courier New', monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+
+  /* Radius */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  /* Shiki syntax tokens */
+  --shiki-color-text: #d4d4d4;
+  --shiki-color-background: transparent;
+  --shiki-token-constant: #9cdcfe;
+  --shiki-token-string: #ce9178;
+  --shiki-token-comment: #6a9955;
+  --shiki-token-keyword: #569cd6;
+  --shiki-token-parameter: #9cdcfe;
+  --shiki-token-function: #dcdcaa;
+  --shiki-token-string-expression: #ce9178;
+  --shiki-token-punctuation: #d4d4d4;
+  --shiki-token-link: #3794ff;
+
+  /* Transitions */
+  --transition-fast: 100ms ease;
+  --transition-base: 150ms ease;
+}
+
+/* Explicit dark theme */
+[data-theme="dark"] {
+  --color-bg-base: #1e1e1e;
+  --color-bg-surface: #252526;
+  --color-bg-elevated: #2d2d30;
+  --color-bg-input: #3c3c3c;
+  --color-bg-hover: rgba(255, 255, 255, 0.07);
+  --color-bg-active: rgba(255, 255, 255, 0.12);
+  --color-bg-selection: #264f78;
+  --color-border: #3c3c3c;
+  --color-border-subtle: #2d2d2d;
+  --color-border-focus: #0078d4;
+  --color-text-primary: #cccccc;
+  --color-text-muted: #858585;
+  --color-text-disabled: #5a5a5a;
+  --color-text-link: #4ec9b0;
+  --color-accent: #0078d4;
+  --color-accent-hover: #1084da;
+  --color-accent-text: #ffffff;
+  --color-danger: #f14c4c;
+  --color-danger-hover: #f44444;
+  --color-success: #4ec994;
+  --color-warning: #cca700;
+  --color-activitybar-bg: #333333;
+  --color-activitybar-fg: #858585;
+  --color-activitybar-active-fg: #ffffff;
+  --color-activitybar-active-border: #0078d4;
+  --color-statusbar-bg: #0078d4;
+  --color-statusbar-fg: #ffffff;
+  --color-tab-bg: #2d2d2d;
+  --color-tab-active-bg: #1e1e1e;
+  --color-tab-active-border: #0078d4;
+  --color-tab-fg: #858585;
+  --color-tab-active-fg: #cccccc;
+  --shiki-color-text: #d4d4d4;
+  --shiki-color-background: transparent;
+  --shiki-token-constant: #9cdcfe;
+  --shiki-token-string: #ce9178;
+  --shiki-token-comment: #6a9955;
+  --shiki-token-keyword: #569cd6;
+  --shiki-token-parameter: #9cdcfe;
+  --shiki-token-function: #dcdcaa;
+  --shiki-token-string-expression: #ce9178;
+  --shiki-token-punctuation: #d4d4d4;
+  --shiki-token-link: #3794ff;
+}
+
+/* Light theme — explicit attribute */
+[data-theme="light"] {
+  --color-bg-base: #ffffff;
+  --color-bg-surface: #f3f3f3;
+  --color-bg-elevated: #ebebeb;
+  --color-bg-input: #ffffff;
+  --color-bg-hover: rgba(0, 0, 0, 0.05);
+  --color-bg-active: rgba(0, 0, 0, 0.1);
+  --color-bg-selection: #add6ff;
+  --color-border: #e0e0e0;
+  --color-border-subtle: #ebebeb;
+  --color-border-focus: #0078d4;
+  --color-text-primary: #1f1f1f;
+  --color-text-muted: #6e6e6e;
+  --color-text-disabled: #aaaaaa;
+  --color-text-link: #0078d4;
+  --color-accent: #0078d4;
+  --color-accent-hover: #1084da;
+  --color-accent-text: #ffffff;
+  --color-danger: #c72e2e;
+  --color-danger-hover: #d93232;
+  --color-success: #2e8a5c;
+  --color-warning: #9a7800;
+  /* Activity bar stays dark in light mode, like VS Code */
+  --color-activitybar-bg: #2c2c2c;
+  --color-activitybar-fg: #858585;
+  --color-activitybar-active-fg: #ffffff;
+  --color-activitybar-active-border: #0078d4;
+  --color-statusbar-bg: #0078d4;
+  --color-statusbar-fg: #ffffff;
+  --color-tab-bg: #ececec;
+  --color-tab-active-bg: #ffffff;
+  --color-tab-active-border: #0078d4;
+  --color-tab-fg: #6e6e6e;
+  --color-tab-active-fg: #1f1f1f;
+  --shiki-color-text: #1f1f1f;
+  --shiki-color-background: transparent;
+  --shiki-token-constant: #001080;
+  --shiki-token-string: #a31515;
+  --shiki-token-comment: #008000;
+  --shiki-token-keyword: #0000ff;
+  --shiki-token-parameter: #001080;
+  --shiki-token-function: #795e26;
+  --shiki-token-string-expression: #a31515;
+  --shiki-token-punctuation: #1f1f1f;
+  --shiki-token-link: #0000ff;
+}
+
+/* Light theme — system preference (only when no explicit data-theme is set) */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --color-bg-base: #ffffff;
+    --color-bg-surface: #f3f3f3;
+    --color-bg-elevated: #ebebeb;
+    --color-bg-input: #ffffff;
+    --color-bg-hover: rgba(0, 0, 0, 0.05);
+    --color-bg-active: rgba(0, 0, 0, 0.1);
+    --color-bg-selection: #add6ff;
+    --color-border: #e0e0e0;
+    --color-border-subtle: #ebebeb;
+    --color-border-focus: #0078d4;
+    --color-text-primary: #1f1f1f;
+    --color-text-muted: #6e6e6e;
+    --color-text-disabled: #aaaaaa;
+    --color-text-link: #0078d4;
+    --color-accent: #0078d4;
+    --color-accent-hover: #1084da;
+    --color-accent-text: #ffffff;
+    --color-danger: #c72e2e;
+    --color-danger-hover: #d93232;
+    --color-success: #2e8a5c;
+    --color-warning: #9a7800;
+    --color-activitybar-bg: #2c2c2c;
+    --color-activitybar-fg: #858585;
+    --color-activitybar-active-fg: #ffffff;
+    --color-activitybar-active-border: #0078d4;
+    --color-statusbar-bg: #0078d4;
+    --color-statusbar-fg: #ffffff;
+    --color-tab-bg: #ececec;
+    --color-tab-active-bg: #ffffff;
+    --color-tab-active-border: #0078d4;
+    --color-tab-fg: #6e6e6e;
+    --color-tab-active-fg: #1f1f1f;
+    --shiki-color-text: #1f1f1f;
+    --shiki-color-background: transparent;
+    --shiki-token-constant: #001080;
+    --shiki-token-string: #a31515;
+    --shiki-token-comment: #008000;
+    --shiki-token-keyword: #0000ff;
+    --shiki-token-parameter: #001080;
+    --shiki-token-function: #795e26;
+    --shiki-token-string-expression: #a31515;
+    --shiki-token-punctuation: #1f1f1f;
+    --shiki-token-link: #0000ff;
+  }
+}

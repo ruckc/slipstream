@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: slipstream-web
+  namespace: slipstream-system
+  labels:
+    app: slipstream-web
+spec:
+  type: ClusterIP
+  selector:
+    app: slipstream-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+      protocol: TCP

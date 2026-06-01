@@ -1,0 +1,61 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: netpol-{{PROJECT_ID}}
+  namespace: {{K8S_NAMESPACE}}
+  labels:
+    slipstream.io/project: {{PROJECT_ID}}
+spec:
+  podSelector:
+    matchLabels:
+      slipstream.io/project: {{PROJECT_ID}}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: slipstream-gateway
+  egress:
+    # DNS resolution
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # JWKS endpoint (slipstream web service in slipstream-system namespace)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: slipstream-system
+          podSelector:
+            matchLabels:
+              app: slipstream-web
+      ports:
+        - port: 80
+          protocol: TCP
+    # VictoriaMetrics (metrics push)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: metrics
+          podSelector:
+            matchLabels:
+              app: victoriametrics
+      ports:
+        - port: 8428
+          protocol: TCP
+    # Internet egress on HTTP/HTTPS, excluding RFC1918 private ranges
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP

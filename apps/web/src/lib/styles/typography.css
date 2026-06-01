@@ -1,0 +1,160 @@
+/* Slipstream Typography */
+
+/* Font size utility classes */
+.text-xs {
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+.text-sm {
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
+.text-base {
+  font-size: var(--font-size-base);
+  line-height: 1.4;
+}
+
+.text-md {
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+}
+
+.text-lg {
+  font-size: var(--font-size-lg);
+  line-height: 1.5;
+}
+
+/* Monospace */
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Font weight */
+.font-normal {
+  font-weight: 400;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+/* Color utilities */
+.text-primary {
+  color: var(--color-text-primary);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-disabled {
+  color: var(--color-text-disabled);
+}
+
+.text-link {
+  color: var(--color-text-link);
+}
+
+.text-danger {
+  color: var(--color-danger);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-accent {
+  color: var(--color-accent);
+}
+
+/* Truncation */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Headings */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+
+h1 {
+  font-size: var(--font-size-lg);
+}
+
+h2 {
+  font-size: var(--font-size-md);
+}
+
+h3 {
+  font-size: var(--font-size-base);
+}
+
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-sm);
+}
+
+/* Section label — small all-caps label like VS Code sidebar headers */
+.section-label {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* Paragraph spacing */
+p + p {
+  margin-top: var(--space-3);
+}
+
+/* Code inline */
+code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
+}
+
+/* Pre block */
+pre {
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
