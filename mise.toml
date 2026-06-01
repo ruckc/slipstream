@@ -1,4 +1,5 @@
 [tools]
 node = "lts"
 npm = "latest"
+pnpm = "latest"
 rust = "latest"
