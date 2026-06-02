@@ -134,9 +134,16 @@ jobs:
       - name: Install Gateway API CRDs
         run: |
           kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
-          kubectl wait --for condition=established \
+          # Brief pause: status.conditions is nil immediately after creation and
+          # kubectl wait returns an accessor error if it runs before the API server
+          # has had a chance to populate it.
+          sleep 5
+          kubectl wait --for condition=established --timeout=60s \
+            crd/gatewayclasses.gateway.networking.k8s.io \
+            crd/gateways.gateway.networking.k8s.io \
+            crd/grpcroutes.gateway.networking.k8s.io \
             crd/httproutes.gateway.networking.k8s.io \
-            --timeout=60s
+            crd/referencegrants.gateway.networking.k8s.io
 
       - name: Pre-create slipstream-system namespace
         run: kubectl create namespace slipstream-system

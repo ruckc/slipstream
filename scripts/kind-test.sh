@@ -55,9 +55,15 @@ kind create cluster --name "$CLUSTER_NAME" --wait 60s
 echo ""
 echo "==> Installing Gateway API CRDs ($GATEWAY_API_VERSION)"
 kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
-kubectl wait --for condition=established \
+# Brief pause: status.conditions is nil immediately after creation and kubectl wait
+# returns an accessor error if it runs before the API server has populated it.
+sleep 5
+kubectl wait --for condition=established --timeout=60s \
+  crd/gatewayclasses.gateway.networking.k8s.io \
+  crd/gateways.gateway.networking.k8s.io \
+  crd/grpcroutes.gateway.networking.k8s.io \
   crd/httproutes.gateway.networking.k8s.io \
-  --timeout=60s
+  crd/referencegrants.gateway.networking.k8s.io
 
 echo ""
 echo "==> Running helm lint"
