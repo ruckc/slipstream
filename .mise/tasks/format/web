@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Format the web app with Prettier"
+#MISE dir="apps/web"
+
+pnpm format

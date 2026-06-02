@@ -318,11 +318,38 @@ pub async fn upload_file(
             let parts: Vec<&str> = rest.splitn(2, '/').collect();
             if parts.len() == 2 {
                 let range_parts: Vec<&str> = parts[0].splitn(2, '-').collect();
-                let total: u64 = parts[1].parse().unwrap_or(0);
+                let total: u64 = parts[1]
+                    .parse()
+                    .map_err(|_| AppError::BadRequest("Invalid Content-Range: bad total".into()))?;
 
                 if range_parts.len() == 2 {
-                    let start: u64 = range_parts[0].parse().unwrap_or(0);
-                    let end: u64 = range_parts[1].parse().unwrap_or(0);
+                    let start: u64 = range_parts[0].parse().map_err(|_| {
+                        AppError::BadRequest("Invalid Content-Range: bad start".into())
+                    })?;
+                    let end: u64 = range_parts[1].parse().map_err(|_| {
+                        AppError::BadRequest("Invalid Content-Range: bad end".into())
+                    })?;
+
+                    if end < start {
+                        return Err(AppError::BadRequest(
+                            "Content-Range: end must be >= start".into(),
+                        ));
+                    }
+                    if end >= total {
+                        return Err(AppError::BadRequest(
+                            "Content-Range: end must be < total".into(),
+                        ));
+                    }
+                    let expected_body_len = (end - start + 1) as usize;
+                    if body.len() != expected_body_len {
+                        return Err(AppError::BadRequest(format!(
+                            "Content-Range: body length {} does not match range {}-{} (expected {})",
+                            body.len(),
+                            start,
+                            end,
+                            expected_body_len,
+                        )));
+                    }
 
                     // Write chunk at the correct offset.
                     use tokio::io::{AsyncSeekExt, AsyncWriteExt};

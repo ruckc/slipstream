@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Lint the Helm chart"
+
+helm lint charts/slipstream -f charts/slipstream/ci/values.yaml

@@ -7,6 +7,7 @@ import { createPod, deletePod } from '$lib/server/k8s/pod'
 import { createRouteAndService, deleteRouteAndService } from '$lib/server/k8s/route'
 import { createNetworkPolicy, deleteNetworkPolicy } from '$lib/server/k8s/policy'
 import { resolvePermissions, resolveIdleTimeout } from '$lib/server/permissions'
+import { logServerError } from '$lib/server/error-log'
 
 export async function createProject(
   actorUserId: string,
@@ -54,9 +55,13 @@ export async function createProject(
   try {
     pvcName = await createPvc(ns.k8sNamespace, project.id)
   } catch (e) {
-    // Roll back project insert
     await db.delete(projects).where(eq(projects.id, project.id))
-    throw error(500, `Failed to create PVC: ${(e as Error).message}`)
+    await logServerError((e as Error).message, {
+      route: 'createProject/createPvc',
+      stack: (e as Error).stack,
+      context: { projectId: project.id, k8sNamespace: ns.k8sNamespace },
+    })
+    throw error(500, 'Failed to provision storage for project')
   }
 
   // Update project with real PVC name
@@ -104,25 +109,38 @@ export async function startProject(actorUserId: string, projectId: string): Prom
   try {
     await createNetworkPolicy(ns.k8sNamespace, projectId)
   } catch (e) {
-    throw error(500, `Failed to create network policy: ${(e as Error).message}`)
+    await logServerError((e as Error).message, {
+      route: 'startProject/createNetworkPolicy',
+      stack: (e as Error).stack,
+      context: { projectId, k8sNamespace: ns.k8sNamespace },
+    })
+    throw error(500, 'Failed to configure network policy')
   }
 
   try {
     podName = await createPod(ns.k8sNamespace, projectId, project.k8sPvcName, idleTimeout)
   } catch (e) {
-    // Best-effort cleanup of network policy
     await deleteNetworkPolicy(ns.k8sNamespace, projectId).catch(() => {})
-    throw error(500, `Failed to create pod: ${(e as Error).message}`)
+    await logServerError((e as Error).message, {
+      route: 'startProject/createPod',
+      stack: (e as Error).stack,
+      context: { projectId, k8sNamespace: ns.k8sNamespace },
+    })
+    throw error(500, 'Failed to start project pod')
   }
 
   try {
     const result = await createRouteAndService(ns.k8sNamespace, projectId, ns.slug, project.slug)
     routeName = result.routeName
   } catch (e) {
-    // Best-effort cleanup
     await deletePod(ns.k8sNamespace, podName).catch(() => {})
     await deleteNetworkPolicy(ns.k8sNamespace, projectId).catch(() => {})
-    throw error(500, `Failed to create route: ${(e as Error).message}`)
+    await logServerError((e as Error).message, {
+      route: 'startProject/createRouteAndService',
+      stack: (e as Error).stack,
+      context: { projectId, k8sNamespace: ns.k8sNamespace },
+    })
+    throw error(500, 'Failed to configure routing for project')
   }
 
   const [updated] = await db

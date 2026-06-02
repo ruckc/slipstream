@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="Format check and vet for the Go metrics-sidecar"
+#MISE dir="apps/metrics-sidecar"
+
+unformatted=$(gofmt -l .)
+if [ -n "$unformatted" ]; then
+  echo "Unformatted Go files:"
+  echo "$unformatted"
+  exit 1
+fi
+go vet ./...

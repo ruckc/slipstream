@@ -1,4 +1,4 @@
-import { db, usageSamples, projects, users } from '$lib/server/db'
+import { db, usageSamples, users } from '$lib/server/db'
 import { eq, and, gte, lte } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
 import { resolvePermissions } from '$lib/server/permissions'
@@ -11,21 +11,17 @@ type MetricType =
   | 'egress_bytes'
 
 export async function recordUsageSample(
+  actorUserId: string,
   projectId: string,
   metric: MetricType,
   value: number,
   sampledAt: Date
 ): Promise<void> {
-  // Verify project exists
-  const projectRows = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1)
+  const userRows = await db.select().from(users).where(eq(users.id, actorUserId)).limit(1)
+  if (userRows.length === 0) throw error(403, 'Forbidden')
 
-  if (projectRows.length === 0) {
-    throw error(404, 'Project not found')
-  }
+  const perms = await resolvePermissions(userRows[0], projectId)
+  if (!perms.includes('project:manage')) throw error(403, 'Forbidden')
 
   await db.insert(usageSamples).values({
     projectId,

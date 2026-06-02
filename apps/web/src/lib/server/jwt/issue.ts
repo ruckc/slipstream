@@ -3,6 +3,7 @@ import { getKeyPair } from './keys'
 
 export interface ProjectTokenClaims {
   sub: string
+  aud: string | string[]
   projectId: string
   permissions: string[]
   exp: number
@@ -22,6 +23,7 @@ export async function issueProjectToken(
   const token = await new SignJWT({ projectId, permissions })
     .setProtectedHeader({ alg: 'RS256', kid: publicKeyJwk.kid })
     .setSubject(userId)
+    .setAudience(`agent:${projectId}`)
     .setIssuedAt(now)
     .setExpirationTime(exp)
     .sign(privateKey)

@@ -7,6 +7,14 @@ import type { Permission } from '$lib/server/permissions'
 import { db, projects, users } from '$lib/server/db'
 import { eq } from 'drizzle-orm'
 
+const VALID_PRINCIPAL_TYPES = new Set(['user', 'org'])
+const VALID_PERMISSIONS = new Set<Permission>([
+  'files:read',
+  'files:write',
+  'shell',
+  'project:manage',
+])
+
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.user) throw redirect(302, '/auth/login')
 
@@ -84,10 +92,16 @@ export const actions: Actions = {
 
     const grants = Object.values(rawGrants)
       .filter((g) => g.principalType && g.principalId && g.permissions.length > 0)
+      .filter((g) => {
+        if (!VALID_PRINCIPAL_TYPES.has(g.principalType)) return false
+        return g.permissions.every((p) => VALID_PERMISSIONS.has(p as Permission))
+      })
       .map((g) => ({
         principalType: g.principalType as 'user' | 'org',
         principalId: g.principalId,
-        permissions: g.permissions as Permission[],
+        permissions: g.permissions.filter((p) =>
+          VALID_PERMISSIONS.has(p as Permission)
+        ) as Permission[],
       }))
 
     try {
@@ -124,7 +138,10 @@ export const actions: Actions = {
 
     const data = await request.formData()
     const email = String(data.get('email') ?? '').trim()
-    const permissionsRaw = data.getAll('permissions').map(String) as Permission[]
+    const permissionsRaw = data
+      .getAll('permissions')
+      .map(String)
+      .filter((p) => VALID_PERMISSIONS.has(p as Permission)) as Permission[]
 
     if (!email) return fail(400, { addUser: true, error: 'Email is required' })
     if (permissionsRaw.length === 0)

@@ -1,7 +1,7 @@
 import { redirect, fail } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
 import { db, users, oidcConnections } from '$lib/server/db'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.user) throw redirect(302, '/auth/login')
@@ -80,7 +80,9 @@ export const actions: Actions = {
 
     if (!connectionId) return fail(400, { error: 'Connection ID is required' })
 
-    await db.delete(oidcConnections).where(eq(oidcConnections.id, connectionId))
+    await db
+      .delete(oidcConnections)
+      .where(and(eq(oidcConnections.id, connectionId), eq(oidcConnections.userId, locals.user.id)))
 
     return { unlink: true, success: true }
   },

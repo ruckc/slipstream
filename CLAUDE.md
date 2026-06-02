@@ -25,36 +25,46 @@ docker/
 
 ## Commands
 
-All pnpm commands run from the repo root unless noted.
+Prefer `mise run <task>` over calling tools directly. Leaf tasks live as executable scripts in `.mise/tasks/`; aggregator tasks (`format`, `lint`) are defined in `mise.toml` with `depends`.
 
 ```bash
 # Install all workspace dependencies
 pnpm install
 
-# Web app
+# Formatting
+mise run format          # all projects
+mise run format:web      # Prettier (apps/web)
+mise run format:rust     # rustfmt (apps/agent)
+mise run format:go       # gofmt (apps/metrics-sidecar)
+
+# Linting / type-checking
+mise run lint            # all linters
+mise run lint:web        # Prettier check + ESLint (apps/web)
+mise run typecheck:web   # svelte-check (apps/web)
+mise run lint:rust       # cargo fmt --check + clippy (apps/agent)
+mise run lint:go         # gofmt check + go vet (apps/metrics-sidecar)
+mise run lint:helm       # helm lint
+
+# Git hooks
+mise run hooks:install   # point core.hooksPath at .githooks/
+
+# Web app (no mise task — run directly)
 pnpm --filter @slipstream/web dev          # dev server
 pnpm --filter @slipstream/web build        # production build
-pnpm --filter @slipstream/web check        # svelte-check type checking
-pnpm --filter @slipstream/web lint         # eslint
-pnpm --filter @slipstream/web format       # prettier write
-pnpm --filter @slipstream/web format:check # prettier check (used in CI)
 
 # Database (run from apps/web/ or use filter)
 pnpm --filter @slipstream/web db:generate  # drizzle-kit generate migration
 pnpm --filter @slipstream/web db:migrate   # apply migrations
 pnpm --filter @slipstream/web db:seed:dev  # seed dev accounts (requires DATABASE_URL)
 
-# Rust agent (run from apps/agent/)
-cargo build
+# Rust agent — build/test only (formatting/linting via mise)
+cargo build              # run from apps/agent/
 cargo build --release
 cargo test
-cargo fmt
-cargo clippy --all-targets --all-features -- -D warnings
 
-# Go metrics sidecar (run from apps/metrics-sidecar/)
-go build ./...
+# Go metrics sidecar — build/test only (formatting/linting via mise)
+go build ./...           # run from apps/metrics-sidecar/
 go test ./...
-gofmt -w .
 ```
 
 ## Architecture
@@ -131,6 +141,7 @@ Key variables the web app reads at runtime:
 | `GOOGLE_CLIENT_ID` / `_SECRET` | no | Enables Google OIDC |
 | `MICROSOFT_CLIENT_ID` / `_SECRET` | no | Enables Microsoft OIDC |
 | `GITHUB_CLIENT_ID` / `_SECRET` | no | Enables GitHub OAuth2 |
+| `SESSION_SECRET` | yes (prod) | HMAC-SHA256 key for signing session cookies; falls back to a hardcoded dev value if unset |
 | `DEV_MODE` | no | Set to `true` to enable `/auth/dev` |
 | `K8S_JWT_PRIVATE_KEY` | no | Base64 PKCS8 PEM; generate ephemeral key if absent |
 | `DEFAULT_IDLE_TIMEOUT_SECONDS` | no | Default 1800 |
@@ -138,7 +149,7 @@ Key variables the web app reads at runtime:
 | `METRICS_SIDECAR_IMAGE` | no | Enables metrics sidecar in pods |
 | `METRICS_PUSH_URL` | no | VictoriaMetrics push endpoint |
 
-The Rust agent reads: `PORT`, `JWKS_URL`, `PROJECT_ID`, `WORKSPACE_PATH`, `IDLE_TIMEOUT_SECONDS`.
+The Rust agent reads: `PORT`, `JWKS_URL`, `PROJECT_ID`, `WORKSPACE_PATH`, `IDLE_TIMEOUT_SECONDS`, `CORS_ORIGIN` (passed automatically from `APP_URL`).
 
 ## Versioning and releases
 

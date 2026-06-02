@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Format the Go metrics-sidecar with gofmt"
+#MISE dir="apps/metrics-sidecar"
+
+gofmt -w .

@@ -4,6 +4,9 @@ function policyName(projectId: string): string {
   return `netpol-${projectId}`
 }
 
+// Namespace where the gateway and slipstream-web live.
+const SLIPSTREAM_SYSTEM_NS = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
+
 export async function createNetworkPolicy(k8sNamespace: string, projectId: string): Promise<void> {
   const api = getNetworkingV1Api()
   const name = policyName(projectId)
@@ -31,6 +34,12 @@ export async function createNetworkPolicy(k8sNamespace: string, projectId: strin
           {
             _from: [
               {
+                // Only accept traffic from the gateway pod in slipstream-system.
+                namespaceSelector: {
+                  matchLabels: {
+                    'kubernetes.io/metadata.name': SLIPSTREAM_SYSTEM_NS,
+                  },
+                },
                 podSelector: {
                   matchLabels: {
                     app: 'slipstream-gateway',
@@ -41,10 +50,15 @@ export async function createNetworkPolicy(k8sNamespace: string, projectId: strin
           },
         ],
         egress: [
-          // Allow to slipstream-web service on port 443 (for JWKS)
+          // JWKS endpoint — slipstream-web in slipstream-system, port 80 (HTTP).
           {
             to: [
               {
+                namespaceSelector: {
+                  matchLabels: {
+                    'kubernetes.io/metadata.name': SLIPSTREAM_SYSTEM_NS,
+                  },
+                },
                 podSelector: {
                   matchLabels: {
                     app: 'slipstream-web',
@@ -52,12 +66,17 @@ export async function createNetworkPolicy(k8sNamespace: string, projectId: strin
                 },
               },
             ],
-            ports: [{ protocol: 'TCP', port: 443 }],
+            ports: [{ protocol: 'TCP', port: 80 }],
           },
-          // Allow to VictoriaMetrics on port 8428
+          // VictoriaMetrics metrics push.
           {
             to: [
               {
+                namespaceSelector: {
+                  matchLabels: {
+                    'kubernetes.io/metadata.name': 'metrics',
+                  },
+                },
                 podSelector: {
                   matchLabels: {
                     app: 'victoriametrics',
@@ -67,14 +86,18 @@ export async function createNetworkPolicy(k8sNamespace: string, projectId: strin
             ],
             ports: [{ protocol: 'TCP', port: 8428 }],
           },
-          // Allow external (non-RFC1918) traffic on ports 80 and 443
-          // Achieved by allowing 0.0.0.0/0 and then blocking RFC1918 ranges via except
+          // Internet egress on HTTP/HTTPS, excluding RFC1918 and link-local (IMDS).
           {
             to: [
               {
                 ipBlock: {
                   cidr: '0.0.0.0/0',
-                  except: ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
+                  except: [
+                    '10.0.0.0/8',
+                    '172.16.0.0/12',
+                    '192.168.0.0/16',
+                    '169.254.0.0/16', // link-local / cloud IMDS
+                  ],
                 },
               },
             ],
@@ -83,7 +106,7 @@ export async function createNetworkPolicy(k8sNamespace: string, projectId: strin
               { protocol: 'TCP', port: 443 },
             ],
           },
-          // Allow DNS to kube-dns
+          // DNS.
           {
             to: [
               {

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Format check and clippy for the Rust agent"
+#MISE dir="apps/agent"
+
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings

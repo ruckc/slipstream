@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Format check and lint the web app"
+#MISE dir="apps/web"
+
+pnpm format:check
+pnpm lint

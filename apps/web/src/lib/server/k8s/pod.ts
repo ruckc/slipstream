@@ -18,6 +18,7 @@ export async function createPod(
   if (!agentImage) throw new Error('AGENT_IMAGE environment variable is required')
 
   const podName = buildPodName(projectId)
+  const appUrl = process.env.APP_URL ?? ''
 
   const containers: V1Container[] = [
     {
@@ -29,8 +30,13 @@ export async function createPod(
         { name: 'PROJECT_ID', value: projectId },
         { name: 'IDLE_TIMEOUT_SECONDS', value: String(idleTimeoutSeconds) },
         { name: 'WORKSPACE_PATH', value: '/workspace' },
+        { name: 'CORS_ORIGIN', value: appUrl },
       ],
-      volumeMounts: [{ name: 'workspace', mountPath: '/workspace' }],
+      volumeMounts: [
+        { name: 'workspace', mountPath: '/workspace' },
+        { name: 'tmp', mountPath: '/tmp' },
+        { name: 'home', mountPath: '/home/agent' },
+      ],
       readinessProbe: {
         httpGet: { path: '/health', port: 8080 },
         initialDelaySeconds: 2,
@@ -38,7 +44,7 @@ export async function createPod(
       },
       securityContext: {
         allowPrivilegeEscalation: false,
-        readOnlyRootFilesystem: false,
+        readOnlyRootFilesystem: true,
         capabilities: { drop: ['ALL'] },
       },
     },
@@ -84,6 +90,8 @@ export async function createPod(
             name: 'workspace',
             persistentVolumeClaim: { claimName: pvcName },
           },
+          { name: 'tmp', emptyDir: {} },
+          { name: 'home', emptyDir: {} },
         ],
       },
     },

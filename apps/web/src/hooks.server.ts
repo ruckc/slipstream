@@ -3,6 +3,50 @@ import { validateSession } from '$lib/server/auth/session'
 
 const PUBLIC_API_ROUTES = ['/api/jwks', '/api/token']
 
+// ---------------------------------------------------------------------------
+// In-memory sliding-window rate limiter
+// ---------------------------------------------------------------------------
+
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX_AUTH = 20 // requests per minute per IP on auth/token endpoints
+
+// Paths that are subject to the auth rate limit
+const RATE_LIMITED_PREFIXES = ['/auth/login/', '/auth/callback/', '/api/token']
+
+const rateLimitBuckets = new Map<string, number[]>()
+
+function isRateLimited(ip: string, pathname: string): boolean {
+  if (!RATE_LIMITED_PREFIXES.some((p) => pathname.startsWith(p))) return false
+
+  const key = `${ip}:auth`
+  const now = Date.now()
+  const timestamps = rateLimitBuckets.get(key) ?? []
+  const recent = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS)
+
+  if (recent.length >= RATE_LIMIT_MAX_AUTH) return true
+
+  recent.push(now)
+  rateLimitBuckets.set(key, recent)
+  return false
+}
+
+// Prune the bucket map periodically to avoid unbounded growth.
+setInterval(
+  () => {
+    const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS
+    for (const [key, timestamps] of rateLimitBuckets) {
+      const kept = timestamps.filter((t) => t > cutoff)
+      if (kept.length === 0) rateLimitBuckets.delete(key)
+      else rateLimitBuckets.set(key, kept)
+    }
+  },
+  5 * 60_000 // every 5 minutes
+)
+
+// ---------------------------------------------------------------------------
+// Main handle hook
+// ---------------------------------------------------------------------------
+
 export const handle: Handle = async ({ event, resolve }) => {
   const sessionToken = event.cookies.get('session') ?? null
 
@@ -16,6 +60,14 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   const { pathname } = event.url
+
+  // Rate-limit auth and token endpoints before any further processing.
+  if (isRateLimited(event.getClientAddress(), pathname)) {
+    return new Response(JSON.stringify({ error: 'too many requests' }), {
+      status: 429,
+      headers: { 'Content-Type': 'application/json', 'Retry-After': '60' },
+    })
+  }
 
   if (pathname.startsWith('/api/') && !PUBLIC_API_ROUTES.includes(pathname)) {
     if (!event.locals.user) {

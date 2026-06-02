@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{
-    http::Method,
+    http::{HeaderValue, Method},
     response::Json,
     routing::{delete, get, post},
     Extension, Router,
@@ -9,8 +9,8 @@ use axum::{
 use serde_json::json;
 use tokio::net::TcpListener;
 use tokio::signal;
-use tower_http::cors::{Any, CorsLayer};
-use tracing::info;
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use tracing::{info, warn};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 mod auth;
@@ -91,11 +91,28 @@ async fn main() -> anyhow::Result<()> {
         idle,
     });
 
-    // 5. CORS layer.
+    // 5. CORS layer — restrict to APP_URL origin when CORS_ORIGIN is set.
+    let allow_origin: AllowOrigin = match state.config.cors_origin.as_deref() {
+        Some(origin) => match origin.parse::<HeaderValue>() {
+            Ok(val) => AllowOrigin::exact(val),
+            Err(_) => {
+                warn!(
+                    "CORS_ORIGIN '{}' is not a valid header value; falling back to allow-any",
+                    origin
+                );
+                AllowOrigin::any()
+            }
+        },
+        None => {
+            warn!("CORS_ORIGIN not set; allowing all origins (dev/testing only)");
+            AllowOrigin::any()
+        }
+    };
+
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::DELETE])
         .allow_headers(Any)
-        .allow_origin(Any);
+        .allow_origin(allow_origin);
 
     // 6. Router.
     //

@@ -39,8 +39,8 @@ export const actions: Actions = {
     const [user] = await db.select().from(users).where(eq(users.id, uuid))
     if (!user) return { error: 'Account not found — run db:seed:dev first' }
 
-    const session = await createSession(user.id)
-    cookies.set(SESSION_COOKIE_NAME, session.id, SESSION_COOKIE_OPTIONS)
+    const { token } = await createSession(user.id)
+    cookies.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS)
     throw redirect(302, '/')
   },
 }

@@ -7,19 +7,25 @@ import {
   numeric,
   unique,
   primaryKey,
+  check,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm'
 
 // ---------------------------------------------------------------------------
 // namespaces
 // ---------------------------------------------------------------------------
-export const namespaces = pgTable('namespaces', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  slug: text('slug').unique().notNull(),
-  type: text('type').notNull(), // 'user' | 'org'
-  k8sNamespace: text('k8s_namespace').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
-})
+export const namespaces = pgTable(
+  'namespaces',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slug: text('slug').unique().notNull(),
+    type: text('type').notNull(), // 'user'|'org'
+    k8sNamespace: text('k8s_namespace').notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+  },
+  () => [check('namespaces_type_check', sql`type IN ('user', 'org')`)]
+)
 
 export type Namespace = InferSelectModel<typeof namespaces>
 export type NewNamespace = InferInsertModel<typeof namespaces>
@@ -27,19 +33,25 @@ export type NewNamespace = InferInsertModel<typeof namespaces>
 // ---------------------------------------------------------------------------
 // users
 // ---------------------------------------------------------------------------
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey(), // NOT defaultRandom() — set explicitly for dev seeds
-  namespaceId: uuid('namespace_id')
-    .references(() => namespaces.id)
-    .notNull(),
-  email: text('email').unique().notNull(),
-  displayName: text('display_name').notNull(),
-  avatarUrl: text('avatar_url'),
-  themePreference: text('theme_preference').notNull().default('system'), // 'system'|'light'|'dark'
-  idleTimeoutSeconds: integer('idle_timeout_seconds'), // null = inherit
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-})
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey(), // NOT defaultRandom() — set explicitly for dev seeds
+    namespaceId: uuid('namespace_id')
+      .references(() => namespaces.id)
+      .notNull(),
+    email: text('email').unique().notNull(),
+    displayName: text('display_name').notNull(),
+    avatarUrl: text('avatar_url'),
+    themePreference: text('theme_preference').notNull().default('system'), // 'system'|'light'|'dark'
+    idleTimeoutSeconds: integer('idle_timeout_seconds'), // null = inherit
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+  () => [
+    check('users_theme_preference_check', sql`theme_preference IN ('system', 'light', 'dark')`),
+  ]
+)
 
 export type User = InferSelectModel<typeof users>
 export type NewUser = InferInsertModel<typeof users>
@@ -112,7 +124,10 @@ export const orgMembers = pgTable(
     role: text('role').notNull(), // 'owner'|'member'
     joinedAt: timestamp('joined_at').defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.orgId, t.userId] })]
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.userId] }),
+    check('org_members_role_check', sql`role IN ('owner', 'member')`),
+  ]
 )
 
 export type OrgMember = InferSelectModel<typeof orgMembers>
@@ -138,7 +153,10 @@ export const projects = pgTable(
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
   },
-  (t) => [unique().on(t.namespaceId, t.slug)]
+  (t) => [
+    unique().on(t.namespaceId, t.slug),
+    check('projects_status_check', sql`status IN ('stopped', 'starting', 'running', 'stopping')`),
+  ]
 )
 
 export type Project = InferSelectModel<typeof projects>
@@ -162,7 +180,14 @@ export const projectPermissions = pgTable(
       .notNull(),
     grantedAt: timestamp('granted_at').defaultNow(),
   },
-  (t) => [unique().on(t.projectId, t.principalType, t.principalId, t.permission)]
+  (t) => [
+    unique().on(t.projectId, t.principalType, t.principalId, t.permission),
+    check('project_permissions_principal_type_check', sql`principal_type IN ('user', 'org')`),
+    check(
+      'project_permissions_permission_check',
+      sql`permission IN ('files:read', 'files:write', 'shell', 'project:manage')`
+    ),
+  ]
 )
 
 export type ProjectPermission = InferSelectModel<typeof projectPermissions>
@@ -183,3 +208,19 @@ export const usageSamples = pgTable('usage_samples', {
 
 export type UsageSample = InferSelectModel<typeof usageSamples>
 export type NewUsageSample = InferInsertModel<typeof usageSamples>
+
+// ---------------------------------------------------------------------------
+// server_errors — admin-visible exception log
+// ---------------------------------------------------------------------------
+export const serverErrors = pgTable('server_errors', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  occurredAt: timestamp('occurred_at').defaultNow().notNull(),
+  route: text('route'),
+  message: text('message').notNull(),
+  stack: text('stack'),
+  context: text('context'), // JSON-serialised key/value bag
+  userId: uuid('user_id').references(() => users.id),
+})
+
+export type ServerError = InferSelectModel<typeof serverErrors>
+export type NewServerError = InferInsertModel<typeof serverErrors>

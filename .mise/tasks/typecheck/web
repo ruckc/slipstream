@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Type-check the web app with svelte-check"
+#MISE dir="apps/web"
+
+pnpm check

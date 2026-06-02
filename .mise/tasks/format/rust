@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Format the Rust agent with rustfmt"
+#MISE dir="apps/agent"
+
+cargo fmt

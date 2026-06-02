@@ -163,8 +163,8 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
     // -----------------------------------------------------------------------
     // Create session and set cookie
     // -----------------------------------------------------------------------
-    const session = await createSession(userId!)
-    cookies.set(SESSION_COOKIE_NAME, session.id, SESSION_COOKIE_OPTIONS)
+    const { token } = await createSession(userId!)
+    cookies.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS)
   } catch (err) {
     console.error(`[auth/callback/${provider}] DB error:`, err)
     throw redirect(302, LOGIN_ERROR_URL)

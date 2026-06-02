@@ -166,6 +166,8 @@ impl JwksCache {
 
         let mut validation = Validation::new(Algorithm::RS256);
         validation.validate_exp = true;
+        // Require aud == "agent:{project_id}" — tokens not scoped to this agent are rejected.
+        validation.set_audience(&[format!("agent:{}", self.project_id)]);
 
         let token_data = decode::<Claims>(token, &decoding_key, &validation)
             .map_err(|e| AppError::Unauthorized(format!("Token validation failed: {}", e)))?;

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Configure git to use committed hooks in .githooks/"
+
+git config core.hooksPath .githooks
