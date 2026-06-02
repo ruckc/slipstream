@@ -45,6 +45,14 @@ mise run lint:rust       # cargo fmt --check + clippy (apps/agent)
 mise run lint:go         # gofmt check + go vet (apps/metrics-sidecar)
 mise run lint:helm       # helm lint
 
+# Local dev cluster (kind + registry)
+mise run dev:cluster     # idempotent: kind cluster + registry + Gateway API CRDs + any cluster config
+mise run dev:build       # build all images and push to localhost:5001 (tag: local)
+mise run dev:build web   # build a single image (web | agent | metrics-sidecar)
+
+# Kubernetes install (assumes cluster is already configured via dev:cluster or equivalent)
+mise run install         # helm upgrade --install → wait for rollout → db migrate
+
 # Git hooks
 mise run hooks:install   # point core.hooksPath at .githooks/
 
@@ -65,6 +73,40 @@ cargo test
 # Go metrics sidecar — build/test only (formatting/linting via mise)
 go build ./...           # run from apps/metrics-sidecar/
 go test ./...
+```
+
+### Cluster install
+
+`mise run dev:cluster` is the single place for all cluster-level setup. It runs in two phases: phase 1 creates the registry container and kind cluster (skipped if they already exist); phase 2 applies all cluster configuration via `kubectl apply` (always runs, idempotent). Add new cluster-level resources to phase 2 as they are discovered. Currently phase 2 configures: local registry discovery ConfigMap and Gateway API CRDs.
+
+`mise run install` assumes the cluster is already configured. It runs `helm upgrade --install` against the local chart, waits for the web deployment to roll out, then applies DB migrations. It uses `charts/slipstream/values-dev.yaml` as the base and merges `charts/slipstream/values-local.yaml` on top if present.
+
+`values-local.yaml` is gitignored. For a local kind cluster with the local registry, it should contain:
+
+```yaml
+# charts/slipstream/values-local.yaml
+gateway:
+  name: slipstream
+  namespace: slipstream-system
+  hostname: localhost
+
+image:
+  web:
+    repository: localhost:5001/slipstream-web
+    tag: local
+  agent:
+    repository: localhost:5001/slipstream-agent
+    tag: local
+  metricsSidecar:
+    repository: localhost:5001/slipstream-metrics-sidecar
+    tag: local
+```
+
+The local dev workflow is:
+```bash
+mise run dev:cluster  # once: creates kind cluster + registry on localhost:5001
+mise run dev:build    # on each change: builds and pushes all three images
+mise run install      # deploys/upgrades via helm
 ```
 
 ## Architecture

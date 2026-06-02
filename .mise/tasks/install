@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#MISE description="Install slipstream to the configured Kubernetes cluster"
+
+set -euo pipefail
+
+VALUES_ARGS=("-f" "charts/slipstream/values-dev.yaml")
+if [[ -f "charts/slipstream/values-local.yaml" ]]; then
+  VALUES_ARGS+=("-f" "charts/slipstream/values-local.yaml")
+  echo "   + charts/slipstream/values-local.yaml"
+fi
+
+echo "→ Running helm upgrade --install..."
+helm upgrade --install slipstream ./charts/slipstream \
+  --namespace slipstream-system \
+  --create-namespace \
+  "${VALUES_ARGS[@]}"
+
+echo "→ Waiting for web deployment to be ready..."
+kubectl rollout status deployment/slipstream-web \
+  --namespace slipstream-system \
+  --timeout=120s
+
+echo "→ Applying database migrations..."
+kubectl exec --namespace slipstream-system deploy/slipstream-web \
+  -- node_modules/.bin/drizzle-kit migrate
+
+echo "Done."

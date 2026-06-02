@@ -31,6 +31,10 @@
     "typescript-eslint": "^8.0.0",
     "vite": "^8.0.16"
   },
+  "overrides": {
+    "cookie": "^1.1.1",
+    "esbuild": "^0.28.0"
+  },
   "name": "@slipstream/web",
   "private": true,
   "scripts": {

@@ -4,6 +4,7 @@ npm = "latest"
 pnpm = "latest"
 rust = "latest"
 go = "latest"
+kind = "latest"
 
 [tasks.format]
 description = "Format all projects"

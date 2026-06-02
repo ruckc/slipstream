@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+#MISE description="Create and configure a kind cluster for local development (idempotent)"
+
+set -euo pipefail
+
+REGISTRY_NAME="slipstream-registry"
+REGISTRY_PORT="5001"
+CLUSTER_NAME="slipstream"
+GATEWAY_API_VERSION="v1.2.1"
+
+# ── Phase 1: Infrastructure ────────────────────────────────────────────────
+# Each step is skipped if already done, but phase 2 always runs regardless.
+
+if docker inspect "${REGISTRY_NAME}" &>/dev/null; then
+  echo "→ Registry '${REGISTRY_NAME}' already exists."
+else
+  echo "→ Creating local registry on port ${REGISTRY_PORT}..."
+  docker run -d \
+    --restart=always \
+    -p "127.0.0.1:${REGISTRY_PORT}:5000" \
+    --name "${REGISTRY_NAME}" \
+    registry:2
+fi
+
+if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
+  echo "→ Kind cluster '${CLUSTER_NAME}' already exists."
+else
+  echo "→ Creating kind cluster '${CLUSTER_NAME}'..."
+  kind create cluster --name "${CLUSTER_NAME}" --config kind-config.yaml
+fi
+
+if docker network inspect kind 2>/dev/null | grep -q "\"${REGISTRY_NAME}\""; then
+  echo "→ Registry already connected to kind network."
+else
+  echo "→ Connecting registry to kind network..."
+  docker network connect kind "${REGISTRY_NAME}"
+fi
+
+# ── Phase 2: Cluster configuration (always applied, kubectl apply is idempotent) ──
+# Add new cluster-level resources here as they are discovered.
+
+echo "→ Configuring local registry discovery..."
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-registry-hosting
+  namespace: kube-public
+data:
+  localRegistryHosting.v1: |
+    host: "localhost:${REGISTRY_PORT}"
+    help: "https://kind.sigs.k8s.io/docs/user/local-registry/"
+EOF
+
+echo "→ Applying Gateway API CRDs (${GATEWAY_API_VERSION})..."
+kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
+
+# status.conditions is nil immediately after CRD creation; kubectl wait returns
+# an accessor error if run before the API server has had a chance to populate it.
+sleep 5
+kubectl wait --for=condition=Established --timeout=60s \
+  crd/gatewayclasses.gateway.networking.k8s.io \
+  crd/gateways.gateway.networking.k8s.io \
+  crd/grpcroutes.gateway.networking.k8s.io \
+  crd/httproutes.gateway.networking.k8s.io \
+  crd/referencegrants.gateway.networking.k8s.io
+
+echo ""
+echo "Cluster ready. Next:"
+echo "  mise run dev:build   # build and push images"
+echo "  mise run install     # deploy slipstream"
