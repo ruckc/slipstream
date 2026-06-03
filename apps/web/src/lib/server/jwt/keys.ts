@@ -20,7 +20,7 @@ async function initKeys(): Promise<KeyPair> {
   if (envKey) {
     // Load from env var: base64-encoded PKCS8 PEM
     const pkcs8 = Buffer.from(envKey, 'base64').toString('utf-8')
-    const privateKey = await importPKCS8(pkcs8, 'RS256')
+    const privateKey = await importPKCS8(pkcs8, 'RS256', { extractable: true })
 
     // To get the public JWK we need the public key. Re-export the private key
     // as PKCS8, then use SubtleCrypto to import as a key pair so we can
