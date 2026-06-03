@@ -30,22 +30,11 @@ spec:
             - name: http
               containerPort: 3000
               protocol: TCP
-            {{- if .Values.certManager.enabled }}
-            - name: https
-              containerPort: 443
-              protocol: TCP
-            {{- end }}
           envFrom:
             - configMapRef:
                 name: slipstream-web-config
             - secretRef:
                 name: {{ include "slipstream.secretName" . }}
-          {{- if .Values.certManager.enabled }}
-          volumeMounts:
-            - name: tls
-              mountPath: /etc/tls
-              readOnly: true
-          {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -66,9 +55,43 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
             failureThreshold: 3
+        {{- if .Values.certManager.enabled }}
+        - name: tls-proxy
+          image: {{ .Values.certManager.sidecar.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/tls
+              readOnly: true
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.certManager.sidecar.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 20
+        {{- end }}
       {{- if .Values.certManager.enabled }}
       volumes:
         - name: tls
           secret:
             secretName: {{ include "slipstream.tlsSecretName" . }}
+        - name: nginx-config
+          configMap:
+            name: {{ include "slipstream.fullname" . }}-nginx
       {{- end }}

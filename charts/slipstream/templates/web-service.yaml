@@ -18,6 +18,6 @@ spec:
     {{- if .Values.certManager.enabled }}
     - name: https
       port: 443
-      targetPort: 443
+      targetPort: 8443
       protocol: TCP
     {{- end }}

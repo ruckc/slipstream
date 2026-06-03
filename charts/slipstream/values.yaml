@@ -56,6 +56,16 @@ certManager:
       # ACME directory URL.
       # Staging (for testing): https://acme-staging-v02.api.letsencrypt.org/directory
       server: https://acme-v02.api.letsencrypt.org/directory
+  # nginx-unprivileged sidecar that terminates TLS on port 8443 and forwards
+  # plain HTTP to the app on port 3000. The service maps external 443 → 8443.
+  sidecar:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        memory: 64Mi
 
 auth:
   # Auto-generated on first install and preserved across upgrades via secret lookup.
