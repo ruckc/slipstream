@@ -6,5 +6,4 @@ dist
 *.local
 target
 .DS_Store
-drizzle/
 charts/slipstream/values-local.yaml
