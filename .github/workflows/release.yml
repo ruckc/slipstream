@@ -328,7 +328,7 @@ jobs:
   publish-chart:
     name: Publish Helm Chart
     runs-on: ubuntu-latest
-    needs: version-and-tag
+    needs: [version-and-tag, build-and-push]
     steps:
       - uses: actions/checkout@v6.0.2
         with:
