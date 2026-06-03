@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { getUserSettings, updateProfile, updateIdleTimeout, unlinkProvider } from './settings.remote'
+  import {
+    getUserSettings,
+    updateProfile,
+    updateIdleTimeout,
+    unlinkProvider,
+  } from './settings.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
   import ThemePicker from '$lib/components/common/ThemePicker.svelte'
@@ -65,7 +70,9 @@
         {/if}
 
         <div class="form-actions">
-          <Button type="submit" variant="primary" loading={updateProfile.pending > 0}>Save profile</Button>
+          <Button type="submit" variant="primary" loading={updateProfile.pending > 0}
+            >Save profile</Button
+          >
         </div>
       </form>
     </section>
@@ -103,7 +110,9 @@
           <div class="form-success" role="status">Saved.</div>
         {/if}
         <div class="form-actions">
-          <Button type="submit" variant="primary" loading={updateIdleTimeout.pending > 0}>Save</Button>
+          <Button type="submit" variant="primary" loading={updateIdleTimeout.pending > 0}
+            >Save</Button
+          >
         </div>
       </form>
     </section>

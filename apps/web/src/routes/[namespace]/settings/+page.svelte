@@ -18,7 +18,9 @@
 
   let inviteEmail = $state('')
   let idleTimeout = $state(
-    data.type === 'org' ? String(data.org?.idleTimeoutSeconds ?? '') : String(data.user.idleTimeoutSeconds ?? '')
+    data.type === 'org'
+      ? String(data.org?.idleTimeoutSeconds ?? '')
+      : String(data.user.idleTimeoutSeconds ?? '')
   )
   let orgName = $state(data.type === 'org' ? (data.org?.displayName ?? '') : '')
 </script>
@@ -56,7 +58,8 @@
             <div class="form-success" role="status">Saved.</div>
           {/if}
           <div class="form-actions">
-            <Button type="submit" variant="primary" loading={updateOrgName.pending > 0}>Save</Button>
+            <Button type="submit" variant="primary" loading={updateOrgName.pending > 0}>Save</Button
+            >
           </div>
         </form>
       </section>
@@ -83,7 +86,9 @@
           <div class="form-success" role="status">Saved.</div>
         {/if}
         <div class="form-actions">
-          <Button type="submit" variant="primary" loading={updateNamespaceIdleTimeout.pending > 0}>Save</Button>
+          <Button type="submit" variant="primary" loading={updateNamespaceIdleTimeout.pending > 0}
+            >Save</Button
+          >
         </div>
       </form>
     </section>
