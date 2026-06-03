@@ -207,3 +207,22 @@ jobs:
           platforms: ${{ matrix.image.platforms }}
           cache-from: type=gha,scope=${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
+
+  # ── Auto-trigger release once all main-branch checks and builds pass ────────
+  # Skipped on PRs and on commits made by the release workflow itself (version
+  # bump commits start with "chore: release") to prevent an infinite loop.
+  trigger-release:
+    name: Trigger Release
+    runs-on: ubuntu-latest
+    needs: [check-web, check-rust, check-go, check-helm, kind-test, build-edge]
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      !startsWith(github.event.head_commit.message, 'chore: release')
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch release workflow
+        run: gh workflow run release.yml --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
