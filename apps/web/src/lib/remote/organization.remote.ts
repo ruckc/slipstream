@@ -2,6 +2,7 @@ import { db, namespaces, organizations, orgMembers, users } from '$lib/server/db
 import type { Organization, Namespace, OrgMember, User } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
+import { createK8sNamespace } from '$lib/server/k8s/namespace'
 
 export async function createOrganization(
   actorUserId: string,
@@ -27,6 +28,14 @@ export async function createOrganization(
     .insert(namespaces)
     .values({ slug, type: 'org', k8sNamespace: k8sNs })
     .returning()
+
+  try {
+    await createK8sNamespace(k8sNs, slug, 'org')
+  } catch (k8sErr) {
+    await db.delete(namespaces).where(eq(namespaces.id, namespace.id))
+    console.error('[createOrganization] k8s namespace creation failed:', k8sErr)
+    throw error(500, 'Failed to provision Kubernetes namespace for organization')
+  }
 
   // Create organization record
   const [org] = await db

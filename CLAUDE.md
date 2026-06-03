@@ -146,7 +146,17 @@ Four independent permission bits: `files:read`, `files:write`, `shell`, `project
 
 ### Remote functions pattern
 
-All server-side business logic lives in `src/lib/remote/*.remote.ts` as plain async TypeScript functions. SvelteKit route files (`+page.server.ts`, `+server.ts`) are thin call-through wrappers. No business logic in route files.
+Pages use SvelteKit's experimental remote functions (`query`, `form`, `command`) instead of `+page.server.ts` load functions and form actions. The config is already set in `svelte.config.js` (`kit.experimental.remoteFunctions: true`, `compilerOptions.experimental.async: true`).
+
+**Route-level remote files** live as `<route>/*.remote.ts` (e.g. `src/routes/settings/settings.remote.ts`). They export `query`/`form`/`command` functions and are imported directly in `.svelte` components. Use `/remote-route` to convert a route.
+
+**Server-side helpers** live in `src/lib/remote/*.remote.ts` as plain async TypeScript functions. These are called from within route-level remote functions — they are NOT SvelteKit remote functions themselves.
+
+Key imports:
+- `query`, `form`, `command`, `getRequestEvent` → `$app/server`
+- `redirect`, `error`, `invalid` → `@sveltejs/kit`
+- In components: `import { page } from '$app/state'` then `page.params.foo!` (no `$` prefix, non-null assert)
+- Form field errors: `myForm.fields.fieldName?.issues()?.[0]?.message`
 
 ### Svelte constraints
 

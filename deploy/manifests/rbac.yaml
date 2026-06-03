@@ -37,10 +37,10 @@ rules:
     resources: ["httproutes"]
     verbs: ["create", "get", "list", "delete"]
 
-  # Namespace read-only (for listing user/org namespaces)
+  # Namespace management (create user/org namespaces at registration time)
   - apiGroups: [""]
     resources: ["namespaces"]
-    verbs: ["get", "list"]
+    verbs: ["get", "list", "create"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1

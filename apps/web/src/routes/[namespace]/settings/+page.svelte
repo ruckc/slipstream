@@ -1,29 +1,26 @@
 <script lang="ts">
-  import { untrack } from 'svelte'
-  import { enhance } from '$app/forms'
-  import type { PageData, ActionData } from './$types'
+  import { page } from '$app/state'
+  import {
+    getNamespaceSettings,
+    updateOrgName,
+    updateNamespaceIdleTimeout,
+    inviteMember,
+    setMemberRole,
+    removeMember,
+  } from './settings.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
   import Icon from '$lib/components/common/Icon.svelte'
 
-  let { data, form }: { data: PageData; form: ActionData } = $props()
+  const data = await getNamespaceSettings(page.params.namespace!)
 
   const isOrg = $derived(data.type === 'org')
 
   let inviteEmail = $state('')
-  let inviteLoading = $state(false)
-
   let idleTimeout = $state(
-    untrack(() =>
-      isOrg
-        ? String(data.org?.idleTimeoutSeconds ?? '')
-        : String(data.user.idleTimeoutSeconds ?? '')
-    )
+    data.type === 'org' ? String(data.org?.idleTimeoutSeconds ?? '') : String(data.user.idleTimeoutSeconds ?? '')
   )
-  let idleLoading = $state(false)
-
-  let orgName = $state(untrack(() => (isOrg ? (data.org?.displayName ?? '') : '')))
-  let orgNameLoading = $state(false)
+  let orgName = $state(data.type === 'org' ? (data.org?.displayName ?? '') : '')
 </script>
 
 <svelte:head>
@@ -46,27 +43,20 @@
     {#if isOrg && data.org}
       <section class="settings-section">
         <h2 class="section-title">Organization</h2>
-        <form
-          method="POST"
-          action="?/updateOrgName"
-          class="section-form"
-          use:enhance={() => {
-            orgNameLoading = true
-            return async ({ update }) => {
-              orgNameLoading = false
-              await update()
-            }
-          }}
-        >
-          <Input label="Display name" name="displayName" bind:value={orgName} required />
-          {#if form?.error && !form?.invite}
-            <div class="form-error" role="alert">{form.error}</div>
-          {/if}
-          {#if form?.success && !form?.invite}
+        <form {...updateOrgName} class="section-form">
+          <input type="hidden" name="namespaceSlug" value={page.params.namespace!} />
+          <Input
+            label="Display name"
+            name="displayName"
+            bind:value={orgName}
+            required
+            error={updateOrgName.fields.displayName?.issues()?.[0]?.message}
+          />
+          {#if updateOrgName.result?.success}
             <div class="form-success" role="status">Saved.</div>
           {/if}
           <div class="form-actions">
-            <Button type="submit" variant="primary" loading={orgNameLoading}>Save</Button>
+            <Button type="submit" variant="primary" loading={updateOrgName.pending > 0}>Save</Button>
           </div>
         </form>
       </section>
@@ -79,27 +69,21 @@
         Default idle timeout for projects in this namespace (seconds). Leave blank to use the system
         default.
       </p>
-      <form
-        method="POST"
-        action="?/updateIdleTimeout"
-        class="section-form"
-        use:enhance={() => {
-          idleLoading = true
-          return async ({ update }) => {
-            idleLoading = false
-            await update()
-          }
-        }}
-      >
+      <form {...updateNamespaceIdleTimeout} class="section-form">
+        <input type="hidden" name="namespaceSlug" value={page.params.namespace!} />
         <Input
           label="Idle timeout (seconds)"
           name="idleTimeoutSeconds"
           type="text"
           bind:value={idleTimeout}
           placeholder="1800 (system default)"
+          error={updateNamespaceIdleTimeout.fields.idleTimeoutSeconds?.issues()?.[0]?.message}
         />
+        {#if updateNamespaceIdleTimeout.result?.success}
+          <div class="form-success" role="status">Saved.</div>
+        {/if}
         <div class="form-actions">
-          <Button type="submit" variant="primary" loading={idleLoading}>Save</Button>
+          <Button type="submit" variant="primary" loading={updateNamespaceIdleTimeout.pending > 0}>Save</Button>
         </div>
       </form>
     </section>
@@ -129,21 +113,31 @@
               <div class="member-actions">
                 <span class="role-badge role-badge--{member.role}">{member.role}</span>
                 {#if data.isOwner && member.userId !== data.user.id}
-                  <form method="POST" action="?/setMemberRole" use:enhance>
-                    <input type="hidden" name="userId" value={member.userId} />
-                    <input
-                      type="hidden"
-                      name="role"
-                      value={member.role === 'owner' ? 'member' : 'owner'}
-                    />
-                    <Button type="submit" variant="ghost" size="sm">
-                      Make {member.role === 'owner' ? 'member' : 'owner'}
-                    </Button>
-                  </form>
-                  <form method="POST" action="?/removeMember" use:enhance>
-                    <input type="hidden" name="userId" value={member.userId} />
-                    <Button type="submit" variant="danger" size="sm">Remove</Button>
-                  </form>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    loading={setMemberRole.pending > 0}
+                    onclick={() =>
+                      setMemberRole({
+                        namespaceSlug: page.params.namespace!,
+                        userId: member.userId,
+                        role: member.role === 'owner' ? 'member' : 'owner',
+                      })}
+                  >
+                    Make {member.role === 'owner' ? 'member' : 'owner'}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    loading={removeMember.pending > 0}
+                    onclick={() =>
+                      removeMember({
+                        namespaceSlug: page.params.namespace!,
+                        userId: member.userId,
+                      })}
+                  >
+                    Remove
+                  </Button>
                 {/if}
               </div>
             </div>
@@ -152,18 +146,13 @@
 
         <!-- Invite form -->
         <form
-          method="POST"
-          action="?/inviteMember"
+          {...inviteMember}
           class="invite-form"
-          use:enhance={() => {
-            inviteLoading = true
-            return async ({ update }) => {
-              inviteLoading = false
-              inviteEmail = ''
-              await update()
-            }
-          }}
+          {...inviteMember.enhance(() => {
+            inviteEmail = ''
+          })}
         >
+          <input type="hidden" name="namespaceSlug" value={page.params.namespace!} />
           <Input
             label="Invite by email"
             name="email"
@@ -171,13 +160,13 @@
             bind:value={inviteEmail}
             placeholder="user@example.com"
             required
-            error={form?.invite && form?.error ? form.error : undefined}
+            error={inviteMember.fields.email?.issues()?.[0]?.message}
           />
-          {#if form?.invite && form?.success}
+          {#if inviteMember.result?.success}
             <div class="form-success" role="status">Invitation sent.</div>
           {/if}
           <div class="form-actions">
-            <Button type="submit" variant="primary" loading={inviteLoading}>
+            <Button type="submit" variant="primary" loading={inviteMember.pending > 0}>
               <Icon name="add" size={12} />
               Invite
             </Button>
@@ -212,12 +201,6 @@
 
   .back-link:hover {
     color: var(--color-text-primary);
-  }
-
-  /* undo rotate for text */
-  .back-link :global(.icon),
-  .back-link {
-    rotate: 0deg;
   }
 
   .back-link {
@@ -267,15 +250,6 @@
   .form-actions {
     display: flex;
     justify-content: flex-start;
-  }
-
-  .form-error {
-    padding: var(--space-2) var(--space-3);
-    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    color: var(--color-danger);
   }
 
   .form-success {

@@ -1,28 +1,28 @@
 <script lang="ts">
-  import { untrack } from 'svelte'
-  import { enhance } from '$app/forms'
+  import { page } from '$app/state'
+  import { goto } from '$app/navigation'
   import { SvelteMap } from 'svelte/reactivity'
-  import type { PageData, ActionData } from './$types'
+  import {
+    getProjectSettings,
+    updateProject,
+    addUserPermission,
+    removePermission,
+    deleteProject,
+  } from './settings.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
   import Icon from '$lib/components/common/Icon.svelte'
   import Modal from '$lib/components/common/Modal.svelte'
 
-  let { data, form }: { data: PageData; form: ActionData } = $props()
+  const data = await getProjectSettings({
+    namespace: page.params.namespace!,
+    project: page.params.project!,
+  })
 
-  let displayName = $state(untrack(() => data.project.displayName))
-  let idleTimeout = $state(untrack(() => String(data.project.idleTimeoutSeconds ?? '')))
-  let updateLoading = $state(false)
-
-  // Add user permission form
   let addUserEmail = $state('')
   let addUserPerms = $state<string[]>(['files:read'])
-  let addUserLoading = $state(false)
-
-  // Delete confirmation
   let deleteModalOpen = $state(false)
   let deleteConfirmText = $state('')
-  let deleteLoading = $state(false)
 
   const ALL_PERMS = ['files:read', 'files:write', 'shell', 'project:manage'] as const
 
@@ -33,7 +33,6 @@
     'project:manage': 'Manage project',
   }
 
-  // Group grants by principal
   type GrantGroup = {
     principalType: 'user' | 'org'
     principalId: string
@@ -65,6 +64,14 @@
   }
 
   const canDelete = $derived(deleteConfirmText === data.project.slug)
+
+  async function handleDelete() {
+    const result = await deleteProject({
+      namespaceSlug: page.params.namespace!,
+      projectSlug: page.params.project!,
+    })
+    goto(result.redirectTo)
+  }
 </script>
 
 <svelte:head>
@@ -84,36 +91,31 @@
     <!-- General -->
     <section class="settings-section">
       <h2 class="section-title">General</h2>
-      <form
-        method="POST"
-        action="?/updateProject"
-        class="section-form"
-        use:enhance={() => {
-          updateLoading = true
-          return async ({ update }) => {
-            updateLoading = false
-            await update()
-          }
-        }}
-      >
-        <Input label="Display name" name="displayName" bind:value={displayName} required />
+      <form {...updateProject} class="section-form">
+        <input type="hidden" name="namespaceSlug" value={page.params.namespace!} />
+        <input type="hidden" name="projectSlug" value={page.params.project!} />
+        <Input
+          label="Display name"
+          name="displayName"
+          value={data.project.displayName}
+          required
+          error={updateProject.fields.displayName?.issues()?.[0]?.message}
+        />
         <Input
           label="Idle timeout (seconds)"
           name="idleTimeoutSeconds"
           type="text"
-          bind:value={idleTimeout}
+          value={String(data.project.idleTimeoutSeconds ?? '')}
           placeholder="Inherit from namespace"
+          error={updateProject.fields.idleTimeoutSeconds?.issues()?.[0]?.message}
         />
 
-        {#if form?.error && !form?.addUser}
-          <div class="form-error" role="alert">{form.error}</div>
-        {/if}
-        {#if form?.success && !form?.addUser}
+        {#if updateProject.result?.success}
           <div class="form-success" role="status">Saved.</div>
         {/if}
 
         <div class="form-actions">
-          <Button type="submit" variant="primary" loading={updateLoading}>Save</Button>
+          <Button type="submit" variant="primary" loading={updateProject.pending > 0}>Save</Button>
         </div>
       </form>
     </section>
@@ -145,10 +147,20 @@
                 </span>
               {/each}
               <span class="grants-row__action">
-                <form method="POST" action="?/setPermissions" use:enhance>
-                  <!-- Submit with empty grants to remove this principal's access -->
-                  <Button type="submit" variant="ghost" size="sm">Remove</Button>
-                </form>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  loading={removePermission.pending > 0}
+                  onclick={() =>
+                    removePermission({
+                      namespaceSlug: page.params.namespace!,
+                      projectSlug: page.params.project!,
+                      principalType: group.principalType,
+                      principalId: group.principalId,
+                    })}
+                >
+                  Remove
+                </Button>
               </span>
             </div>
           {/each}
@@ -161,19 +173,15 @@
       <div class="add-user-form">
         <h3 class="add-user-title">Add user access</h3>
         <form
-          method="POST"
-          action="?/addUserPermission"
+          {...addUserPermission}
           class="section-form"
-          use:enhance={() => {
-            addUserLoading = true
-            return async ({ update }) => {
-              addUserLoading = false
-              addUserEmail = ''
-              addUserPerms = ['files:read']
-              await update()
-            }
-          }}
+          {...addUserPermission.enhance(() => {
+            addUserEmail = ''
+            addUserPerms = ['files:read']
+          })}
         >
+          <input type="hidden" name="namespaceSlug" value={page.params.namespace!} />
+          <input type="hidden" name="projectSlug" value={page.params.project!} />
           <Input
             label="User email"
             name="email"
@@ -181,7 +189,7 @@
             bind:value={addUserEmail}
             placeholder="user@example.com"
             required
-            error={form?.addUser && form?.error ? form.error : undefined}
+            error={addUserPermission.fields.email?.issues()?.[0]?.message}
           />
 
           <div class="perm-checkboxes">
@@ -202,12 +210,14 @@
             </div>
           </div>
 
-          {#if form?.addUser && form?.success}
+          {#if addUserPermission.result?.success}
             <div class="form-success" role="status">Access granted.</div>
           {/if}
 
           <div class="form-actions">
-            <Button type="submit" variant="primary" loading={addUserLoading}>Grant access</Button>
+            <Button type="submit" variant="primary" loading={addUserPermission.pending > 0}>
+              Grant access
+            </Button>
           </div>
         </form>
       </div>
@@ -248,11 +258,14 @@
     />
     <div class="delete-modal__actions">
       <Button variant="secondary" onclick={() => (deleteModalOpen = false)}>Cancel</Button>
-      <form method="POST" action="?/deleteProject">
-        <Button type="submit" variant="danger" disabled={!canDelete} loading={deleteLoading}>
-          Delete project
-        </Button>
-      </form>
+      <Button
+        variant="danger"
+        disabled={!canDelete}
+        loading={deleteProject.pending > 0}
+        onclick={handleDelete}
+      >
+        Delete project
+      </Button>
     </div>
   </div>
 </Modal>
@@ -327,15 +340,6 @@
   .form-actions {
     display: flex;
     justify-content: flex-start;
-  }
-
-  .form-error {
-    padding: var(--space-2) var(--space-3);
-    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    color: var(--color-danger);
   }
 
   .form-success {
