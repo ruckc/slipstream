@@ -7,7 +7,10 @@ import { issueProjectToken } from '$lib/server/jwt/issue'
 
 export const issueToken = command(
   'unchecked',
-  async (arg: { userId: string; projectId: string }): Promise<{ token: string; expiresAt: number }> => {
+  async (arg: {
+    userId: string
+    projectId: string
+  }): Promise<{ token: string; expiresAt: number }> => {
     const projectRows = await db
       .select()
       .from(projects)

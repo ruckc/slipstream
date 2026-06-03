@@ -66,6 +66,10 @@ export const getProjectUsage = query(
         )
       )
 
-    return rows.map((r) => ({ metric: r.metric, value: parseFloat(r.value), sampledAt: r.sampledAt }))
+    return rows.map((r) => ({
+      metric: r.metric,
+      value: parseFloat(r.value),
+      sampledAt: r.sampledAt,
+    }))
   }
 )

@@ -18,7 +18,11 @@ async function assertOrgOwner(userId: string, orgId: string): Promise<void> {
 
 export const createOrganization = command(
   'unchecked',
-  async (arg: { actorUserId: string; slug: string; displayName: string }): Promise<Organization> => {
+  async (arg: {
+    actorUserId: string
+    slug: string
+    displayName: string
+  }): Promise<Organization> => {
     const existing = await db
       .select({ id: namespaces.id })
       .from(namespaces)
@@ -117,7 +121,8 @@ export const removeMember = command(
         .select({ userId: orgMembers.userId })
         .from(orgMembers)
         .where(and(eq(orgMembers.orgId, arg.orgId), eq(orgMembers.role, 'owner')))
-      if (ownerCount.length <= 1) throw error(400, 'Cannot remove the last owner of an organization')
+      if (ownerCount.length <= 1)
+        throw error(400, 'Cannot remove the last owner of an organization')
     }
 
     await db
@@ -141,7 +146,8 @@ export const setMemberRole = command(
         .select({ userId: orgMembers.userId })
         .from(orgMembers)
         .where(and(eq(orgMembers.orgId, arg.orgId), eq(orgMembers.role, 'owner')))
-      if (ownerCount.length <= 1) throw error(400, 'Cannot demote the last owner of an organization')
+      if (ownerCount.length <= 1)
+        throw error(400, 'Cannot demote the last owner of an organization')
     }
 
     const result = await db

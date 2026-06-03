@@ -73,15 +73,26 @@ export const createProject = command(
       .from(projects)
       .where(and(eq(projects.namespaceId, arg.namespaceId), eq(projects.slug, arg.slug)))
       .limit(1)
-    if (existing.length > 0) throw error(409, 'A project with that slug already exists in this namespace')
+    if (existing.length > 0)
+      throw error(409, 'A project with that slug already exists in this namespace')
 
-    const nsRows = await db.select().from(namespaces).where(eq(namespaces.id, arg.namespaceId)).limit(1)
+    const nsRows = await db
+      .select()
+      .from(namespaces)
+      .where(eq(namespaces.id, arg.namespaceId))
+      .limit(1)
     if (nsRows.length === 0) throw error(404, 'Namespace not found')
     const ns = nsRows[0]
 
     const [project] = await db
       .insert(projects)
-      .values({ namespaceId: arg.namespaceId, slug: arg.slug, displayName: arg.displayName, status: 'stopped', k8sPvcName: 'pending' })
+      .values({
+        namespaceId: arg.namespaceId,
+        slug: arg.slug,
+        displayName: arg.displayName,
+        status: 'stopped',
+        k8sPvcName: 'pending',
+      })
       .returning()
 
     let pvcName: string
@@ -108,7 +119,10 @@ export const createProject = command(
 
 export const getProject = query(
   'unchecked',
-  async (arg: { namespaceSlug: string; projectSlug: string }): Promise<(Project & { namespace: Namespace }) | null> => {
+  async (arg: {
+    namespaceSlug: string
+    projectSlug: string
+  }): Promise<(Project & { namespace: Namespace }) | null> => {
     const rows = await db
       .select({ project: projects, namespace: namespaces })
       .from(projects)
@@ -160,7 +174,12 @@ export const startProject = command(
     }
 
     try {
-      const result = await createRouteAndService(ns.k8sNamespace, arg.projectId, ns.slug, project.slug)
+      const result = await createRouteAndService(
+        ns.k8sNamespace,
+        arg.projectId,
+        ns.slug,
+        project.slug
+      )
       routeName = result.routeName
     } catch (e) {
       await deletePod(ns.k8sNamespace, podName).catch(() => {})
@@ -175,7 +194,12 @@ export const startProject = command(
 
     const [updated] = await db
       .update(projects)
-      .set({ status: 'starting', k8sPodName: podName, k8sRouteName: routeName, updatedAt: new Date() })
+      .set({
+        status: 'starting',
+        k8sPodName: podName,
+        k8sRouteName: routeName,
+        updatedAt: new Date(),
+      })
       .where(eq(projects.id, arg.projectId))
       .returning()
     return updated
@@ -192,7 +216,11 @@ export const stopProject = command(
 
     if (project.k8sPodName) await deletePod(ns.k8sNamespace, project.k8sPodName).catch(() => {})
     if (project.k8sRouteName) {
-      await deleteRouteAndService(ns.k8sNamespace, project.k8sRouteName, `svc-${arg.projectId}`).catch(() => {})
+      await deleteRouteAndService(
+        ns.k8sNamespace,
+        project.k8sRouteName,
+        `svc-${arg.projectId}`
+      ).catch(() => {})
     }
     await deleteNetworkPolicy(ns.k8sNamespace, arg.projectId).catch(() => {})
 
@@ -216,7 +244,11 @@ export const deleteProject = command(
     if (project.status !== 'stopped') {
       if (project.k8sPodName) await deletePod(ns.k8sNamespace, project.k8sPodName).catch(() => {})
       if (project.k8sRouteName) {
-        await deleteRouteAndService(ns.k8sNamespace, project.k8sRouteName, `svc-${arg.projectId}`).catch(() => {})
+        await deleteRouteAndService(
+          ns.k8sNamespace,
+          project.k8sRouteName,
+          `svc-${arg.projectId}`
+        ).catch(() => {})
       }
       await deleteNetworkPolicy(ns.k8sNamespace, arg.projectId).catch(() => {})
     }

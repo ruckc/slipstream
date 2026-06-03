@@ -11,6 +11,9 @@ export const POST = async ({ request, locals }) => {
     throw error(400, 'Invalid theme: must be one of system, light, dark')
   }
 
-  await updateThemePreference({ userId: locals.user.id, theme: theme as 'system' | 'light' | 'dark' })
+  await updateThemePreference({
+    userId: locals.user.id,
+    theme: theme as 'system' | 'light' | 'dark',
+  })
   return json({ ok: true })
 }

@@ -188,7 +188,12 @@ export const setMemberRole = command(
       .limit(1)
     if (orgRows.length === 0) error(404)
 
-    await orgSetMemberRole({ actorUserId: locals.user.id, orgId: orgRows[0].org.id, targetUserId: arg.userId, role: arg.role })
+    await orgSetMemberRole({
+      actorUserId: locals.user.id,
+      orgId: orgRows[0].org.id,
+      targetUserId: arg.userId,
+      role: arg.role,
+    })
   }
 )
 
@@ -212,6 +217,10 @@ export const removeMember = command(
       .limit(1)
     if (orgRows.length === 0) error(404)
 
-    await orgRemoveMember({ actorUserId: locals.user.id, orgId: orgRows[0].org.id, targetUserId: arg.userId })
+    await orgRemoveMember({
+      actorUserId: locals.user.id,
+      orgId: orgRows[0].org.id,
+      targetUserId: arg.userId,
+    })
   }
 )
