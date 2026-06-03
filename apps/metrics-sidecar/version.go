@@ -1,4 +1,4 @@
 package main
 
 // Version is set at release time by the release workflow.
-const Version = "0.3.0"
+const Version = "0.4.0"
