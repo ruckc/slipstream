@@ -1,7 +1,5 @@
 name: Release
 
-run-name: "Release (computing version…)"
-
 on:
   workflow_dispatch:
     inputs:
@@ -13,9 +11,8 @@ on:
         options: ['', 'patch', 'minor', 'major']
 
 permissions:
-  actions: write   # update the workflow run display title
-  contents: write  # commit version bump, create tags, create GitHub Release
-  packages: write  # push versioned images and Helm chart to GHCR
+  contents: write   # commit version bump, create tags, create GitHub Release
+  packages: write   # push versioned images and Helm chart to GHCR
 
 jobs:
   # ── Gate: only run from main ────────────────────────────────────────────────
@@ -270,15 +267,6 @@ jobs:
           # Push commit and tag atomically-ish; fail fast on conflict
           git push origin main
           git push origin "${TAG}"
-
-      # ── 6. Update the workflow run name to include the version ────────────
-      - name: Retitle workflow run
-        env:
-          TAG: ${{ steps.next.outputs.tag }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }} \
-            -X PATCH -f display_title="Release ${TAG}"
 
   # ── Build and push versioned images from the tagged commit ─────────────────
   build-and-push:
