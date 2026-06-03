@@ -76,7 +76,7 @@ jobs:
       - uses: actions/setup-go@v6.4.0
         with:
           go-version-file: apps/metrics-sidecar/go.mod
-          cache-dependency-path: apps/metrics-sidecar/go.sum
+          cache: false
 
       - name: Check formatting
         working-directory: apps/metrics-sidecar
@@ -127,10 +127,14 @@ jobs:
         with:
           version: v3.17.0
 
+      - name: Install kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
       - name: Create kind cluster
-        uses: helm/kind-action@v1.10.0
-        with:
-          cluster_name: slipstream-test
+        run: kind create cluster --name slipstream-test --wait 60s
 
       - name: Install Gateway API CRDs
         run: |
