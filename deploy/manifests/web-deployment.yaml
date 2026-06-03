@@ -22,6 +22,7 @@ data:
   GATEWAY_NAME: "slipstream-gateway"
   GATEWAY_NAMESPACE: "slipstream-system"
   GATEWAY_HOSTNAME: "{{GATEWAY_HOSTNAME}}"
+  GATEWAY_LISTENER_HTTPS: "https"
 
 ---
 # Secret values — populate via sealed-secrets or an external secret manager.

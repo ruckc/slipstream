@@ -14,6 +14,7 @@ data:
   GATEWAY_NAME: {{ .Values.gateway.name | quote }}
   GATEWAY_NAMESPACE: {{ .Values.gateway.namespace | quote }}
   GATEWAY_HOSTNAME: {{ .Values.gateway.hostname | quote }}
+  GATEWAY_LISTENER_HTTPS: {{ .Values.gateway.listeners.https | quote }}
   {{- if .Values.victoriametrics.enabled }}
   METRICS_SIDECAR_IMAGE: {{ include "slipstream.metricsSidecarImage" . | quote }}
   METRICS_PUSH_URL: {{ include "slipstream.metricsPushUrl" . | quote }}

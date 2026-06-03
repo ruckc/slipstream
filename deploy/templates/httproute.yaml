@@ -9,6 +9,7 @@ spec:
   parentRefs:
     - name: {{GATEWAY_NAME}}
       namespace: {{GATEWAY_NAMESPACE}}
+      sectionName: {{GATEWAY_LISTENER_HTTPS}}
   hostnames:
     - "{{GATEWAY_HOSTNAME}}"
   rules:

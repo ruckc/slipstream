@@ -24,6 +24,7 @@ export async function createRouteAndService(
   const gatewayName = process.env.GATEWAY_NAME ?? 'slipstream-gateway'
   const gatewayNamespace = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
   const gatewayHostname = process.env.GATEWAY_HOSTNAME ?? ''
+  const gatewayListenerHttps = process.env.GATEWAY_LISTENER_HTTPS ?? 'https'
 
   const svcName = serviceName(projectId)
   const rtName = routeName(projectId)
@@ -74,6 +75,7 @@ export async function createRouteAndService(
         {
           name: gatewayName,
           namespace: gatewayNamespace,
+          sectionName: gatewayListenerHttps,
         },
       ],
       ...(gatewayHostname ? { hostnames: [gatewayHostname] } : {}),
