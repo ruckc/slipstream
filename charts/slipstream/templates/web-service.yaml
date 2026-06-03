@@ -15,3 +15,9 @@ spec:
       port: 80
       targetPort: 3000
       protocol: TCP
+    {{- if .Values.certManager.enabled }}
+    - name: https
+      port: 443
+      targetPort: 443
+      protocol: TCP
+    {{- end }}

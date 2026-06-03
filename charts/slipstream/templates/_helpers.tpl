@@ -91,3 +91,10 @@ Secret name: either existingSecret or the chart-managed secret.
 slipstream-web-secret
 {{- end }}
 {{- end }}
+
+{{/*
+Name of the TLS Secret created by cert-manager.
+*/}}
+{{- define "slipstream.tlsSecretName" -}}
+{{ include "slipstream.fullname" . }}-tls
+{{- end }}

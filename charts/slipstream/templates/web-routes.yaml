@@ -27,9 +27,8 @@ spec:
 
 {{- if .Values.certManager.enabled }}
 ---
-# TLS traffic — cert-manager manages the certificate; the Gateway's TLS listener
-# (sectionName: {{ .Values.gateway.listeners.tls }}) must reference the
-# {{ include "slipstream.fullname" . }}-tls Secret that cert-manager creates.
+# TLS passthrough — the Gateway forwards raw TLS to the backend based on SNI;
+# the pod terminates TLS using the cert-manager Secret mounted at /etc/tls.
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: TLSRoute
 metadata:
@@ -47,7 +46,7 @@ spec:
   rules:
     - backendRefs:
         - name: slipstream-web
-          port: 80
+          port: 443
 {{- else }}
 ---
 # HTTPS traffic — no cert-manager; assumes the Gateway's HTTPS listener already
