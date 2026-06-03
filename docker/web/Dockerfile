@@ -31,6 +31,9 @@ COPY apps/web ./apps/web
 
 RUN pnpm --filter @slipstream/web build
 
+# Ensure the drizzle migrations directory exists (it may be empty before first generation)
+RUN mkdir -p apps/web/drizzle
+
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
 FROM node:lts-alpine AS runner
 WORKDIR /app
@@ -48,6 +51,8 @@ COPY --from=prod-deps --chown=slipstream:slipstream /app/apps/web/node_modules /
 # resolution from build/server/chunks/ passes through /app/apps/web/node_modules
 # and finds @sveltejs/kit there.
 COPY --from=builder --chown=slipstream:slipstream /app/apps/web/build /app/apps/web/build
+COPY --from=builder --chown=slipstream:slipstream /app/apps/web/migrate.mjs /app/apps/web/migrate.mjs
+COPY --from=builder --chown=slipstream:slipstream /app/apps/web/drizzle /app/apps/web/drizzle
 
 USER slipstream
 
