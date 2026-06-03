@@ -1,6 +1,6 @@
 {{- if .Values.postgresql.enabled }}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: slipstream-postgres
   namespace: {{ .Release.Namespace }}
@@ -8,14 +8,14 @@ metadata:
     {{- include "slipstream.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgres
 spec:
+  serviceName: slipstream-postgres
   replicas: 1
   selector:
     matchLabels:
       {{- include "slipstream.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: postgres
-  # Recreate ensures the old pod releases the PVC (ReadWriteOnce) before the new one starts.
-  strategy:
-    type: Recreate
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -65,8 +65,16 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 6
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: slipstream-postgres-data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "slipstream.labels" . | nindent 10 }}
+          app.kubernetes.io/component: postgres
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ .Values.postgresql.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.postgresql.storage }}
 {{- end }}
