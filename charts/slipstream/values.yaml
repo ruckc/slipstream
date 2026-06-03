@@ -37,6 +37,12 @@ gateway:
   name: ""        # required: Gateway resource name
   namespace: ""   # required: Gateway resource namespace
   hostname: ""    # required: public hostname served by the gateway
+  listeners:
+    http: http    # sectionName of the HTTP listener
+    https: https  # sectionName of the HTTPS listener
+  tcpRoute:
+    enabled: false  # enable a TCPRoute for a raw TCP listener (e.g. TLS passthrough)
+    listener: tcp   # sectionName of the TCP listener on the Gateway
 
 auth:
   # Auto-generated on first install and preserved across upgrades via secret lookup.
