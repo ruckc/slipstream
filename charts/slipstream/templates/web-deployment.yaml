@@ -35,6 +35,10 @@ spec:
                 name: slipstream-web-config
             - secretRef:
                 name: {{ include "slipstream.secretName" . }}
+            {{- if and .Values.auth.existingSecret (not .Values.existingSecret) }}
+            - secretRef:
+                name: {{ .Values.auth.existingSecret }}
+            {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

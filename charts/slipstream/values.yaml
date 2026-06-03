@@ -68,9 +68,16 @@ certManager:
         memory: 64Mi
 
 auth:
+  # When set, SESSION_SECRET, K8S_JWT_PRIVATE_KEY, and all OIDC credentials are
+  # sourced from this pre-created Secret. Use scripts/create-auth-secret.sh to
+  # create it. The chart-managed Secret will still hold DATABASE_URL (and
+  # POSTGRES_PASSWORD when postgresql.enabled is true).
+  existingSecret: ""
+  # Ignored when auth.existingSecret is set.
   # Auto-generated on first install and preserved across upgrades via secret lookup.
   # Set explicitly if you need a known value (e.g. for multi-cluster setups).
   sessionSecret: ""
+  # Ignored when auth.existingSecret is set.
   # Optional base64-encoded PKCS8 PEM. Leave empty to use an ephemeral
   # in-memory key — only suitable for single-replica deployments.
   jwtPrivateKey: ""
@@ -84,8 +91,9 @@ auth:
     clientId: ""
     clientSecret: ""
 
-# When set, skip rendering the Secret and reference this existing Secret instead.
-# The Secret must expose all sensitive env vars (DATABASE_URL, SESSION_SECRET, etc.).
+# When set, skip rendering the chart-managed Secret entirely and reference this
+# existing Secret for ALL env vars (DATABASE_URL, SESSION_SECRET, etc.).
+# Takes precedence over auth.existingSecret.
 existingSecret: ""
 
 devMode:
