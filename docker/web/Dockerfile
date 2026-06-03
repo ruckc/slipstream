@@ -16,8 +16,6 @@ RUN corepack enable
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web/package.json ./apps/web/
 
-# --prod omits devDependencies; adapter-node leaves @sveltejs/kit external so it
-# must be present at runtime even though the build/ directory looks self-contained.
 RUN pnpm install --frozen-lockfile --prod --filter @slipstream/web...
 
 # ── Stage 2: Build ────────────────────────────────────────────────────────────
@@ -40,9 +38,16 @@ WORKDIR /app
 RUN addgroup -g 1001 -S slipstream \
  && adduser  -u 1001 -S slipstream -G slipstream
 
-COPY --from=prod-deps --chown=slipstream:slipstream /app/node_modules ./node_modules
-COPY --from=prod-deps --chown=slipstream:slipstream /app/apps/web/node_modules ./apps/web/node_modules
-COPY --from=builder --chown=slipstream:slipstream /app/apps/web/build ./build
+# Preserve the pnpm workspace layout so the symlinks inside apps/web/node_modules
+# (which point to ../../../node_modules/.pnpm/...) resolve to the virtual store
+# copied here at /app/node_modules/.pnpm.
+COPY --from=prod-deps --chown=slipstream:slipstream /app/node_modules /app/node_modules
+COPY --from=prod-deps --chown=slipstream:slipstream /app/apps/web/node_modules /app/apps/web/node_modules
+
+# The build output lives at /app/apps/web/build so that Node's upward module
+# resolution from build/server/chunks/ passes through /app/apps/web/node_modules
+# and finds @sveltejs/kit there.
+COPY --from=builder --chown=slipstream:slipstream /app/apps/web/build /app/apps/web/build
 
 USER slipstream
 
@@ -52,4 +57,7 @@ ENV HOST=0.0.0.0
 
 EXPOSE 3000
 
+# Run from the web workspace directory so `node build` resolves to apps/web/build/index.js
+# and module resolution walks up through /app/apps/web/node_modules.
+WORKDIR /app/apps/web
 CMD ["node", "build"]
