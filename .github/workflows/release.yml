@@ -226,6 +226,22 @@ jobs:
           open('apps/metrics-sidecar/version.go', 'w').write(content)
           PYEOF
 
+          # apps/agent/Cargo.lock — update the slipstream-agent package entry to match Cargo.toml
+          python3 - << 'PYEOF'
+          import re, os
+          ver  = os.environ['VERSION']
+          path = 'apps/agent/Cargo.lock'
+          with open(path) as f:
+              content = f.read()
+          content = re.sub(
+              r'(name = "slipstream-agent"\nversion = )"[^"]+"',
+              rf'\1"{ver}"',
+              content
+          )
+          with open(path, 'w') as f:
+              f.write(content)
+          PYEOF
+
           # charts/slipstream/Chart.yaml — update both version and appVersion
           python3 - << 'PYEOF'
           import re, os
@@ -258,6 +274,7 @@ jobs:
           git add VERSION \
                   apps/web/package.json \
                   apps/agent/Cargo.toml \
+                  apps/agent/Cargo.lock \
                   apps/metrics-sidecar/version.go \
                   charts/slipstream/Chart.yaml
 
