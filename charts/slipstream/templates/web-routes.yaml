@@ -25,8 +25,33 @@ spec:
             scheme: https
             statusCode: 301
 
+{{- if .Values.certManager.enabled }}
 ---
-# HTTPS traffic to the web service
+# TLS traffic — cert-manager manages the certificate; the Gateway's TLS listener
+# (sectionName: {{ .Values.gateway.listeners.tls }}) must reference the
+# {{ include "slipstream.fullname" . }}-tls Secret that cert-manager creates.
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TLSRoute
+metadata:
+  name: slipstream-web
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      sectionName: {{ .Values.gateway.listeners.tls }}
+  hostnames:
+    - {{ .Values.gateway.hostname | quote }}
+  rules:
+    - backendRefs:
+        - name: slipstream-web
+          port: 80
+{{- else }}
+---
+# HTTPS traffic — no cert-manager; assumes the Gateway's HTTPS listener already
+# has TLS configured externally (sectionName: {{ .Values.gateway.listeners.https }}).
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -49,6 +74,7 @@ spec:
       backendRefs:
         - name: slipstream-web
           port: 80
+{{- end }}
 {{- if .Values.gateway.tcpRoute.enabled }}
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
