@@ -1,0 +1,40 @@
+{{- if .Values.certManager.enabled }}
+---
+apiVersion: cert-manager.io/v1
+kind: {{ .Values.certManager.issuer.kind }}
+metadata:
+  name: {{ include "slipstream.fullname" . }}
+  {{- if eq .Values.certManager.issuer.kind "Issuer" }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+spec:
+  acme:
+    email: {{ .Values.certManager.issuer.acme.email | quote }}
+    server: {{ .Values.certManager.issuer.acme.server | quote }}
+    privateKeySecretRef:
+      name: {{ include "slipstream.fullname" . }}-acme-key
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: {{ .Values.gateway.name }}
+                namespace: {{ .Values.gateway.namespace }}
+                kind: Gateway
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "slipstream.fullname" . }}-tls
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "slipstream.fullname" . }}-tls
+  dnsNames:
+    - {{ .Values.gateway.hostname | quote }}
+  issuerRef:
+    name: {{ include "slipstream.fullname" . }}
+    kind: {{ .Values.certManager.issuer.kind }}
+{{- end }}

@@ -44,6 +44,18 @@ gateway:
     enabled: false  # enable a TCPRoute for a raw TCP listener (e.g. TLS passthrough)
     listener: tcp   # sectionName of the TCP listener on the Gateway
 
+certManager:
+  enabled: false
+  issuer:
+    # "ClusterIssuer" (cluster-scoped) or "Issuer" (namespace-scoped).
+    kind: ClusterIssuer
+    acme:
+      # Contact address for Let's Encrypt expiry notices. Required when enabled.
+      email: ""
+      # ACME directory URL.
+      # Staging (for testing): https://acme-staging-v02.api.letsencrypt.org/directory
+      server: https://acme-v02.api.letsencrypt.org/directory
+
 auth:
   # Auto-generated on first install and preserved across upgrades via secret lookup.
   # Set explicitly if you need a known value (e.g. for multi-cluster setups).
