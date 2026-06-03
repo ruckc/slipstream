@@ -7,7 +7,7 @@ import { resolvePermissions } from '$lib/server/permissions'
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.user) throw redirect(302, '/auth/login')
 
-  const project = await getProject(params.namespace, params.project)
+  const project = await getProject({ namespaceSlug: params.namespace, projectSlug: params.project })
   if (!project) throw error(404, 'Project not found')
 
   const permissions = await resolvePermissions(locals.user, project.id)
@@ -25,20 +25,20 @@ export const actions: Actions = {
   start: async ({ locals, params }) => {
     if (!locals.user) throw redirect(302, '/auth/login')
 
-    const project = await getProject(params.namespace, params.project)
+    const project = await getProject({ namespaceSlug: params.namespace, projectSlug: params.project })
     if (!project) throw error(404, 'Project not found')
 
-    await startProject(locals.user.id, project.id)
+    await startProject({ actorUserId: locals.user.id, projectId: project.id })
     return { success: true }
   },
 
   stop: async ({ locals, params }) => {
     if (!locals.user) throw redirect(302, '/auth/login')
 
-    const project = await getProject(params.namespace, params.project)
+    const project = await getProject({ namespaceSlug: params.namespace, projectSlug: params.project })
     if (!project) throw error(404, 'Project not found')
 
-    await stopProject(locals.user.id, project.id)
+    await stopProject({ actorUserId: locals.user.id, projectId: project.id })
     return { success: true }
   },
 }

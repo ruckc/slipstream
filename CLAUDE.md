@@ -150,7 +150,7 @@ Pages use SvelteKit's experimental remote functions (`query`, `form`, `command`)
 
 **Route-level remote files** live as `<route>/*.remote.ts` (e.g. `src/routes/settings/settings.remote.ts`). They export `query`/`form`/`command` functions and are imported directly in `.svelte` components. Use `/remote-route` to convert a route.
 
-**Server-side helpers** live in `src/lib/remote/*.remote.ts` as plain async TypeScript functions. These are called from within route-level remote functions — they are NOT SvelteKit remote functions themselves.
+**Shared remote functions** live in `src/lib/remote/*.remote.ts` as `query`/`command` wrappers. **Every export from a `.remote.ts` file must be a remote function** — plain async function exports cause a build error (`all exports from this file must be remote functions`). Keep plain async helpers as non-exported internal functions within the file. `query`/`command` each take at most one argument; pack multiple params into an object.
 
 Key imports:
 - `query`, `form`, `command`, `getRequestEvent` → `$app/server`

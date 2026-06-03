@@ -50,7 +50,7 @@ export const actions: Actions = {
     if (!displayName) return fail(400, { createProject: true, error: 'Display name is required' })
 
     try {
-      await createProject(locals.user.id, namespaceId, slug, displayName)
+      await createProject({ actorUserId: locals.user.id, namespaceId, slug, displayName })
 
       // Look up namespace slug for redirect
       const ns = await db
@@ -85,7 +85,7 @@ export const actions: Actions = {
     if (!displayName) return fail(400, { createOrg: true, error: 'Display name is required' })
 
     try {
-      await createOrganization(locals.user.id, slug, displayName)
+      await createOrganization({ actorUserId: locals.user.id, slug, displayName })
       throw redirect(303, `/${slug}`)
     } catch (e: unknown) {
       if (e && typeof e === 'object' && 'status' in e) throw e

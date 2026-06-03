@@ -4,9 +4,9 @@ import { db, namespaces, organizations, orgMembers, users } from '$lib/server/db
 import { eq, and } from 'drizzle-orm'
 import {
   listOrgMembers,
-  inviteMember as inviteMemberFn,
-  removeMember as removeMemberFn,
-  setMemberRole as setMemberRoleFn,
+  inviteMember as orgInviteMember,
+  removeMember as orgRemoveMember,
+  setMemberRole as orgSetMemberRole,
 } from '$lib/remote/organization.remote'
 
 export const getNamespaceSettings = query('unchecked', async (namespaceSlug: string) => {
@@ -162,7 +162,7 @@ export const inviteMember = form(
       .limit(1)
     if (orgRows.length === 0) error(404)
 
-    await inviteMemberFn(locals.user.id, orgRows[0].org.id, email)
+    await orgInviteMember({ actorUserId: locals.user.id, orgId: orgRows[0].org.id, email })
 
     return { success: true as const }
   }
@@ -188,7 +188,7 @@ export const setMemberRole = command(
       .limit(1)
     if (orgRows.length === 0) error(404)
 
-    await setMemberRoleFn(locals.user.id, orgRows[0].org.id, arg.userId, arg.role)
+    await orgSetMemberRole({ actorUserId: locals.user.id, orgId: orgRows[0].org.id, targetUserId: arg.userId, role: arg.role })
   }
 )
 
@@ -212,6 +212,6 @@ export const removeMember = command(
       .limit(1)
     if (orgRows.length === 0) error(404)
 
-    await removeMemberFn(locals.user.id, orgRows[0].org.id, arg.userId)
+    await orgRemoveMember({ actorUserId: locals.user.id, orgId: orgRows[0].org.id, targetUserId: arg.userId })
   }
 )

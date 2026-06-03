@@ -2,7 +2,7 @@ import { query, form, command, getRequestEvent } from '$app/server'
 import { redirect, error, invalid } from '@sveltejs/kit'
 import { db, projects, users } from '$lib/server/db'
 import { eq } from 'drizzle-orm'
-import { getProject, deleteProject as deleteProjectFn } from '$lib/remote/project.remote'
+import { getProject, deleteProject as deleteProjectCmd } from '$lib/remote/project.remote'
 import { getProjectPermissions, setProjectPermissions } from '$lib/remote/permissions.remote'
 import { resolvePermissions } from '$lib/server/permissions'
 import type { Permission } from '$lib/server/permissions'
@@ -20,13 +20,13 @@ export const getProjectSettings = query(
     const { locals } = getRequestEvent()
     if (!locals.user) redirect(302, '/auth/login')
 
-    const project = await getProject(arg.namespace, arg.project)
+    const project = await getProject({ namespaceSlug: arg.namespace, projectSlug: arg.project })
     if (!project) error(404, 'Project not found')
 
     const permissions = await resolvePermissions(locals.user, project.id)
     if (!permissions.includes('project:manage')) error(403, 'Access denied')
 
-    const grants = await getProjectPermissions(locals.user.id, project.id)
+    const grants = await getProjectPermissions({ actorUserId: locals.user.id, projectId: project.id })
 
     return { project, namespace: project.namespace, grants }
   }
@@ -46,7 +46,7 @@ export const updateProject = form(
     const { locals } = getRequestEvent()
     if (!locals.user) redirect(302, '/auth/login')
 
-    const project = await getProject(data.namespaceSlug, data.projectSlug)
+    const project = await getProject({ namespaceSlug: data.namespaceSlug, projectSlug: data.projectSlug })
     if (!project) error(404)
 
     const perms = await resolvePermissions(locals.user, project.id)
@@ -84,7 +84,7 @@ export const addUserPermission = form(
     const { locals } = getRequestEvent()
     if (!locals.user) redirect(302, '/auth/login')
 
-    const project = await getProject(data.namespaceSlug, data.projectSlug)
+    const project = await getProject({ namespaceSlug: data.namespaceSlug, projectSlug: data.projectSlug })
     if (!project) error(404)
 
     const perms = await resolvePermissions(locals.user, project.id)
@@ -108,29 +108,33 @@ export const addUserPermission = form(
     const userRows = await db.select().from(users).where(eq(users.email, email)).limit(1)
     if (userRows.length === 0) error(404, 'No user found with that email')
 
-    const existing = await getProjectPermissions(locals.user.id, project.id)
+    const existing = await getProjectPermissions({ actorUserId: locals.user.id, projectId: project.id })
     const others = existing.filter(
       (g) => !(g.principalType === 'user' && g.principalId === userRows[0].id)
     )
 
-    await setProjectPermissions(locals.user.id, project.id, [
-      ...others.reduce<
-        Array<{ principalType: 'user' | 'org'; principalId: string; permissions: Permission[] }>
-      >((acc, g) => {
-        const found = acc.find(
-          (x) => x.principalType === g.principalType && x.principalId === g.principalId
-        )
-        if (found) found.permissions.push(g.permission as Permission)
-        else
-          acc.push({
-            principalType: g.principalType as 'user' | 'org',
-            principalId: g.principalId,
-            permissions: [g.permission as Permission],
-          })
-        return acc
-      }, []),
-      { principalType: 'user', principalId: userRows[0].id, permissions: permissionsRaw },
-    ])
+    await setProjectPermissions({
+      actorUserId: locals.user.id,
+      projectId: project.id,
+      grants: [
+        ...others.reduce<
+          Array<{ principalType: 'user' | 'org'; principalId: string; permissions: Permission[] }>
+        >((acc, g) => {
+          const found = acc.find(
+            (x) => x.principalType === g.principalType && x.principalId === g.principalId
+          )
+          if (found) found.permissions.push(g.permission as Permission)
+          else
+            acc.push({
+              principalType: g.principalType as 'user' | 'org',
+              principalId: g.principalId,
+              permissions: [g.permission as Permission],
+            })
+          return acc
+        }, []),
+        { principalType: 'user', principalId: userRows[0].id, permissions: permissionsRaw },
+      ],
+    })
 
     return { success: true as const }
   }
@@ -147,13 +151,13 @@ export const removePermission = command(
     const { locals } = getRequestEvent()
     if (!locals.user) redirect(302, '/auth/login')
 
-    const project = await getProject(arg.namespaceSlug, arg.projectSlug)
+    const project = await getProject({ namespaceSlug: arg.namespaceSlug, projectSlug: arg.projectSlug })
     if (!project) error(404)
 
     const perms = await resolvePermissions(locals.user, project.id)
     if (!perms.includes('project:manage')) error(403)
 
-    const existing = await getProjectPermissions(locals.user.id, project.id)
+    const existing = await getProjectPermissions({ actorUserId: locals.user.id, projectId: project.id })
     const filtered = existing
       .filter((g) => !(g.principalType === arg.principalType && g.principalId === arg.principalId))
       .reduce<
@@ -172,7 +176,7 @@ export const removePermission = command(
         return acc
       }, [])
 
-    await setProjectPermissions(locals.user.id, project.id, filtered)
+    await setProjectPermissions({ actorUserId: locals.user.id, projectId: project.id, grants: filtered })
   }
 )
 
@@ -182,13 +186,13 @@ export const deleteProject = command(
     const { locals } = getRequestEvent()
     if (!locals.user) redirect(302, '/auth/login')
 
-    const project = await getProject(arg.namespaceSlug, arg.projectSlug)
+    const project = await getProject({ namespaceSlug: arg.namespaceSlug, projectSlug: arg.projectSlug })
     if (!project) error(404)
 
     const perms = await resolvePermissions(locals.user, project.id)
     if (!perms.includes('project:manage')) error(403)
 
-    await deleteProjectFn(locals.user.id, project.id)
+    await deleteProjectCmd({ actorUserId: locals.user.id, projectId: project.id })
 
     return { redirectTo: `/${arg.namespaceSlug}` }
   }

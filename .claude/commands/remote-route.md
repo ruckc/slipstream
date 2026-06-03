@@ -107,5 +107,7 @@ export const doXxx = command('unchecked', async (arg: { id: string }) => {
 - Route params in components: `page.params.xxx!` (non-null assertion, no `$` prefix)
 - Form field issues: `form.fields.fieldName?.issues()?.[0]?.message` (double optional chain)
 - For forms that need route context (namespace slug etc.), add a `<input type="hidden" name="namespaceSlug" value={page.params.namespace!} />` inside the form and include that field in the `data` type
-- The existing `src/lib/remote/*.remote.ts` plain async functions are server-side helpers — import them from within your new remote functions, do NOT convert them
+- **ALL exports from `.remote.ts` files must be `query`/`form`/`command` wrappers** — plain async function exports cause a build error. Keep plain async helpers as non-exported internal functions within the file.
+- Shared logic lives in `src/lib/remote/*.remote.ts` as `query`/`command` exports. Import these from route-level remote functions. If a shared function and a local export share the same name, alias the import: `import { foo as sharedFoo } from '$lib/remote/bar.remote'`
+- `query`/`command` take at most ONE argument — pack multiple params into a single object: `command('unchecked', async (arg: { userId: string; projectId: string }) => ...)`
 - `svelte.config.js` must have `kit.experimental.remoteFunctions: true` and `compilerOptions.experimental.async: true` (already set in this project)

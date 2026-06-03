@@ -11,6 +11,6 @@ export const POST = async ({ request, locals }) => {
     throw error(400, 'projectId required')
   }
 
-  const result = await issueToken(locals.user.id, projectId)
+  const result = await issueToken({ userId: locals.user.id, projectId })
   return json(result)
 }

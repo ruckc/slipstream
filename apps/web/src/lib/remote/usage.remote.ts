@@ -1,3 +1,4 @@
+import { query, command } from '$app/server'
 import { db, usageSamples, users } from '$lib/server/db'
 import { eq, and, gte, lte } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
@@ -10,63 +11,61 @@ type MetricType =
   | 'ingress_bytes'
   | 'egress_bytes'
 
-export async function recordUsageSample(
-  actorUserId: string,
-  projectId: string,
-  metric: MetricType,
-  value: number,
-  sampledAt: Date
-): Promise<void> {
-  const userRows = await db.select().from(users).where(eq(users.id, actorUserId)).limit(1)
-  if (userRows.length === 0) throw error(403, 'Forbidden')
+export const recordUsageSample = command(
+  'unchecked',
+  async (arg: {
+    actorUserId: string
+    projectId: string
+    metric: MetricType
+    value: number
+    sampledAt: Date
+  }): Promise<void> => {
+    const userRows = await db.select().from(users).where(eq(users.id, arg.actorUserId)).limit(1)
+    if (userRows.length === 0) throw error(403, 'Forbidden')
 
-  const perms = await resolvePermissions(userRows[0], projectId)
-  if (!perms.includes('project:manage')) throw error(403, 'Forbidden')
+    const perms = await resolvePermissions(userRows[0], arg.projectId)
+    if (!perms.includes('project:manage')) throw error(403, 'Forbidden')
 
-  await db.insert(usageSamples).values({
-    projectId,
-    metric,
-    value: String(value),
-    sampledAt,
-  })
-}
-
-export async function getProjectUsage(
-  actorUserId: string,
-  projectId: string,
-  from: Date,
-  to: Date
-): Promise<Array<{ metric: string; value: number; sampledAt: Date }>> {
-  // Actor must have project:manage permission
-  const userRows = await db.select().from(users).where(eq(users.id, actorUserId)).limit(1)
-
-  if (userRows.length === 0) {
-    throw error(403, 'Forbidden')
-  }
-
-  const perms = await resolvePermissions(userRows[0], projectId)
-  if (!perms.includes('project:manage')) {
-    throw error(403, 'You do not have permission to view usage for this project')
-  }
-
-  const rows = await db
-    .select({
-      metric: usageSamples.metric,
-      value: usageSamples.value,
-      sampledAt: usageSamples.sampledAt,
+    await db.insert(usageSamples).values({
+      projectId: arg.projectId,
+      metric: arg.metric,
+      value: String(arg.value),
+      sampledAt: arg.sampledAt,
     })
-    .from(usageSamples)
-    .where(
-      and(
-        eq(usageSamples.projectId, projectId),
-        gte(usageSamples.sampledAt, from),
-        lte(usageSamples.sampledAt, to)
-      )
-    )
+  }
+)
 
-  return rows.map((r) => ({
-    metric: r.metric,
-    value: parseFloat(r.value),
-    sampledAt: r.sampledAt,
-  }))
-}
+export const getProjectUsage = query(
+  'unchecked',
+  async (arg: {
+    actorUserId: string
+    projectId: string
+    from: Date
+    to: Date
+  }): Promise<Array<{ metric: string; value: number; sampledAt: Date }>> => {
+    const userRows = await db.select().from(users).where(eq(users.id, arg.actorUserId)).limit(1)
+    if (userRows.length === 0) throw error(403, 'Forbidden')
+
+    const perms = await resolvePermissions(userRows[0], arg.projectId)
+    if (!perms.includes('project:manage')) {
+      throw error(403, 'You do not have permission to view usage for this project')
+    }
+
+    const rows = await db
+      .select({
+        metric: usageSamples.metric,
+        value: usageSamples.value,
+        sampledAt: usageSamples.sampledAt,
+      })
+      .from(usageSamples)
+      .where(
+        and(
+          eq(usageSamples.projectId, arg.projectId),
+          gte(usageSamples.sampledAt, arg.from),
+          lte(usageSamples.sampledAt, arg.to)
+        )
+      )
+
+    return rows.map((r) => ({ metric: r.metric, value: parseFloat(r.value), sampledAt: r.sampledAt }))
+  }
+)
