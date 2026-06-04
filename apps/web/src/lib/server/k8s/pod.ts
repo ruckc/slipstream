@@ -1,7 +1,9 @@
 import { getCoreV1Api } from './client'
 import type { V1Container } from '@kubernetes/client-node'
 
-const JWKS_URL = 'http://slipstream-web.slipstream-system.svc.cluster.local/api/jwks'
+const WEB_NAMESPACE = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
+const JWKS_URL = `http://slipstream-web.${WEB_NAMESPACE}.svc.cluster.local/api/jwks`
+
 
 function buildPodName(projectId: string): string {
   return `agent-${projectId}`.slice(0, 63)
@@ -60,6 +62,10 @@ export async function createPod(
         { name: 'PROJECT_ID', value: projectId },
         { name: 'PUSH_URL', value: metricsPushUrl ?? '' },
       ],
+      securityContext: {
+        allowPrivilegeEscalation: false,
+        capabilities: { drop: ['ALL'] },
+      },
     })
   }
 
