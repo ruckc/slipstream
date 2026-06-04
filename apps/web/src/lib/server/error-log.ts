@@ -9,6 +9,7 @@ export async function logServerError(
     context?: Record<string, unknown>
   }
 ): Promise<void> {
+  console.error('[server-error]', opts?.route ?? 'unknown', message, opts?.stack ?? '')
   try {
     await db.insert(serverErrors).values({
       message,

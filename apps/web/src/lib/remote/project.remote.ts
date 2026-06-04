@@ -139,7 +139,9 @@ export const createProject = command(
       await deleteNetworkPolicy(ns.k8sNamespace, project.id).catch(() => {})
       await deletePvc(ns.k8sNamespace, pvcName).catch(() => {})
       await db.delete(projects).where(eq(projects.id, project.id))
-      await logServerError((e as Error).message, {
+      const body = (e as { body?: unknown }).body
+      const msg = body ? JSON.stringify(body) : (e as Error).message
+      await logServerError(msg, {
         route: 'createProject/createDeployment',
         stack: (e as Error).stack,
         context: { projectId: project.id, k8sNamespace: ns.k8sNamespace },

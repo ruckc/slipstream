@@ -14,8 +14,14 @@ metadata:
     {{- include "slipstream.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
-    resources: [pods, persistentvolumeclaims, services]
-    verbs: [create, get, list, watch, delete]
+    resources: [pods]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [create, get, list, watch, patch, delete]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims, services]
+    verbs: [create, get, list, delete]
   - apiGroups: [networking.k8s.io]
     resources: [networkpolicies]
     verbs: [create, get, list, delete]
