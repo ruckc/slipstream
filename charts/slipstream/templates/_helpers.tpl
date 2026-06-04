@@ -98,3 +98,44 @@ Name of the TLS Secret created by cert-manager.
 {{- define "slipstream.tlsSecretName" -}}
 {{ include "slipstream.fullname" . }}-tls
 {{- end }}
+
+{{/*
+Env vars that make DATABASE_URL available in a container.
+
+pgop mode  (database.pgopSecret.secretName set): pulls username/password/host/port
+           from the pgop Role credentials secret and assembles DATABASE_URL via
+           Kubernetes $(VAR) substitution at pod start time.
+Standard mode: single secretKeyRef pointing at DATABASE_URL in the chart secret.
+*/}}
+{{- define "slipstream.databaseEnv" -}}
+{{- if .Values.database.pgopSecret.secretName -}}
+- name: _PGOP_HOST
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.database.pgopSecret.secretName }}
+      key: host
+- name: _PGOP_PORT
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.database.pgopSecret.secretName }}
+      key: port
+- name: _PGOP_USER
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.database.pgopSecret.secretName }}
+      key: username
+- name: _PGOP_PASS
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.database.pgopSecret.secretName }}
+      key: password
+- name: DATABASE_URL
+  value: {{ printf "postgresql://$(_PGOP_USER):$(_PGOP_PASS)@$(_PGOP_HOST):$(_PGOP_PORT)/%s?sslmode=%s" (required "database.pgopSecret.database is required when database.pgopSecret.secretName is set" .Values.database.pgopSecret.database) (.Values.database.pgopSecret.sslmode | default "disable") | quote }}
+{{- else -}}
+- name: DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "slipstream.secretName" . }}
+      key: DATABASE_URL
+{{- end -}}
+{{- end }}

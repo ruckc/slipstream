@@ -29,9 +29,16 @@ web:
       memory: 512Mi
 
 database:
-  # Required when postgresql.enabled is false.
+  # Required when postgresql.enabled is false and database.pgopSecret.secretName is not set.
   # Leave empty when postgresql.enabled is true — DATABASE_URL is derived automatically.
   url: ""
+  # When secretName is set, DATABASE_URL is assembled at pod start from the pgop Role
+  # credentials secret via Kubernetes env-var substitution. Mutually exclusive with
+  # database.url and postgresql.enabled.
+  pgopSecret:
+    secretName: ""   # pgop Role credentials secret, e.g. "app-user-credentials"
+    database: ""     # postgres database name (matches the pgop Database CR name)
+    sslmode: disable
 
 gateway:
   name: ""        # required: Gateway resource name

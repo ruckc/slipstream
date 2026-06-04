@@ -27,11 +27,7 @@ spec:
           image: postgres:18-alpine
           command: ['sh', '-c', 'until pg_isready -d "$DATABASE_URL"; do echo "waiting for postgres"; sleep 2; done']
           env:
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "slipstream.secretName" . }}
-                  key: DATABASE_URL
+            {{- include "slipstream.databaseEnv" . | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -53,6 +49,10 @@ spec:
             - secretRef:
                 name: {{ .Values.auth.existingSecret }}
             {{- end }}
+          {{- if .Values.database.pgopSecret.secretName }}
+          env:
+            {{- include "slipstream.databaseEnv" . | nindent 12 }}
+          {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
