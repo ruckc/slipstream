@@ -27,6 +27,20 @@ spec:
         runAsNonRoot: true
         runAsUser: 1001
         fsGroup: 1001
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:18-alpine
+          command: ['sh', '-c', 'until pg_isready -d "$DATABASE_URL"; do echo "waiting for postgres"; sleep 2; done']
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "slipstream.secretName" . }}
+                  key: DATABASE_URL
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
       containers:
         - name: migrate
           image: {{ include "slipstream.webImage" . }}
