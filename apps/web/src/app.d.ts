@@ -7,6 +7,8 @@ declare global {
       session: Session | null
     }
   }
+
+  const __APP_VERSION__: string
 }
 
 export {}

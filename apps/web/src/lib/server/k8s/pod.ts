@@ -15,8 +15,10 @@ export async function createPod(
   idleTimeoutSeconds: number
 ): Promise<string> {
   const api = getCoreV1Api()
-  const agentImage = process.env.AGENT_IMAGE
-  if (!agentImage) throw new Error('AGENT_IMAGE environment variable is required')
+  const agentImageBase = process.env.AGENT_IMAGE
+  if (!agentImageBase) throw new Error('AGENT_IMAGE environment variable is required')
+  // Always run the agent version that matches this web build
+  const agentImage = agentImageBase.replace(/:[^:@]*$/, '') + ':' + __APP_VERSION__
 
   const podName = buildPodName(projectId)
   const appUrl = process.env.APP_URL ?? ''
