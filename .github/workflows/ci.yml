@@ -11,114 +11,17 @@ permissions:
   packages: write   # push main/SHA-tagged images on branch push
 
 jobs:
-  # ── Web app: format, lint, type-check ──────────────────────────────────────
-  check-web:
-    name: Web — Format · Lint · Types
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
-
-      - uses: pnpm/action-setup@v6.0.8
-        with:
-          version: latest
-
-      - uses: actions/setup-node@v6.4.0
-        with:
-          node-version: lts/*
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Check formatting
-        run: pnpm --filter @slipstream/web format:check
-
-      - name: Lint
-        run: pnpm --filter @slipstream/web lint
-
-      - name: Type check
-        run: pnpm --filter @slipstream/web check
-
-  # ── Rust agent: format, clippy, test ───────────────────────────────────────
-  check-rust:
-    name: Rust — Format · Clippy · Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: apps/agent -> target
-
-      - name: Check formatting
-        working-directory: apps/agent
-        run: cargo fmt --check
-
-      - name: Clippy
-        working-directory: apps/agent
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Test
-        working-directory: apps/agent
-        run: cargo test
-
-  # ── Go metrics sidecar: format, vet, build ─────────────────────────────────
-  check-go:
-    name: Go — Format · Vet · Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
-
-      - uses: actions/setup-go@v6.4.0
-        with:
-          go-version-file: apps/metrics-sidecar/go.mod
-          cache: false
-
-      - name: Check formatting
-        working-directory: apps/metrics-sidecar
-        run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "Unformatted files:"
-            echo "$unformatted"
-            exit 1
-          fi
-
-      - name: Vet
-        working-directory: apps/metrics-sidecar
-        run: go vet ./...
-
-      - name: Build
-        working-directory: apps/metrics-sidecar
-        run: go build ./...
-
-  # ── Helm chart: lint and template rendering ─────────────────────────────────
-  check-helm:
-    name: Helm — Lint · Template
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
-
-      - uses: azure/setup-helm@v5
-        with:
-          version: v3.17.0
-
-      - name: Lint
-        run: helm lint charts/slipstream
-
-      - name: Render with CI values
-        run: helm template slipstream charts/slipstream -f charts/slipstream/ci/values.yaml > /dev/null
+  # ── Checks (format, lint, type-check, test) ────────────────────────────────
+  checks:
+    name: Checks
+    uses: ./.github/workflows/checks.yml
 
   # ── Kind integration test: schema validation against live API server ────────
   # Only runs on push to main (same gate as build-edge) to keep PR CI fast.
   kind-test:
     name: Kind — Schema Validation
     runs-on: ubuntu-latest
-    needs: check-helm
+    needs: checks
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v6.0.2
@@ -164,7 +67,7 @@ jobs:
   build-edge:
     name: Build Edge — ${{ matrix.image.name }}
     runs-on: ubuntu-latest
-    needs: [check-web, check-rust, check-go, check-helm]
+    needs: checks
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
@@ -218,7 +121,7 @@ jobs:
   trigger-release:
     name: Trigger Release
     runs-on: ubuntu-latest
-    needs: [check-web, check-rust, check-go, check-helm, kind-test, build-edge]
+    needs: [checks, kind-test, build-edge]
     if: |
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
@@ -227,6 +130,6 @@ jobs:
       actions: write
     steps:
       - name: Dispatch release workflow
-        run: gh workflow run release.yml --repo ${{ github.repository }}
+        run: gh workflow run release.yml --repo ${{ github.repository }} --field skip_checks=true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
