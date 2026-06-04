@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { untrack } from 'svelte'
-  import { enhance } from '$app/forms'
-  import type { PageData } from './$types'
+  import { page } from '$app/state'
+  import { getProjectPage } from './project.remote'
+  import { startProject, stopProject } from '$lib/remote/project.remote'
   import AppShell from '$lib/components/layout/AppShell.svelte'
   import FileBrowser from '$lib/components/file-browser/FileBrowser.svelte'
   import FilePreview from '$lib/components/preview/FilePreview.svelte'
@@ -10,37 +10,44 @@
   import EditorTabBar from '$lib/components/layout/EditorTabBar.svelte'
   import Icon from '$lib/components/common/Icon.svelte'
 
-  let { data }: { data: PageData } = $props()
+  const { project, namespace, permissions } = await getProjectPage({
+    namespace: page.params.namespace!,
+    project: page.params.project!,
+  })
 
-  // Permission helpers
-  const canReadFiles = $derived(data.permissions.includes('files:read'))
-  const canShell = $derived(data.permissions.includes('shell'))
-  const canManage = $derived(data.permissions.includes('project:manage'))
+  const canManage = permissions.includes('project:manage')
+  const canReadFiles = permissions.includes('files:read')
+  const canShell = permissions.includes('shell')
 
-  // Show overlay when the page loaded with an auto-started project
+  let projectStatus = $state(project.status)
+  let startError = $state<string | null>(null)
+  let actionLoading = $state(false)
+
+  // Show overlay eagerly: already starting, or stopped-and-will-auto-start
   let showStartingOverlay = $state(
-    untrack(() => data.project.status === 'starting' && !data.startError)
+    project.status === 'starting' || (project.status === 'stopped' && canManage)
   )
 
-  // Editor tabs state
-  type OpenFile = {
-    id: string
-    path: string
-    label: string
-    content?: Uint8Array | null
-    loading: boolean
-  }
-
-  let openFiles = $state<OpenFile[]>([])
-  let activeFileId = $state<string | null>(null)
-  let projectStatus = $state(untrack(() => data.project.status))
+  // Auto-start when navigating to a stopped project
+  $effect(() => {
+    if (project.status !== 'stopped' || !canManage) return
+    startProject({ projectId: project.id })
+      .then((started) => {
+        projectStatus = started.status
+      })
+      .catch((e: unknown) => {
+        startError = e instanceof Error ? e.message : String(e)
+        showStartingOverlay = false
+        projectStatus = 'stopped'
+      })
+  })
 
   // Poll for status while starting; dismiss overlay when running
   $effect(() => {
     if (projectStatus !== 'starting') return
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/project/${data.project.id}/status`, {
+        const res = await fetch(`/api/project/${project.id}/status`, {
           credentials: 'same-origin',
         })
         if (!res.ok) return
@@ -56,6 +63,18 @@
     return () => clearInterval(interval)
   })
 
+  // Editor tabs state
+  type OpenFile = {
+    id: string
+    path: string
+    label: string
+    content?: Uint8Array | null
+    loading: boolean
+  }
+
+  let openFiles = $state<OpenFile[]>([])
+  let activeFileId = $state<string | null>(null)
+
   const activeFile = $derived(openFiles.find((f) => f.id === activeFileId) ?? null)
 
   const editorTabs = $derived(
@@ -67,7 +86,6 @@
   )
 
   async function openFile(path: string) {
-    // Check if already open
     const existing = openFiles.find((f) => f.path === path)
     if (existing) {
       activeFileId = existing.id
@@ -77,13 +95,12 @@
     const id = crypto.randomUUID()
     const label = path.split('/').pop() ?? path
 
-    // Add tab in loading state
     openFiles = [...openFiles, { id, path, label, content: null, loading: true }]
     activeFileId = id
 
     try {
       const res = await fetch(
-        `/env/${encodeURIComponent(data.namespace.slug)}/${encodeURIComponent(data.project.slug)}/fs/read?path=${encodeURIComponent(path)}`,
+        `/env/${encodeURIComponent(namespace.slug)}/${encodeURIComponent(project.slug)}/fs/read?path=${encodeURIComponent(path)}`,
         { credentials: 'same-origin' }
       )
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -103,10 +120,37 @@
     }
   }
 
-  // Project start/stop
-  let actionLoading = $state(false)
+  async function handleStart() {
+    if (actionLoading) return
+    actionLoading = true
+    startError = null
+    showStartingOverlay = true
+    projectStatus = 'starting'
+    try {
+      await startProject({ projectId: project.id })
+    } catch (e: unknown) {
+      startError = e instanceof Error ? e.message : String(e)
+      showStartingOverlay = false
+      projectStatus = 'stopped'
+    } finally {
+      actionLoading = false
+    }
+  }
 
-  // Activity items for AppShell
+  async function handleStop() {
+    if (actionLoading) return
+    actionLoading = true
+    projectStatus = 'stopping'
+    try {
+      await stopProject({ projectId: project.id })
+      projectStatus = 'stopped'
+    } catch {
+      projectStatus = 'running'
+    } finally {
+      actionLoading = false
+    }
+  }
+
   const activityItems = $derived([
     ...(canReadFiles ? [{ id: 'files', icon: 'files', label: 'Explorer', onClick: () => {} }] : []),
     ...(canShell
@@ -119,7 +163,7 @@
 </script>
 
 <svelte:head>
-  <title>{data.project.displayName} — Slipstream</title>
+  <title>{project.displayName} — Slipstream</title>
 </svelte:head>
 
 {#if showStartingOverlay}
@@ -127,7 +171,7 @@
     <div class="starting-overlay__card">
       <span class="starting-overlay__spinner" aria-hidden="true"></span>
       <p class="starting-overlay__title">Starting environment…</p>
-      <p class="starting-overlay__sub">{data.project.displayName}</p>
+      <p class="starting-overlay__sub">{project.displayName}</p>
     </div>
   </div>
 {/if}
@@ -137,9 +181,9 @@
     {#if canReadFiles}
       {#if projectStatus === 'running'}
         <FileBrowser
-          projectId={data.project.id}
-          namespaceSlug={data.namespace.slug}
-          projectSlug={data.project.slug}
+          projectId={project.id}
+          namespaceSlug={namespace.slug}
+          projectSlug={project.slug}
           onOpenFile={openFile}
         />
       {:else}
@@ -174,34 +218,22 @@
             <div class="editor-empty__icon">
               <Icon name="project" size={48} />
             </div>
-            <p class="editor-empty__title">{data.project.displayName}</p>
+            <p class="editor-empty__title">{project.displayName}</p>
             <p class="editor-empty__subtitle">Project is {projectStatus}</p>
-            {#if data.startError && projectStatus === 'stopped'}
-              <p class="editor-empty__error">{data.startError}</p>
+            {#if startError && projectStatus === 'stopped'}
+              <p class="editor-empty__error">{startError}</p>
             {/if}
             {#if canManage && projectStatus === 'stopped'}
-              <form
-                method="POST"
-                action="?/start"
-                use:enhance={() => {
-                  actionLoading = true
-                  projectStatus = 'starting'
-                  return async ({ update }) => {
-                    actionLoading = false
-                    await update({ reset: false })
-                  }
-                }}
+              <button
+                type="button"
+                class="start-btn"
+                disabled={actionLoading}
+                aria-busy={actionLoading}
+                onclick={handleStart}
               >
-                <button
-                  type="submit"
-                  class="start-btn"
-                  disabled={actionLoading}
-                  aria-busy={actionLoading}
-                >
-                  <Icon name="play" size={14} />
-                  Start project
-                </button>
-              </form>
+                <Icon name="play" size={14} />
+                Start project
+              </button>
             {/if}
           {:else}
             <div class="editor-empty__icon">
@@ -220,9 +252,9 @@
     {#if canShell}
       {#if projectStatus === 'running'}
         <TerminalManager
-          projectId={data.project.id}
-          namespaceSlug={data.namespace.slug}
-          projectSlug={data.project.slug}
+          projectId={project.id}
+          namespaceSlug={namespace.slug}
+          projectSlug={project.slug}
         />
       {:else}
         <div class="panel-empty">
@@ -240,55 +272,16 @@
 
   {#snippet statusLeftContent()}
     <ProjectHeader
-      namespaceSlug={data.namespace.slug}
-      namespaceType={data.namespace.type as 'user' | 'org'}
-      projectSlug={data.project.slug}
-      displayName={data.project.displayName}
+      namespaceSlug={namespace.slug}
+      namespaceType={namespace.type as 'user' | 'org'}
+      projectSlug={project.slug}
+      displayName={project.displayName}
       status={projectStatus}
-      onStart={canManage && projectStatus === 'stopped'
-        ? async () => {
-            const form = document.querySelector<HTMLFormElement>('[data-action="start"]')
-            form?.requestSubmit()
-          }
-        : undefined}
+      onStart={canManage && projectStatus === 'stopped' ? handleStart : undefined}
       onStop={canManage && (projectStatus === 'running' || projectStatus === 'starting')
-        ? async () => {
-            const form = document.querySelector<HTMLFormElement>('[data-action="stop"]')
-            form?.requestSubmit()
-          }
+        ? handleStop
         : undefined}
     />
-
-    <!-- Hidden forms for start/stop from ProjectHeader buttons -->
-    <form
-      method="POST"
-      action="?/start"
-      data-action="start"
-      style="display: none"
-      use:enhance={() => {
-        actionLoading = true
-        projectStatus = 'starting'
-        return async ({ update }) => {
-          actionLoading = false
-          await update({ reset: false })
-        }
-      }}
-    ></form>
-    <form
-      method="POST"
-      action="?/stop"
-      data-action="stop"
-      style="display: none"
-      use:enhance={() => {
-        actionLoading = true
-        projectStatus = 'stopping'
-        return async ({ update }) => {
-          actionLoading = false
-          projectStatus = 'stopped'
-          await update({ reset: false })
-        }
-      }}
-    ></form>
   {/snippet}
 </AppShell>
 

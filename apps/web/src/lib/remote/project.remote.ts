@@ -1,4 +1,4 @@
-import { query, command } from '$app/server'
+import { query, command, getRequestEvent } from '$app/server'
 import { db, projects, namespaces, organizations, orgMembers, users } from '$lib/server/db'
 import type { Project, Namespace } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
@@ -189,9 +189,11 @@ export const getProject = query(
 
 export const startProject = command(
   'unchecked',
-  async (arg: { actorUserId: string; projectId: string }): Promise<Project> => {
+  async (arg: { projectId: string }): Promise<Project> => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) throw error(401, 'Unauthorized')
     const project = await getProjectById(arg.projectId)
-    await assertProjectManage(arg.actorUserId, arg.projectId)
+    await assertProjectManage(locals.user.id, arg.projectId)
 
     // Already starting or running — idempotent no-op
     if (project.status === 'starting' || project.status === 'running') {
@@ -246,9 +248,11 @@ export const startProject = command(
 
 export const stopProject = command(
   'unchecked',
-  async (arg: { actorUserId: string; projectId: string }): Promise<Project> => {
+  async (arg: { projectId: string }): Promise<Project> => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) throw error(401, 'Unauthorized')
     const project = await getProjectById(arg.projectId)
-    await assertProjectManage(arg.actorUserId, arg.projectId)
+    await assertProjectManage(locals.user.id, arg.projectId)
 
     const ns = await getNamespaceById(project.namespaceId)
 
