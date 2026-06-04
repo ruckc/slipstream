@@ -29,7 +29,7 @@ spec:
 ---
 # TLS passthrough — the Gateway forwards raw TLS to the backend based on SNI;
 # the pod terminates TLS using the cert-manager Secret mounted at /etc/tls.
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
 kind: TLSRoute
 metadata:
   name: slipstream-web
