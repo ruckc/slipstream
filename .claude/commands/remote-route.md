@@ -14,7 +14,7 @@ Given the route path in `$ARGUMENTS` (or infer from context if not provided):
 
 1. **Read** the existing `+page.server.ts` (load function + actions) and `+page.svelte` for that route.
 
-2. **Create** `<route>/settings.remote.ts` (or `<route>/<name>.remote.ts` — name it after the route, e.g. `page.remote.ts` for top-level pages, `settings.remote.ts` for settings pages).
+2. **Create** `<route>/<name>.remote.ts` — name it after the route segment, e.g. `settings.remote.ts` for settings pages, `page.remote.ts` for top-level pages.
 
 3. **Write** the remote function file following this pattern:
 
@@ -69,7 +69,7 @@ export const doXxx = command('unchecked', async (arg: { id: string }) => {
   const data = await getXxx()
 
   // For queries that need route params:
-  const data = await getXxx(page.params.namespace!)   // note: use ! since param is always present
+  const data = await getXxx(page.params.namespace!)   // use ! since param is always present
 
   let field1 = $state(data.someValue)
 </script>
@@ -96,7 +96,14 @@ export const doXxx = command('unchecked', async (arg: { id: string }) => {
 
 5. **Delete** the `+page.server.ts` file (it's fully replaced by the remote file).
 
-6. **Run** `pnpm exec svelte-check --tsconfig ./tsconfig.json` and fix any TypeScript errors.
+6. **Verify** — run both checks, in this order:
+
+```bash
+pnpm exec svelte-check --tsconfig ./tsconfig.json
+pnpm --filter @slipstream/web build
+```
+
+`svelte-check` catches TypeScript errors. The **build** catches invalid `.remote.ts` exports (`all exports from this file must be remote functions`) — `svelte-check` does NOT catch this. Both must pass before committing.
 
 ---
 
