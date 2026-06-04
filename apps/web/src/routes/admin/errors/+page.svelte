@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getErrors, getErrorRoutes } from './errors.remote'
+  import { getErrors, getErrorRoutes, deleteErrors } from './errors.remote'
 
   let fromDate = $state('')
   let toDate = $state('')
@@ -8,9 +8,27 @@
   const LIMIT = 50
 
   let queryKey = $state(0)
+  let deleting = $state(false)
+
   function applyFilters() {
     offset = 0
     queryKey++
+  }
+
+  async function handleDelete() {
+    if (!confirm('Delete all errors matching the current filters?')) return
+    deleting = true
+    try {
+      await deleteErrors({
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        route: route || undefined,
+      })
+      offset = 0
+      queryKey++
+    } finally {
+      deleting = false
+    }
   }
 
   const routes = getErrorRoutes({})
@@ -61,6 +79,9 @@
     }}
   >
     Clear
+  </button>
+  <button class="btn btn--danger" onclick={handleDelete} disabled={deleting}>
+    {deleting ? 'Deleting…' : 'Delete matching'}
   </button>
 </div>
 
@@ -201,6 +222,15 @@
   .btn--ghost:hover:not(:disabled) {
     color: var(--color-text-primary);
     background: var(--color-bg-hover);
+  }
+
+  .btn--danger {
+    background: var(--color-danger, #e53e3e);
+    color: #fff;
+  }
+
+  .btn--danger:hover:not(:disabled) {
+    filter: brightness(0.9);
   }
 
   .btn:disabled {

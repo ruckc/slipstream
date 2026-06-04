@@ -1,4 +1,5 @@
-import { query } from '$app/server'
+import { query, command, getRequestEvent } from '$app/server'
+import { error } from '@sveltejs/kit'
 import { db, serverErrors, users } from '$lib/server/db'
 import { and, gte, lte, eq, desc } from 'drizzle-orm'
 import type { ServerError } from '$lib/server/db/schema'
@@ -61,5 +62,32 @@ export const getErrorRoutes = query(
       .from(serverErrors)
       .orderBy(serverErrors.route)
     return rows.map((r) => r.route).filter((r): r is string => r !== null)
+  }
+)
+
+export const deleteErrors = command(
+  'unchecked',
+  async (arg: {
+    fromDate?: string
+    toDate?: string
+    route?: string
+    userId?: string
+  }): Promise<{ deleted: number }> => {
+    const { locals } = getRequestEvent()
+    if (!locals.user || locals.user.role !== 'admin') throw error(403, 'Forbidden')
+
+    const conditions = []
+    if (arg.fromDate) conditions.push(gte(serverErrors.occurredAt, new Date(arg.fromDate)))
+    if (arg.toDate) {
+      const to = new Date(arg.toDate)
+      to.setDate(to.getDate() + 1)
+      conditions.push(lte(serverErrors.occurredAt, to))
+    }
+    if (arg.route) conditions.push(eq(serverErrors.route, arg.route))
+    if (arg.userId) conditions.push(eq(serverErrors.userId, arg.userId))
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined
+    const deleted = await db.delete(serverErrors).where(where).returning({ id: serverErrors.id })
+    return { deleted: deleted.length }
   }
 )
