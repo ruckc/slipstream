@@ -359,4 +359,18 @@
     padding-top: var(--space-3);
     border-top: 1px solid var(--color-border-subtle);
   }
+
+  @media (max-width: 639px) {
+    .settings-page {
+      padding: var(--space-4);
+    }
+
+    .section-form {
+      max-width: 100%;
+    }
+
+    .invite-form {
+      max-width: 100%;
+    }
+  }
 </style>

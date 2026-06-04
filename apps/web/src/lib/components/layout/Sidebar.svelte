@@ -39,6 +39,20 @@
     flex-shrink: 0;
   }
 
+  @media (max-width: 639px) {
+    .sidebar {
+      position: fixed !important;
+      top: 0;
+      left: 0;
+      width: 260px !important;
+      min-width: 260px !important;
+      max-width: 260px !important;
+      height: 100dvh;
+      z-index: 100;
+      border-right: 1px solid var(--color-border);
+    }
+  }
+
   .sidebar-header {
     display: flex;
     align-items: center;

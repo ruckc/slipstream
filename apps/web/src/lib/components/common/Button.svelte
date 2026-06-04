@@ -143,4 +143,11 @@
   .btn-content--hidden {
     visibility: hidden;
   }
+
+  @media (max-width: 639px) {
+    .btn--md {
+      min-height: 44px;
+      padding: var(--space-2) var(--space-4);
+    }
+  }
 </style>

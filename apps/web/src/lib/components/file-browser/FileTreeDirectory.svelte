@@ -21,6 +21,23 @@
     onToggle: () => void
     onContextMenu: (e: MouseEvent, entry: FileEntry, path: string) => void
   } = $props()
+
+  let longPressTimer: ReturnType<typeof setTimeout> | null = null
+
+  function handleTouchStart(e: TouchEvent) {
+    const touch = e.touches[0]
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null
+      onContextMenu({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, entry, path)
+    }, 500)
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      longPressTimer = null
+    }
+  }
 </script>
 
 <button
@@ -32,6 +49,9 @@
     e.preventDefault()
     onContextMenu(e, entry, path)
   }}
+  ontouchstart={handleTouchStart}
+  ontouchend={cancelLongPress}
+  ontouchcancel={cancelLongPress}
   aria-expanded={expanded}
   title={path}
 >
@@ -117,5 +137,11 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 500;
+  }
+
+  @media (max-width: 639px) {
+    .dir-row {
+      height: 40px;
+    }
   }
 </style>

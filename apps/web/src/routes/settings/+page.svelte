@@ -473,4 +473,18 @@
   .signout-link:hover {
     text-decoration: underline;
   }
+
+  @media (max-width: 639px) {
+    .settings-page {
+      padding: var(--space-4);
+    }
+
+    .section-form {
+      max-width: 100%;
+    }
+
+    .connection-row {
+      flex-wrap: wrap;
+    }
+  }
 </style>

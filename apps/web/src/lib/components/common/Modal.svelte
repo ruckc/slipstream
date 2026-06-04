@@ -135,10 +135,17 @@
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     width: 480px;
     max-width: calc(100vw - var(--space-8));
-    max-height: calc(100vh - var(--space-8));
+    max-height: calc(100dvh - var(--space-8));
     display: flex;
     flex-direction: column;
     animation: dialog-slide var(--transition-base) ease forwards;
+  }
+
+  @media (max-width: 639px) {
+    .modal-dialog {
+      width: calc(100vw - var(--space-4));
+      max-height: 90dvh;
+    }
   }
 
   @keyframes dialog-slide {

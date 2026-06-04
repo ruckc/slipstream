@@ -88,7 +88,14 @@
   /* Transitions */
   --transition-fast: 100ms ease;
   --transition-base: 150ms ease;
+
+  /* Safe area insets (iPhone notch/home bar) */
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* Breakpoints — mobile-first
+   sm: 640px  (tablet and up)
+   lg: 1024px (desktop and up) */
 
 /* Explicit dark theme */
 [data-theme='dark'] {

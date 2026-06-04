@@ -75,6 +75,12 @@
     background: var(--color-accent);
   }
 
+  @media (max-width: 639px) {
+    .divider {
+      display: none;
+    }
+  }
+
   /* Larger invisible hit area */
   .divider::before {
     content: '';

@@ -183,7 +183,13 @@
     align-items: flex-start;
     justify-content: center;
     padding: var(--space-8) var(--space-4);
-    min-height: calc(100vh - 35px);
+    min-height: calc(100dvh - 35px);
+  }
+
+  @media (max-width: 639px) {
+    .new-page {
+      padding: var(--space-4);
+    }
   }
 
   .new-card {

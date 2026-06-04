@@ -55,4 +55,15 @@
     background: var(--color-border);
     border-radius: 0;
   }
+
+  @media (max-width: 639px) {
+    .tab-bar {
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .tab-bar::-webkit-scrollbar {
+      display: none;
+    }
+  }
 </style>

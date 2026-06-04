@@ -142,3 +142,11 @@ button,
   user-select: none;
   -webkit-user-select: none;
 }
+
+/* Mobile: momentum scrolling for scrollable containers */
+@media (max-width: 639px) {
+  .sidebar-content,
+  .modal-body {
+    -webkit-overflow-scrolling: touch;
+  }
+}

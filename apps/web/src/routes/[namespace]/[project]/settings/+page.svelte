@@ -534,4 +534,18 @@
     justify-content: flex-end;
     gap: var(--space-2);
   }
+
+  @media (max-width: 639px) {
+    .settings-page {
+      padding: var(--space-4);
+    }
+
+    .section-form {
+      max-width: 100%;
+    }
+
+    .perm-checkboxes__grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>

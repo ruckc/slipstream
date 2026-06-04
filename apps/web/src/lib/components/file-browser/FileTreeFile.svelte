@@ -110,6 +110,23 @@
   let icon = $derived(getIcon(entry.name))
   let sizeLabel = $derived(formatSize(entry.size))
   let modifiedLabel = $derived(formatRelative(entry.modified))
+
+  let longPressTimer: ReturnType<typeof setTimeout> | null = null
+
+  function handleTouchStart(e: TouchEvent) {
+    const touch = e.touches[0]
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null
+      onContextMenu({ clientX: touch.clientX, clientY: touch.clientY } as MouseEvent, entry, path)
+    }, 500)
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      longPressTimer = null
+    }
+  }
 </script>
 
 <button
@@ -121,6 +138,9 @@
     e.preventDefault()
     onContextMenu(e, entry, path)
   }}
+  ontouchstart={handleTouchStart}
+  ontouchend={cancelLongPress}
+  ontouchcancel={cancelLongPress}
   title={path}
   aria-label={entry.name}
 >
@@ -199,5 +219,15 @@
     font-variant-numeric: tabular-nums;
     min-width: 48px;
     text-align: right;
+  }
+
+  @media (max-width: 639px) {
+    .file-row {
+      height: 40px;
+    }
+
+    .file-meta {
+      display: none;
+    }
   }
 </style>

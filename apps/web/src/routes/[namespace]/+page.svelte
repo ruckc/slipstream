@@ -94,6 +94,16 @@
     padding: var(--space-8) var(--space-6);
   }
 
+  @media (max-width: 639px) {
+    .ns-page {
+      padding: var(--space-4);
+    }
+
+    .ns-header__actions {
+      width: 100%;
+    }
+  }
+
   .ns-header {
     display: flex;
     align-items: flex-start;

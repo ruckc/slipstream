@@ -95,4 +95,11 @@
   .status-btn:hover {
     background: rgba(255, 255, 255, 0.15);
   }
+
+  @media (max-width: 639px) {
+    .status-bar {
+      height: calc(22px + env(safe-area-inset-bottom, 0px));
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+  }
 </style>

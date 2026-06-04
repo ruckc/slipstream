@@ -25,14 +25,56 @@
 
   let sidebarWidth = $state(240)
   let panelHeight = $state(220)
-  let sidebarVisible = $state(true)
+  const _initiallyMobile =
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+  let isMobile = $state(_initiallyMobile)
+  let sidebarVisible = $state(!_initiallyMobile)
   let panelVisible = $state(true)
   let activeActivityItem = $state<string | null>('files')
+
+  $effect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    isMobile = mq.matches
+    const handler = (e: MediaQueryListEvent) => {
+      isMobile = e.matches
+    }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  })
+
+  // On mobile, activity item taps toggle the sidebar
+  const wrappedItems = $derived(
+    activityItems.map((item) => ({
+      ...item,
+      onClick: () => {
+        item.onClick()
+        if (isMobile) {
+          if (activeActivityItem === item.id && sidebarVisible) {
+            sidebarVisible = false
+          } else {
+            sidebarVisible = true
+          }
+        }
+      },
+    }))
+  )
 </script>
 
 <div class="app-shell">
   <!-- Activity Bar -->
-  <ActivityBar items={activityItems} bind:activeId={activeActivityItem} />
+  <ActivityBar items={wrappedItems} bind:activeId={activeActivityItem} />
+
+  <!-- Mobile backdrop: closes sidebar when tapped -->
+  {#if sidebarVisible && isMobile}
+    <button
+      class="mobile-backdrop"
+      onclick={() => {
+        sidebarVisible = false
+      }}
+      aria-label="Close sidebar"
+      tabindex="-1"
+    ></button>
+  {/if}
 
   <!-- Main content (sidebar + divider + editor/panel column) -->
   <div class="app-shell-main">
@@ -91,7 +133,7 @@
   .app-shell {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100dvh;
     width: 100vw;
     overflow: hidden;
     background: var(--color-bg-base);
@@ -103,6 +145,7 @@
     flex: 1;
     overflow: hidden;
     min-height: 0;
+    position: relative;
   }
 
   .app-shell-center {
@@ -120,5 +163,22 @@
     justify-content: center;
     color: var(--color-text-disabled);
     font-size: var(--font-size-md);
+  }
+
+  .mobile-backdrop {
+    display: none;
+  }
+
+  @media (max-width: 639px) {
+    .mobile-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 99;
+      background: rgba(0, 0, 0, 0.4);
+      border: none;
+      padding: 0;
+      cursor: default;
+    }
   }
 </style>

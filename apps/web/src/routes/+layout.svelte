@@ -105,6 +105,7 @@
     font-size: var(--font-size-sm);
     font-weight: 600;
     text-decoration: none;
+    min-width: 0;
   }
 
   .top-bar__logo:hover {
@@ -114,6 +115,9 @@
 
   .top-bar__name {
     letter-spacing: 0.02em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .top-bar__nav {
