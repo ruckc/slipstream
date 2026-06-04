@@ -17,6 +17,11 @@
   const canShell = $derived(data.permissions.includes('shell'))
   const canManage = $derived(data.permissions.includes('project:manage'))
 
+  // Show overlay when the page loaded with an auto-started project
+  let showStartingOverlay = $state(
+    untrack(() => data.project.status === 'starting' && !data.startError)
+  )
+
   // Editor tabs state
   type OpenFile = {
     id: string
@@ -30,7 +35,7 @@
   let activeFileId = $state<string | null>(null)
   let projectStatus = $state(untrack(() => data.project.status))
 
-  // Poll for status while starting
+  // Poll for status while starting; dismiss overlay when running
   $effect(() => {
     if (projectStatus !== 'starting') return
     const interval = setInterval(async () => {
@@ -40,7 +45,10 @@
         })
         if (!res.ok) return
         const { status } = await res.json()
-        if (status !== 'starting') projectStatus = status
+        if (status !== 'starting') {
+          projectStatus = status
+          showStartingOverlay = false
+        }
       } catch {
         // ignore transient errors
       }
@@ -113,6 +121,16 @@
 <svelte:head>
   <title>{data.project.displayName} — Slipstream</title>
 </svelte:head>
+
+{#if showStartingOverlay}
+  <div class="starting-overlay" aria-live="polite" aria-label="Starting environment">
+    <div class="starting-overlay__card">
+      <span class="starting-overlay__spinner" aria-hidden="true"></span>
+      <p class="starting-overlay__title">Starting environment…</p>
+      <p class="starting-overlay__sub">{data.project.displayName}</p>
+    </div>
+  </div>
+{/if}
 
 <AppShell {activityItems}>
   {#snippet sidebarContent()}
@@ -342,6 +360,56 @@
   .start-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .starting-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .starting-overlay__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8) var(--space-8);
+    min-width: 260px;
+  }
+
+  .starting-overlay__spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .starting-overlay__title {
+    margin: 0;
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .starting-overlay__sub {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
   }
 
   .sidebar-empty,

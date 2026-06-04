@@ -3,6 +3,16 @@ import { eq, and, gt, lt } from 'drizzle-orm'
 import { createHmac, timingSafeEqual } from 'crypto'
 import type { User, Session } from '$lib/server/db/schema'
 
+function getAdminEmails(): Set<string> {
+  const raw = process.env.ADMIN_EMAILS ?? ''
+  return new Set(
+    raw
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean)
+  )
+}
+
 export const SESSION_COOKIE_NAME = 'session'
 
 export const SESSION_COOKIE_OPTIONS = {
@@ -59,7 +69,24 @@ export async function validateSession(
     .limit(1)
 
   if (rows.length === 0) return null
-  return { session: rows[0].session, user: rows[0].user }
+
+  let user = rows[0].user
+  const session = rows[0].session
+
+  // Auto-promote if email is in ADMIN_EMAILS and not already admin
+  if (user.role !== 'admin') {
+    const adminEmails = getAdminEmails()
+    if (adminEmails.has(user.email.toLowerCase())) {
+      const [promoted] = await db
+        .update(users)
+        .set({ role: 'admin' })
+        .where(eq(users.id, user.id))
+        .returning()
+      user = promoted
+    }
+  }
+
+  return { session, user }
 }
 
 export async function deleteSession(token: string): Promise<void> {

@@ -37,6 +37,9 @@
       </a>
 
       <nav class="top-bar__nav">
+        {#if data.user.role === 'admin'}
+          <a href="/admin" class="top-bar__link top-bar__admin-link">Admin</a>
+        {/if}
         <a href="/settings" class="top-bar__link" aria-label="User settings">
           {#if data.user.avatarUrl}
             <img src={data.user.avatarUrl} alt={data.user.displayName} class="top-bar__avatar" />
@@ -123,6 +126,21 @@
   .top-bar__nav {
     display: flex;
     align-items: center;
+    gap: var(--space-4);
+  }
+
+  .top-bar__admin-link {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+  }
+
+  .top-bar__admin-link:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-hover);
+    text-decoration: none;
   }
 
   .top-bar__link {

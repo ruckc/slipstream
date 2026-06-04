@@ -43,12 +43,14 @@ export const users = pgTable(
     email: text('email').unique().notNull(),
     displayName: text('display_name').notNull(),
     avatarUrl: text('avatar_url'),
+    role: text('role').notNull().default('user'), // 'admin'|'user'
     themePreference: text('theme_preference').notNull().default('system'), // 'system'|'light'|'dark'
     idleTimeoutSeconds: integer('idle_timeout_seconds'), // null = inherit
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
   },
   () => [
+    check('users_role_check', sql`role IN ('admin', 'user')`),
     check('users_theme_preference_check', sql`theme_preference IN ('system', 'light', 'dark')`),
   ]
 )
