@@ -73,13 +73,21 @@ async fn main() -> anyhow::Result<()> {
 
     // 3. Session store + idle tracker.
     let sessions = Arc::new(SessionStore::new());
-    let idle = Arc::new(IdleTracker::new(sessions.clone()));
+    let idle = Arc::new(IdleTracker::new(
+        sessions.clone(),
+        config.slipstream_web_url.clone(),
+        config.project_id.clone(),
+    ));
 
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
 
     // Start idle background task with a fresh IdleTracker that shares the same
     // sessions store.  The Arc<IdleTracker> in AppState is used for touch().
-    let idle_bg = IdleTracker::new(sessions.clone());
+    let idle_bg = IdleTracker::new(
+        sessions.clone(),
+        config.slipstream_web_url.clone(),
+        config.project_id.clone(),
+    );
     let idle_timeout = config.idle_timeout_secs;
     idle_bg.start(idle_timeout, shutdown_tx.clone());
 
@@ -141,6 +149,29 @@ async fn main() -> anyhow::Result<()> {
     let addr = format!("0.0.0.0:{}", state.config.port);
     let listener = TcpListener::bind(&addr).await?;
     info!("Listening on {}", addr);
+
+    // Signal ready to SvelteKit so it can transition project status to 'running'.
+    {
+        let web_url = state.config.slipstream_web_url.clone();
+        let project_id = state.config.project_id.clone();
+        tokio::spawn(async move {
+            let client = reqwest::Client::new();
+            let url = format!("{}/api/agent/ready", web_url);
+            let body = serde_json::json!({ "projectId": project_id });
+            for attempt in 1..=5u32 {
+                match client.post(&url).json(&body).send().await {
+                    Ok(resp) if resp.status().is_success() => {
+                        info!("Ready signal accepted");
+                        return;
+                    }
+                    Ok(resp) => warn!("Ready signal rejected: {}", resp.status()),
+                    Err(e) => warn!("Ready signal failed (attempt {}): {}", attempt, e),
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            }
+            warn!("Failed to signal ready after 5 attempts");
+        });
+    }
 
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {

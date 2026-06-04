@@ -12,10 +12,15 @@ kind: ClusterRole
 metadata:
   name: slipstream-web
 rules:
-  # Pod management
+  # Pod read (for IP lookup — Deployment manages pod lifecycle)
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["create", "get", "list", "watch", "delete"]
+    verbs: ["get", "list", "watch"]
+
+  # Deployment management (scale-to-zero / scale-to-one for project containers)
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["create", "get", "list", "watch", "patch", "delete"]
 
   # PVC management
   - apiGroups: [""]

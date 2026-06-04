@@ -1,7 +1,6 @@
 import { redirect, error } from '@sveltejs/kit'
 import type { PageServerLoad, Actions } from './$types'
-import { getProject } from '$lib/remote/project.remote'
-import { startProject, stopProject } from '$lib/remote/project.remote'
+import { getProject, startProject, stopProject } from '$lib/remote/project.remote'
 import { resolvePermissions } from '$lib/server/permissions'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -13,8 +12,19 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   const permissions = await resolvePermissions(locals.user, project.id)
   if (permissions.length === 0) throw error(403, 'Access denied')
 
+  // Auto-start when user navigates to a stopped project (if they have manage permission)
+  let status = project.status
+  if (project.status === 'stopped' && permissions.includes('project:manage')) {
+    try {
+      const started = await startProject({ actorUserId: locals.user.id, projectId: project.id })
+      status = started.status
+    } catch {
+      // Continue with stopped status if start fails
+    }
+  }
+
   return {
-    project,
+    project: { ...project, status },
     namespace: project.namespace,
     permissions,
     user: locals.user,

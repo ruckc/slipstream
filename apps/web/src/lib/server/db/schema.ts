@@ -147,9 +147,7 @@ export const projects = pgTable(
     displayName: text('display_name').notNull(),
     status: text('status').notNull().default('stopped'), // 'stopped'|'starting'|'running'|'stopping'
     idleTimeoutSeconds: integer('idle_timeout_seconds'), // null = inherit
-    k8sPodName: text('k8s_pod_name'), // null when stopped
     k8sPvcName: text('k8s_pvc_name').notNull(), // always set at creation
-    k8sRouteName: text('k8s_route_name'), // null when stopped
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
   },

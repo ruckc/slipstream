@@ -30,6 +30,24 @@
   let activeFileId = $state<string | null>(null)
   let projectStatus = $state(untrack(() => data.project.status))
 
+  // Poll for status while starting
+  $effect(() => {
+    if (projectStatus !== 'starting') return
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/project/${data.project.id}/status`, {
+          credentials: 'same-origin',
+        })
+        if (!res.ok) return
+        const { status } = await res.json()
+        if (status !== 'starting') projectStatus = status
+      } catch {
+        // ignore transient errors
+      }
+    }, 2000)
+    return () => clearInterval(interval)
+  })
+
   const activeFile = $derived(openFiles.find((f) => f.id === activeFileId) ?? null)
 
   const editorTabs = $derived(

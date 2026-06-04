@@ -9,6 +9,7 @@ pub struct Config {
     pub idle_timeout_secs: u64,
     pub metrics_push_url: Option<String>,
     pub cors_origin: Option<String>,
+    pub slipstream_web_url: String,
 }
 
 impl Config {
@@ -39,6 +40,10 @@ impl Config {
         // If unset, falls back to allow-any (dev/testing only).
         let cors_origin = env::var("CORS_ORIGIN").ok().filter(|s| !s.is_empty());
 
+        let slipstream_web_url = env::var("SLIPSTREAM_WEB_URL").unwrap_or_else(|_| {
+            "http://slipstream-web.slipstream-system.svc.cluster.local".to_string()
+        });
+
         Ok(Self {
             port,
             jwks_url,
@@ -47,6 +52,7 @@ impl Config {
             idle_timeout_secs,
             metrics_push_url,
             cors_origin,
+            slipstream_web_url,
         })
     }
 }

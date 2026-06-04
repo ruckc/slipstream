@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-{{PROJECT_ID}}
+  namespace: {{K8S_NAMESPACE}}
+  labels:
+    app: agent-{{PROJECT_ID}}
+    slipstream.io/project: {{PROJECT_ID}}
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      slipstream.io/project: {{PROJECT_ID}}
+  template:
+    metadata:
+      labels:
+        app: agent-{{PROJECT_ID}}
+        slipstream.io/project: {{PROJECT_ID}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: agent
+          image: {{AGENT_IMAGE}}
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: JWKS_URL
+              value: "http://slipstream-web.slipstream-system.svc.cluster.local/api/jwks"
+            - name: SLIPSTREAM_WEB_URL
+              value: "http://slipstream-web.slipstream-system.svc.cluster.local"
+            - name: PROJECT_ID
+              value: "{{PROJECT_ID}}"
+            - name: IDLE_TIMEOUT_SECONDS
+              value: "{{IDLE_TIMEOUT}}"
+            - name: WORKSPACE_PATH
+              value: /workspace
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: tmp
+              mountPath: /tmp
+            - name: home
+              mountPath: /home/agent
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+        - name: metrics
+          image: {{METRICS_SIDECAR_IMAGE}}
+          env:
+            - name: PROJECT_ID
+              value: "{{PROJECT_ID}}"
+            - name: PUSH_URL
+              value: "http://victoriametrics.metrics.svc.cluster.local:8428"
+            - name: PUSH_INTERVAL
+              value: "30"
+            - name: WORKSPACE_PATH
+              value: /workspace
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{PVC_NAME}}
+        - name: tmp
+          emptyDir: {}
+        - name: home
+          emptyDir: {}

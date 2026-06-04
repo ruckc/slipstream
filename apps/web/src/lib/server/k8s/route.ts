@@ -125,8 +125,7 @@ export async function createRouteAndService(
 
 export async function deleteRouteAndService(
   k8sNamespace: string,
-  rtName: string,
-  svcName: string
+  projectId: string
 ): Promise<void> {
   const coreApi = getCoreV1Api()
   const customApi = getCustomObjectsApi()
@@ -137,10 +136,10 @@ export async function deleteRouteAndService(
       version: GATEWAY_API_VERSION,
       namespace: k8sNamespace,
       plural: HTTPROUTES_RESOURCE,
-      name: rtName,
+      name: routeName(projectId),
     }),
     coreApi.deleteNamespacedService({
-      name: svcName,
+      name: serviceName(projectId),
       namespace: k8sNamespace,
     }),
   ])

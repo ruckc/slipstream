@@ -25,3 +25,7 @@ export function getCustomObjectsApi(): k8s.CustomObjectsApi {
 export function getNetworkingV1Api(): k8s.NetworkingV1Api {
   return getKubeConfig().makeApiClient(k8s.NetworkingV1Api)
 }
+
+export function getAppsV1Api(): k8s.AppsV1Api {
+  return getKubeConfig().makeApiClient(k8s.AppsV1Api)
+}
