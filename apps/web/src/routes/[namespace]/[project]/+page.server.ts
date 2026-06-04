@@ -14,12 +14,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
   // Auto-start when user navigates to a stopped project (if they have manage permission)
   let status = project.status
+  let startError: string | null = null
   if (project.status === 'stopped' && permissions.includes('project:manage')) {
     try {
       const started = await startProject({ actorUserId: locals.user.id, projectId: project.id })
       status = started.status
-    } catch {
-      // Continue with stopped status if start fails
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      startError = msg
     }
   }
 
@@ -28,6 +30,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     namespace: project.namespace,
     permissions,
     user: locals.user,
+    startError,
   }
 }
 

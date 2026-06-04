@@ -158,6 +158,9 @@
             </div>
             <p class="editor-empty__title">{data.project.displayName}</p>
             <p class="editor-empty__subtitle">Project is {projectStatus}</p>
+            {#if data.startError && projectStatus === 'stopped'}
+              <p class="editor-empty__error">{data.startError}</p>
+            {/if}
             {#if canManage && projectStatus === 'stopped'}
               <form
                 method="POST"
@@ -306,6 +309,14 @@
   .editor-empty__subtitle {
     margin: 0;
     color: var(--color-text-muted);
+  }
+
+  .editor-empty__error {
+    margin: 0;
+    color: var(--color-danger, #e53e3e);
+    font-size: var(--font-size-xs, 0.75rem);
+    max-width: 320px;
+    text-align: center;
   }
 
   .start-btn {

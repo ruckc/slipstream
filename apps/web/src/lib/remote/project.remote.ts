@@ -4,7 +4,12 @@ import type { Project, Namespace } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
 import { createPvc, deletePvc } from '$lib/server/k8s/pvc'
-import { createDeployment, scaleDeployment, deleteDeployment } from '$lib/server/k8s/deployment'
+import {
+  createDeployment,
+  scaleDeployment,
+  deleteDeployment,
+  deploymentExists,
+} from '$lib/server/k8s/deployment'
 import { createRouteAndService, deleteRouteAndService } from '$lib/server/k8s/route'
 import { createNetworkPolicy, deleteNetworkPolicy } from '$lib/server/k8s/policy'
 import { resolvePermissions, resolveIdleTimeout } from '$lib/server/permissions'
@@ -196,6 +201,26 @@ export const startProject = command(
     }
 
     const ns = await getNamespaceById(project.namespaceId)
+
+    // Provision permanent resources if they don't exist yet (handles projects
+    // created before the Deployment migration).
+    if (!(await deploymentExists(ns.k8sNamespace, arg.projectId))) {
+      const idleTimeout = await resolveIdleTimeout(arg.projectId)
+      await createNetworkPolicy(ns.k8sNamespace, arg.projectId).catch(() => {})
+      await createDeployment(ns.k8sNamespace, arg.projectId, project.k8sPvcName, idleTimeout).catch(
+        (e) => {
+          logServerError((e as Error).message, {
+            route: 'startProject/createDeployment',
+            stack: (e as Error).stack,
+            context: { projectId: arg.projectId, k8sNamespace: ns.k8sNamespace },
+          })
+          throw error(500, 'Failed to provision deployment for project')
+        }
+      )
+      await createRouteAndService(ns.k8sNamespace, arg.projectId, ns.slug, project.slug).catch(
+        () => {}
+      )
+    }
 
     try {
       await scaleDeployment(ns.k8sNamespace, arg.projectId, 1)

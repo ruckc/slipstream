@@ -122,11 +122,30 @@ export async function scaleDeployment(
 ): Promise<void> {
   const api = getAppsV1Api()
   const name = buildDeploymentName(projectId)
-  await api.patchNamespacedDeployment({
+  // replaceNamespacedDeploymentScale uses PUT (application/json), which Kubernetes
+  // accepts for scale subresource. patchNamespacedDeployment would send
+  // application/json for a PATCH which Kubernetes rejects.
+  await api.replaceNamespacedDeploymentScale({
     name,
     namespace: k8sNamespace,
-    body: { spec: { replicas } },
+    body: {
+      apiVersion: 'autoscaling/v1',
+      kind: 'Scale',
+      metadata: { name, namespace: k8sNamespace },
+      spec: { replicas },
+    },
   })
+}
+
+export async function deploymentExists(k8sNamespace: string, projectId: string): Promise<boolean> {
+  const api = getAppsV1Api()
+  const name = buildDeploymentName(projectId)
+  try {
+    await api.readNamespacedDeployment({ name, namespace: k8sNamespace })
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function deleteDeployment(k8sNamespace: string, projectId: string): Promise<void> {
