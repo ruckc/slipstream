@@ -73,6 +73,9 @@ auth:
   # create it. The chart-managed Secret will still hold DATABASE_URL (and
   # POSTGRES_PASSWORD when postgresql.enabled is true).
   existingSecret: ""
+  # Comma-separated list of email addresses that are auto-promoted to the admin
+  # role on login. Example: "alice@example.com,bob@example.com"
+  adminEmails: ""
   # Ignored when auth.existingSecret is set.
   # Auto-generated on first install and preserved across upgrades via secret lookup.
   # Set explicitly if you need a known value (e.g. for multi-cluster setups).
