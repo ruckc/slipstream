@@ -4,7 +4,6 @@ import type { V1Container } from '@kubernetes/client-node'
 const WEB_NAMESPACE = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
 const JWKS_URL = `http://slipstream-web.${WEB_NAMESPACE}.svc.cluster.local/api/jwks`
 
-
 function buildPodName(projectId: string): string {
   return `agent-${projectId}`.slice(0, 63)
 }

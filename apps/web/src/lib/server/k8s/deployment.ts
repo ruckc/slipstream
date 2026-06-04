@@ -5,7 +5,6 @@ const WEB_NAMESPACE = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
 const SLIPSTREAM_WEB_URL = `http://slipstream-web.${WEB_NAMESPACE}.svc.cluster.local`
 const JWKS_URL = `${SLIPSTREAM_WEB_URL}/api/jwks`
 
-
 export function buildDeploymentName(projectId: string): string {
   return `agent-${projectId}`.slice(0, 63)
 }
