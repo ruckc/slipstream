@@ -220,6 +220,7 @@ jobs:
     name: Build & Push — ${{ matrix.image.name }}
     runs-on: ubuntu-latest
     needs: version-and-tag
+    if: needs.version-and-tag.result == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -279,6 +280,7 @@ jobs:
     name: Publish Helm Chart
     runs-on: ubuntu-latest
     needs: [version-and-tag, build-and-push]
+    if: needs.version-and-tag.result == 'success' && needs.build-and-push.result == 'success'
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -321,6 +323,7 @@ jobs:
     name: GitHub Release
     runs-on: ubuntu-latest
     needs: [version-and-tag, build-and-push, publish-chart]
+    if: needs.version-and-tag.result == 'success' && needs.build-and-push.result == 'success' && needs.publish-chart.result == 'success'
     steps:
       - uses: actions/checkout@v6.0.2
         with:

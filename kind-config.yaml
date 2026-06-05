@@ -1,22 +1,2 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
-containerdConfigPatches:
-  - |-
-    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5001"]
-      endpoint = ["http://slipstream-registry:5000"]
-nodes:
-  - role: control-plane
-    kubeadmConfigPatches:
-      - |
-        kind: InitConfiguration
-        nodeRegistration:
-          kubeletExtraArgs:
-            cgroup-driver: systemd
-      - |
-        kind: ClusterConfiguration
-        controllerManager:
-          extraArgs:
-            bind-address: 0.0.0.0
-        scheduler:
-          extraArgs:
-            bind-address: 0.0.0.0

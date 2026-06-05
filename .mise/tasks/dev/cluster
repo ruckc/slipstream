@@ -36,6 +36,18 @@ else
   docker network connect kind "${REGISTRY_NAME}"
 fi
 
+# Configure registry mirror in each node using the hosts.toml approach.
+# kind v0.27+ sets config_path=/etc/containerd/certs.d automatically, so the
+# old mirrors TOML patch conflicts. We write hosts.toml directly instead.
+echo "→ Configuring registry mirror in cluster nodes..."
+for node in $(kind get nodes --name "${CLUSTER_NAME}"); do
+  docker exec "${node}" mkdir -p "/etc/containerd/certs.d/localhost:${REGISTRY_PORT}"
+  docker exec "${node}" bash -c "cat > \"/etc/containerd/certs.d/localhost:${REGISTRY_PORT}/hosts.toml\" <<'EOF'
+[host.\"http://${REGISTRY_NAME}:5000\"]
+  capabilities = [\"pull\", \"resolve\"]
+EOF"
+done
+
 # ── Phase 2: Cluster configuration (always applied, kubectl apply is idempotent) ──
 # Add new cluster-level resources here as they are discovered.
 
