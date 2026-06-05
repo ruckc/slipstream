@@ -2,8 +2,8 @@ apiVersion: v2
 name: slipstream
 description: Cloud development environment — runs ephemeral project pods on Kubernetes
 type: application
-version: 0.14.2
-appVersion: "0.14.2"
+version: 0.14.3
+appVersion: "0.14.3"
 keywords:
   - kubernetes
   - development-environment
