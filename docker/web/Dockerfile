@@ -26,7 +26,7 @@ RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json pnpm-workspace.yaml VERSION ./
 COPY apps/web ./apps/web
 
 RUN pnpm --filter @slipstream/web build

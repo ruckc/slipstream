@@ -86,7 +86,7 @@
   .app-root {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
   }
 
   .top-bar {
@@ -174,5 +174,6 @@
   .app-main {
     flex: 1;
     min-height: 0;
+    overflow-y: auto;
   }
 </style>
