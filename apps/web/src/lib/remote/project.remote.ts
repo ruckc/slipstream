@@ -6,6 +6,7 @@ import { error } from '@sveltejs/kit'
 import { createPvc, deletePvc } from '$lib/server/k8s/pvc'
 import {
   createDeployment,
+  applyDeploymentTemplate,
   scaleDeployment,
   deleteDeployment,
   deploymentExists,
@@ -206,10 +207,11 @@ export const startProject = command(
 
     const ns = await getNamespaceById(project.namespaceId)
 
+    const idleTimeout = await resolveIdleTimeout(arg.projectId)
+
     // Provision permanent resources if they don't exist yet (handles projects
     // created before the Deployment migration).
     if (!(await deploymentExists(ns.k8sNamespace, arg.projectId))) {
-      const idleTimeout = await resolveIdleTimeout(arg.projectId)
       await createNetworkPolicy(ns.k8sNamespace, arg.projectId).catch(() => {})
       await createDeployment(ns.k8sNamespace, arg.projectId, project.k8sPvcName, idleTimeout).catch(
         (e) => {
@@ -224,6 +226,16 @@ export const startProject = command(
       await createRouteAndService(ns.k8sNamespace, arg.projectId, ns.slug, project.slug).catch(
         () => {}
       )
+    } else {
+      // Update the deployment template so image/env changes take effect on next start.
+      await applyDeploymentTemplate(ns.k8sNamespace, arg.projectId, idleTimeout).catch((e) => {
+        logServerError((e as Error).message, {
+          route: 'startProject/applyDeploymentTemplate',
+          stack: (e as Error).stack,
+          context: { projectId: arg.projectId, k8sNamespace: ns.k8sNamespace },
+        })
+        throw error(500, 'Failed to update deployment for project')
+      })
     }
 
     try {

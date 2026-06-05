@@ -1,5 +1,5 @@
 import { getCoreV1Api, getAppsV1Api } from './client'
-import type { V1Container } from '@kubernetes/client-node'
+import type { V1Container, V1DeploymentSpec } from '@kubernetes/client-node'
 
 const WEB_NAMESPACE = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
 const SLIPSTREAM_WEB_URL = `http://slipstream-web.${WEB_NAMESPACE}.svc.cluster.local`
@@ -9,17 +9,9 @@ export function buildDeploymentName(projectId: string): string {
   return `agent-${projectId}`.slice(0, 63)
 }
 
-export async function createDeployment(
-  k8sNamespace: string,
-  projectId: string,
-  pvcName: string,
-  idleTimeoutSeconds: number
-): Promise<void> {
-  const api = getAppsV1Api()
+function buildContainers(projectId: string, idleTimeoutSeconds: number): V1Container[] {
   const agentImage = process.env.AGENT_IMAGE
   if (!agentImage) throw new Error('AGENT_IMAGE environment variable is required')
-
-  const name = buildDeploymentName(projectId)
   const appUrl = process.env.APP_URL ?? ''
 
   const containers: V1Container[] = [
@@ -70,6 +62,19 @@ export async function createDeployment(
     })
   }
 
+  return containers
+}
+
+export async function createDeployment(
+  k8sNamespace: string,
+  projectId: string,
+  pvcName: string,
+  idleTimeoutSeconds: number
+): Promise<void> {
+  const api = getAppsV1Api()
+  const name = buildDeploymentName(projectId)
+  const containers = buildContainers(projectId, idleTimeoutSeconds)
+
   await api.createNamespacedDeployment({
     namespace: k8sNamespace,
     body: {
@@ -116,6 +121,36 @@ export async function createDeployment(
           },
         },
       },
+    },
+  })
+}
+
+export async function applyDeploymentTemplate(
+  k8sNamespace: string,
+  projectId: string,
+  idleTimeoutSeconds: number
+): Promise<void> {
+  const api = getAppsV1Api()
+  const name = buildDeploymentName(projectId)
+  const containers = buildContainers(projectId, idleTimeoutSeconds)
+
+  const current = await api.readNamespacedDeployment({ name, namespace: k8sNamespace })
+
+  await api.replaceNamespacedDeployment({
+    name,
+    namespace: k8sNamespace,
+    body: {
+      ...current,
+      spec: {
+        ...current.spec,
+        template: {
+          ...current.spec?.template,
+          spec: {
+            ...current.spec?.template?.spec,
+            containers,
+          },
+        },
+      } as V1DeploymentSpec,
     },
   })
 }
