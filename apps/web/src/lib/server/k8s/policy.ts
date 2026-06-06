@@ -7,6 +7,39 @@ function policyName(projectId: string): string {
 // Namespace where the gateway and slipstream-web live.
 const SLIPSTREAM_SYSTEM_NS = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
 
+// When GATEWAY_PROXY_NAMESPACE is set, ingress to the agent port is restricted
+// to pods in that namespace matching the given label. Leave unset on clusters
+// where the gateway data-plane runs with hostNetwork (e.g. kind), since
+// hostNetwork pods appear as node IPs and cannot be matched by pod selectors.
+const GATEWAY_PROXY_NAMESPACE = process.env.GATEWAY_PROXY_NAMESPACE ?? ''
+const GATEWAY_PROXY_LABEL_KEY =
+  process.env.GATEWAY_PROXY_LABEL_KEY ?? 'gateway.envoyproxy.io/owning-gateway-name'
+const GATEWAY_PROXY_LABEL_VALUE =
+  process.env.GATEWAY_PROXY_LABEL_VALUE ?? process.env.GATEWAY_NAME ?? ''
+
+function buildIngressRule() {
+  if (GATEWAY_PROXY_NAMESPACE) {
+    return [
+      {
+        from: [
+          {
+            namespaceSelector: {
+              matchLabels: { 'kubernetes.io/metadata.name': GATEWAY_PROXY_NAMESPACE },
+            },
+            podSelector: {
+              matchLabels: { [GATEWAY_PROXY_LABEL_KEY]: GATEWAY_PROXY_LABEL_VALUE },
+            },
+          },
+        ],
+        ports: [{ protocol: 'TCP', port: 8080 }],
+      },
+    ]
+  }
+  // No proxy namespace configured — allow all ingress on the agent port.
+  // The agent enforces RS256 JWT on every request.
+  return [{ ports: [{ protocol: 'TCP', port: 8080 }] }]
+}
+
 /**
  * Creates the project's NetworkPolicy if missing, or replaces it with the
  * current desired spec if it already exists — so spec changes (e.g. selector
@@ -33,11 +66,7 @@ export async function ensureNetworkPolicy(k8sNamespace: string, projectId: strin
         },
       },
       policyTypes: ['Ingress', 'Egress'],
-      // Allow all ingress on the agent port. The gateway controller may run
-      // with hostNetwork (e.g. in kind), making pod-selector rules impossible.
-      // The agent enforces RS256 JWT on every request, so no extra ingress
-      // restriction is needed here.
-      ingress: [{ ports: [{ protocol: 'TCP', port: 8080 }] }],
+      ingress: buildIngressRule(),
       egress: [
         // JWKS endpoint — slipstream-web in slipstream-system, port 80 (HTTP).
         {
