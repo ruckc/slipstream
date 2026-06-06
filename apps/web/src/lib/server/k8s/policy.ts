@@ -6,13 +6,6 @@ function policyName(projectId: string): string {
 
 // Namespace where the gateway and slipstream-web live.
 const SLIPSTREAM_SYSTEM_NS = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
-// Namespace where the gateway data-plane proxy pods run.
-const GATEWAY_PROXY_NAMESPACE = process.env.GATEWAY_PROXY_NAMESPACE ?? 'envoy-gateway-system'
-// Label on the gateway proxy pod identifying which Gateway it serves.
-const GATEWAY_PROXY_LABEL_KEY =
-  process.env.GATEWAY_PROXY_LABEL_KEY ?? 'gateway.envoyproxy.io/owning-gateway-name'
-const GATEWAY_PROXY_LABEL_VALUE =
-  process.env.GATEWAY_PROXY_LABEL_VALUE ?? process.env.GATEWAY_NAME ?? 'slipstream'
 
 /**
  * Creates the project's NetworkPolicy if missing, or replaces it with the
@@ -40,27 +33,11 @@ export async function ensureNetworkPolicy(k8sNamespace: string, projectId: strin
         },
       },
       policyTypes: ['Ingress', 'Egress'],
-      ingress: [
-        {
-          _from: [
-            {
-              // Only accept traffic from the Envoy proxy pod (data-plane).
-              // Namespace and label key/value are configurable via env vars
-              // to support different gateway controller deployments.
-              namespaceSelector: {
-                matchLabels: {
-                  'kubernetes.io/metadata.name': GATEWAY_PROXY_NAMESPACE,
-                },
-              },
-              podSelector: {
-                matchLabels: {
-                  [GATEWAY_PROXY_LABEL_KEY]: GATEWAY_PROXY_LABEL_VALUE,
-                },
-              },
-            },
-          ],
-        },
-      ],
+      // Allow all ingress on the agent port. The gateway controller may run
+      // with hostNetwork (e.g. in kind), making pod-selector rules impossible.
+      // The agent enforces RS256 JWT on every request, so no extra ingress
+      // restriction is needed here.
+      ingress: [{ ports: [{ protocol: 'TCP', port: 8080 }] }],
       egress: [
         // JWKS endpoint — slipstream-web in slipstream-system, port 80 (HTTP).
         {

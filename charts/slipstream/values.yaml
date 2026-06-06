@@ -51,11 +51,6 @@ gateway:
   tcpRoute:
     enabled: false # enable a TCPRoute for a raw TCP listener (e.g. TLS passthrough)
     listener: tcp # sectionName of the TCP listener on the Gateway
-  # Gateway data-plane proxy pod selector for NetworkPolicy ingress rules.
-  # Override these if using a different gateway controller or namespace layout.
-  proxyNamespace: envoy-gateway-system
-  proxyLabelKey: gateway.envoyproxy.io/owning-gateway-name
-  proxyLabelValue: "" # defaults to gateway.name when empty
 
 certManager:
   enabled: false
