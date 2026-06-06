@@ -37,15 +37,17 @@ export async function ensureNetworkPolicy(k8sNamespace: string, projectId: strin
         {
           _from: [
             {
-              // Only accept traffic from the gateway pod in slipstream-system.
+              // Only accept traffic from the Envoy proxy pod (data-plane).
+              // Envoy Gateway runs its proxy in envoy-gateway-system, not
+              // slipstream-system, and labels it with owning-gateway-name.
               namespaceSelector: {
                 matchLabels: {
-                  'kubernetes.io/metadata.name': SLIPSTREAM_SYSTEM_NS,
+                  'kubernetes.io/metadata.name': 'envoy-gateway-system',
                 },
               },
               podSelector: {
                 matchLabels: {
-                  app: 'slipstream-gateway',
+                  'gateway.envoyproxy.io/owning-gateway-name': 'slipstream',
                 },
               },
             },
