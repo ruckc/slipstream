@@ -10,11 +10,36 @@ if (process.env.DEV_MODE !== 'true') {
 }
 
 const DEV_ACCOUNTS = [
-  { id: '00000000-0000-0000-0000-000000000001', email: 'admin@dev.local',     displayName: 'Dev Admin',      namespaceSlug: 'dev-admin'     },
-  { id: '00000000-0000-0000-0000-000000000002', email: 'user1@dev.local',     displayName: 'Dev User 1',     namespaceSlug: 'dev-user1'     },
-  { id: '00000000-0000-0000-0000-000000000003', email: 'user2@dev.local',     displayName: 'Dev User 2',     namespaceSlug: 'dev-user2'     },
-  { id: '00000000-0000-0000-0000-000000000004', email: 'orgowner@dev.local',  displayName: 'Dev Org Owner',  namespaceSlug: 'dev-orgowner'  },
-  { id: '00000000-0000-0000-0000-000000000005', email: 'orgmember@dev.local', displayName: 'Dev Org Member', namespaceSlug: 'dev-orgmember' },
+  {
+    id: '00000000-0000-0000-0000-000000000001',
+    email: 'admin@dev.local',
+    displayName: 'Dev Admin',
+    namespaceSlug: 'dev-admin',
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000002',
+    email: 'user1@dev.local',
+    displayName: 'Dev User 1',
+    namespaceSlug: 'dev-user1',
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000003',
+    email: 'user2@dev.local',
+    displayName: 'Dev User 2',
+    namespaceSlug: 'dev-user2',
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000004',
+    email: 'orgowner@dev.local',
+    displayName: 'Dev Org Owner',
+    namespaceSlug: 'dev-orgowner',
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000005',
+    email: 'orgmember@dev.local',
+    displayName: 'Dev Org Member',
+    namespaceSlug: 'dev-orgmember',
+  },
 ]
 
 const sql = postgres(process.env.DATABASE_URL, { max: 1 })
@@ -28,22 +53,25 @@ const K8S_CA = fs.readFileSync('/var/run/secrets/kubernetes.io/serviceaccount/ca
 function k8sRequest(method, path, body) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null
-    const req = https.request({
-      hostname: K8S_HOST,
-      port: K8S_PORT,
-      path,
-      method,
-      ca: K8S_CA,
-      headers: {
-        Authorization: `Bearer ${K8S_TOKEN}`,
-        'Content-Type': 'application/json',
-        ...(data ? { 'Content-Length': Buffer.byteLength(data) } : {}),
+    const req = https.request(
+      {
+        hostname: K8S_HOST,
+        port: K8S_PORT,
+        path,
+        method,
+        ca: K8S_CA,
+        headers: {
+          Authorization: `Bearer ${K8S_TOKEN}`,
+          'Content-Type': 'application/json',
+          ...(data ? { 'Content-Length': Buffer.byteLength(data) } : {}),
+        },
       },
-    }, res => {
-      let raw = ''
-      res.on('data', c => raw += c)
-      res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(raw) }))
-    })
+      (res) => {
+        let raw = ''
+        res.on('data', (c) => (raw += c))
+        res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(raw) }))
+      }
+    )
     req.on('error', reject)
     if (data) req.write(data)
     req.end()
@@ -65,7 +93,9 @@ async function ensureK8sNamespace(k8sNamespace, slug, type) {
     },
   })
   if (create.status !== 201) {
-    throw new Error(`Failed to create k8s namespace ${k8sNamespace}: ${JSON.stringify(create.body)}`)
+    throw new Error(
+      `Failed to create k8s namespace ${k8sNamespace}: ${JSON.stringify(create.body)}`
+    )
   }
 }
 
@@ -117,7 +147,7 @@ async function main() {
   }
   console.log(`  org: Dev Organization (namespace: ${orgSlug})`)
 
-  const orgOwner  = DEV_ACCOUNTS[3]
+  const orgOwner = DEV_ACCOUNTS[3]
   const orgMember = DEV_ACCOUNTS[4]
 
   await sql`
