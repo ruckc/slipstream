@@ -6,6 +6,13 @@ function policyName(projectId: string): string {
 
 // Namespace where the gateway and slipstream-web live.
 const SLIPSTREAM_SYSTEM_NS = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
+// Namespace where the Envoy data-plane proxy pods run.
+const ENVOY_NAMESPACE = process.env.ENVOY_NAMESPACE ?? 'envoy-gateway-system'
+// Label on the Envoy proxy pod identifying which Gateway it serves.
+const ENVOY_GATEWAY_LABEL_KEY =
+  process.env.ENVOY_GATEWAY_LABEL_KEY ?? 'gateway.envoyproxy.io/owning-gateway-name'
+const ENVOY_GATEWAY_LABEL_VALUE =
+  process.env.ENVOY_GATEWAY_LABEL_VALUE ?? process.env.GATEWAY_NAME ?? 'slipstream'
 
 /**
  * Creates the project's NetworkPolicy if missing, or replaces it with the
@@ -38,16 +45,16 @@ export async function ensureNetworkPolicy(k8sNamespace: string, projectId: strin
           _from: [
             {
               // Only accept traffic from the Envoy proxy pod (data-plane).
-              // Envoy Gateway runs its proxy in envoy-gateway-system, not
-              // slipstream-system, and labels it with owning-gateway-name.
+              // Namespace and label key/value are configurable via env vars
+              // to support different gateway controller deployments.
               namespaceSelector: {
                 matchLabels: {
-                  'kubernetes.io/metadata.name': 'envoy-gateway-system',
+                  'kubernetes.io/metadata.name': ENVOY_NAMESPACE,
                 },
               },
               podSelector: {
                 matchLabels: {
-                  'gateway.envoyproxy.io/owning-gateway-name': 'slipstream',
+                  [ENVOY_GATEWAY_LABEL_KEY]: ENVOY_GATEWAY_LABEL_VALUE,
                 },
               },
             },

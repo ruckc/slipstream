@@ -15,6 +15,9 @@ data:
   GATEWAY_NAMESPACE: {{ .Values.gateway.namespace | quote }}
   GATEWAY_HOSTNAME: {{ .Values.gateway.hostname | quote }}
   GATEWAY_LISTENER_HTTPS: {{ .Values.gateway.listeners.https | quote }}
+  ENVOY_NAMESPACE: {{ .Values.gateway.envoyNamespace | quote }}
+  ENVOY_GATEWAY_LABEL_KEY: {{ .Values.gateway.envoyGatewayLabelKey | quote }}
+  ENVOY_GATEWAY_LABEL_VALUE: {{ .Values.gateway.envoyGatewayLabelValue | default .Values.gateway.name | quote }}
   {{- if .Values.victoriametrics.enabled }}
   METRICS_SIDECAR_IMAGE: {{ include "slipstream.metricsSidecarImage" . | quote }}
   METRICS_PUSH_URL: {{ include "slipstream.metricsPushUrl" . | quote }}
