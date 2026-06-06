@@ -1,4 +1,4 @@
-import { getCoreV1Api, getCustomObjectsApi } from './client'
+import { getCoreV1Api, getCustomObjectsApi, isApiError } from './client'
 
 const GATEWAY_API_GROUP = 'gateway.networking.k8s.io'
 const GATEWAY_API_VERSION = 'v1'
@@ -12,7 +12,8 @@ function serviceName(projectId: string): string {
   return `svc-${projectId}`
 }
 
-export async function createRouteAndService(
+/** Creates the project's Service and HTTPRoute if they don't already exist. */
+export async function ensureRouteAndService(
   k8sNamespace: string,
   projectId: string,
   namespaceSlug: string,
@@ -30,34 +31,38 @@ export async function createRouteAndService(
   const rtName = routeName(projectId)
   const pathPrefix = `/env/${namespaceSlug}/${projectSlug}`
 
-  // Create ClusterIP Service for the pod
-  await coreApi.createNamespacedService({
-    namespace: k8sNamespace,
-    body: {
-      apiVersion: 'v1',
-      kind: 'Service',
-      metadata: {
-        name: svcName,
-        namespace: k8sNamespace,
-        labels: {
-          'slipstream.io/project': projectId,
-        },
-      },
-      spec: {
-        type: 'ClusterIP',
-        selector: {
-          'slipstream.io/project': projectId,
-        },
-        ports: [
-          {
-            port: 8080,
-            targetPort: 8080,
-            protocol: 'TCP',
+  // Create ClusterIP Service for the pod (idempotent — ignore if it already exists)
+  try {
+    await coreApi.createNamespacedService({
+      namespace: k8sNamespace,
+      body: {
+        apiVersion: 'v1',
+        kind: 'Service',
+        metadata: {
+          name: svcName,
+          namespace: k8sNamespace,
+          labels: {
+            'slipstream.io/project': projectId,
           },
-        ],
+        },
+        spec: {
+          type: 'ClusterIP',
+          selector: {
+            'slipstream.io/project': projectId,
+          },
+          ports: [
+            {
+              port: 8080,
+              targetPort: 8080,
+              protocol: 'TCP',
+            },
+          ],
+        },
       },
-    },
-  })
+    })
+  } catch (e) {
+    if (!isApiError(e, 409)) throw e
+  }
 
   // Create HTTPRoute (Gateway API CRD)
   const httproute = {
@@ -112,13 +117,17 @@ export async function createRouteAndService(
     },
   }
 
-  await customApi.createNamespacedCustomObject({
-    group: GATEWAY_API_GROUP,
-    version: GATEWAY_API_VERSION,
-    namespace: k8sNamespace,
-    plural: HTTPROUTES_RESOURCE,
-    body: httproute,
-  })
+  try {
+    await customApi.createNamespacedCustomObject({
+      group: GATEWAY_API_GROUP,
+      version: GATEWAY_API_VERSION,
+      namespace: k8sNamespace,
+      plural: HTTPROUTES_RESOURCE,
+      body: httproute,
+    })
+  } catch (e) {
+    if (!isApiError(e, 409)) throw e
+  }
 
   return { routeName: rtName, serviceName: svcName }
 }

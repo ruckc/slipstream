@@ -3,16 +3,10 @@ import { db, projects, namespaces, organizations, orgMembers, users } from '$lib
 import type { Project, Namespace } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
-import { createPvc, deletePvc } from '$lib/server/k8s/pvc'
-import {
-  createDeployment,
-  applyDeploymentTemplate,
-  scaleDeployment,
-  deleteDeployment,
-  deploymentExists,
-} from '$lib/server/k8s/deployment'
-import { createRouteAndService, deleteRouteAndService } from '$lib/server/k8s/route'
-import { createNetworkPolicy, deleteNetworkPolicy } from '$lib/server/k8s/policy'
+import { ensurePvc, deletePvc } from '$lib/server/k8s/pvc'
+import { ensureDeployment, scaleDeployment, deleteDeployment } from '$lib/server/k8s/deployment'
+import { ensureRouteAndService, deleteRouteAndService } from '$lib/server/k8s/route'
+import { ensureNetworkPolicy, deleteNetworkPolicy } from '$lib/server/k8s/policy'
 import { resolvePermissions, resolveIdleTimeout } from '$lib/server/permissions'
 import { logServerError } from '$lib/server/error-log'
 
@@ -103,67 +97,22 @@ export const createProject = command(
 
     const idleTimeout = await resolveIdleTimeout(project.id)
 
-    // Create PVC
-    let pvcName: string
     try {
-      pvcName = await createPvc(ns.k8sNamespace, project.id)
+      const pvcName = await ensurePvc(ns.k8sNamespace, project.id)
+      await db.update(projects).set({ k8sPvcName: pvcName }).where(eq(projects.id, project.id))
+      await ensureNetworkPolicy(ns.k8sNamespace, project.id)
+      await ensureDeployment(ns.k8sNamespace, project.id, pvcName, idleTimeout)
+      await ensureRouteAndService(ns.k8sNamespace, project.id, ns.slug, arg.slug)
     } catch (e) {
-      await db.delete(projects).where(eq(projects.id, project.id))
-      await logServerError((e as Error).message, {
-        route: 'createProject/createPvc',
-        stack: (e as Error).stack,
-        context: { projectId: project.id, k8sNamespace: ns.k8sNamespace },
-      })
-      throw error(500, 'Failed to provision storage for project')
-    }
-
-    await db.update(projects).set({ k8sPvcName: pvcName }).where(eq(projects.id, project.id))
-
-    // Create NetworkPolicy (permanent)
-    try {
-      await createNetworkPolicy(ns.k8sNamespace, project.id)
-    } catch (e) {
-      await deletePvc(ns.k8sNamespace, pvcName).catch(() => {})
-      await db.delete(projects).where(eq(projects.id, project.id))
-      await logServerError((e as Error).message, {
-        route: 'createProject/createNetworkPolicy',
-        stack: (e as Error).stack,
-        context: { projectId: project.id, k8sNamespace: ns.k8sNamespace },
-      })
-      throw error(500, 'Failed to configure network policy for project')
-    }
-
-    // Create Deployment at replicas=0 (permanent)
-    try {
-      await createDeployment(ns.k8sNamespace, project.id, pvcName, idleTimeout)
-    } catch (e) {
-      await deleteNetworkPolicy(ns.k8sNamespace, project.id).catch(() => {})
-      await deletePvc(ns.k8sNamespace, pvcName).catch(() => {})
       await db.delete(projects).where(eq(projects.id, project.id))
       const body = (e as { body?: unknown }).body
       const msg = body ? JSON.stringify(body) : (e as Error).message
       await logServerError(msg, {
-        route: 'createProject/createDeployment',
+        route: 'createProject/provision',
         stack: (e as Error).stack,
         context: { projectId: project.id, k8sNamespace: ns.k8sNamespace },
       })
-      throw error(500, 'Failed to create project deployment')
-    }
-
-    // Create Service + HTTPRoute (permanent)
-    try {
-      await createRouteAndService(ns.k8sNamespace, project.id, ns.slug, arg.slug)
-    } catch (e) {
-      await deleteDeployment(ns.k8sNamespace, project.id).catch(() => {})
-      await deleteNetworkPolicy(ns.k8sNamespace, project.id).catch(() => {})
-      await deletePvc(ns.k8sNamespace, pvcName).catch(() => {})
-      await db.delete(projects).where(eq(projects.id, project.id))
-      await logServerError((e as Error).message, {
-        route: 'createProject/createRouteAndService',
-        stack: (e as Error).stack,
-        context: { projectId: project.id, k8sNamespace: ns.k8sNamespace },
-      })
-      throw error(500, 'Failed to configure routing for project')
+      throw error(500, 'Failed to provision project resources')
     }
 
     const [updated] = await db.select().from(projects).where(eq(projects.id, project.id)).limit(1)
@@ -209,40 +158,16 @@ export const startProject = command(
 
     const idleTimeout = await resolveIdleTimeout(arg.projectId)
 
-    // Provision permanent resources if they don't exist yet (handles projects
-    // created before the Deployment migration).
-    if (!(await deploymentExists(ns.k8sNamespace, arg.projectId))) {
-      await createNetworkPolicy(ns.k8sNamespace, arg.projectId).catch(() => {})
-      await createDeployment(ns.k8sNamespace, arg.projectId, project.k8sPvcName, idleTimeout).catch(
-        (e) => {
-          logServerError((e as Error).message, {
-            route: 'startProject/createDeployment',
-            stack: (e as Error).stack,
-            context: { projectId: arg.projectId, k8sNamespace: ns.k8sNamespace },
-          })
-          throw error(500, 'Failed to provision deployment for project')
-        }
-      )
-      await createRouteAndService(ns.k8sNamespace, arg.projectId, ns.slug, project.slug).catch(
-        () => {}
-      )
-    } else {
-      // Update the deployment template so image/env changes take effect on next start.
-      await applyDeploymentTemplate(ns.k8sNamespace, arg.projectId, idleTimeout).catch((e) => {
-        logServerError((e as Error).message, {
-          route: 'startProject/applyDeploymentTemplate',
-          stack: (e as Error).stack,
-          context: { projectId: arg.projectId, k8sNamespace: ns.k8sNamespace },
-        })
-        throw error(500, 'Failed to update deployment for project')
-      })
-    }
-
     try {
+      await ensureNetworkPolicy(ns.k8sNamespace, arg.projectId)
+      await ensureDeployment(ns.k8sNamespace, arg.projectId, project.k8sPvcName, idleTimeout)
+      await ensureRouteAndService(ns.k8sNamespace, arg.projectId, ns.slug, project.slug)
       await scaleDeployment(ns.k8sNamespace, arg.projectId, 1)
     } catch (e) {
-      await logServerError((e as Error).message, {
-        route: 'startProject/scaleDeployment',
+      const body = (e as { body?: unknown }).body
+      const msg = body ? JSON.stringify(body) : (e as Error).message
+      await logServerError(msg, {
+        route: 'startProject/provision',
         stack: (e as Error).stack,
         context: { projectId: arg.projectId, k8sNamespace: ns.k8sNamespace },
       })
@@ -252,27 +177,6 @@ export const startProject = command(
     const [updated] = await db
       .update(projects)
       .set({ status: 'starting', updatedAt: new Date() })
-      .where(eq(projects.id, arg.projectId))
-      .returning()
-    return updated
-  }
-)
-
-export const stopProject = command(
-  'unchecked',
-  async (arg: { projectId: string }): Promise<Project> => {
-    const { locals } = getRequestEvent()
-    if (!locals.user) throw error(401, 'Unauthorized')
-    const project = await getProjectById(arg.projectId)
-    await assertProjectManage(locals.user.id, arg.projectId)
-
-    const ns = await getNamespaceById(project.namespaceId)
-
-    await scaleDeployment(ns.k8sNamespace, arg.projectId, 0).catch(() => {})
-
-    const [updated] = await db
-      .update(projects)
-      .set({ status: 'stopped', updatedAt: new Date() })
       .where(eq(projects.id, arg.projectId))
       .returning()
     return updated
@@ -295,15 +199,5 @@ export const deleteProject = command(
     ])
 
     await db.delete(projects).where(eq(projects.id, arg.projectId))
-  }
-)
-
-export const updateProjectStatus = command(
-  'unchecked',
-  async (arg: { projectId: string; status: Project['status'] }): Promise<void> => {
-    await db
-      .update(projects)
-      .set({ status: arg.status, updatedAt: new Date() })
-      .where(eq(projects.id, arg.projectId))
   }
 )

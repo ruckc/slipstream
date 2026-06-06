@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state'
   import { getProjectPage } from './project.remote'
-  import { startProject, stopProject } from '$lib/remote/project.remote'
+  import { startProject } from '$lib/remote/project.remote'
   import AppShell from '$lib/components/layout/AppShell.svelte'
   import FileBrowser from '$lib/components/file-browser/FileBrowser.svelte'
   import FilePreview from '$lib/components/preview/FilePreview.svelte'
@@ -21,7 +21,6 @@
 
   let projectStatus = $state(project.status)
   let startError = $state<string | null>(null)
-  let actionLoading = $state(false)
 
   // Show overlay eagerly: already starting, or stopped-and-will-auto-start
   let showStartingOverlay = $state(
@@ -120,37 +119,6 @@
     }
   }
 
-  async function handleStart() {
-    if (actionLoading) return
-    actionLoading = true
-    startError = null
-    showStartingOverlay = true
-    projectStatus = 'starting'
-    try {
-      await startProject({ projectId: project.id })
-    } catch (e: unknown) {
-      startError = e instanceof Error ? e.message : String(e)
-      showStartingOverlay = false
-      projectStatus = 'stopped'
-    } finally {
-      actionLoading = false
-    }
-  }
-
-  async function handleStop() {
-    if (actionLoading) return
-    actionLoading = true
-    projectStatus = 'stopping'
-    try {
-      await stopProject({ projectId: project.id })
-      projectStatus = 'stopped'
-    } catch {
-      projectStatus = 'running'
-    } finally {
-      actionLoading = false
-    }
-  }
-
   const activityItems = $derived([
     ...(canReadFiles ? [{ id: 'files', icon: 'files', label: 'Explorer', onClick: () => {} }] : []),
     ...(canShell
@@ -223,18 +191,6 @@
             {#if startError && projectStatus === 'stopped'}
               <p class="editor-empty__error">{startError}</p>
             {/if}
-            {#if canManage && projectStatus === 'stopped'}
-              <button
-                type="button"
-                class="start-btn"
-                disabled={actionLoading}
-                aria-busy={actionLoading}
-                onclick={handleStart}
-              >
-                <Icon name="play" size={14} />
-                Start project
-              </button>
-            {/if}
           {:else}
             <div class="editor-empty__icon">
               <Icon name="files" size={48} />
@@ -277,10 +233,6 @@
       projectSlug={project.slug}
       displayName={project.displayName}
       status={projectStatus}
-      onStart={canManage && projectStatus === 'stopped' ? handleStart : undefined}
-      onStop={canManage && (projectStatus === 'running' || projectStatus === 'starting')
-        ? handleStop
-        : undefined}
     />
   {/snippet}
 </AppShell>
@@ -328,31 +280,6 @@
     font-size: var(--font-size-xs, 0.75rem);
     max-width: 320px;
     text-align: center;
-  }
-
-  .start-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-    background: var(--color-accent);
-    color: var(--color-accent-text);
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    cursor: pointer;
-    transition: background var(--transition-fast);
-    margin-top: var(--space-2);
-  }
-
-  .start-btn:hover:not(:disabled) {
-    background: var(--color-accent-hover);
-  }
-
-  .start-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
   }
 
   .starting-overlay {

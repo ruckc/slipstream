@@ -52,6 +52,7 @@ COPY --from=prod-deps --chown=slipstream:slipstream /app/apps/web/node_modules /
 # and finds @sveltejs/kit there.
 COPY --from=builder --chown=slipstream:slipstream /app/apps/web/build /app/apps/web/build
 COPY --from=builder --chown=slipstream:slipstream /app/apps/web/migrate.mjs /app/apps/web/migrate.mjs
+COPY --from=builder --chown=slipstream:slipstream /app/apps/web/seed.mjs /app/apps/web/seed.mjs
 COPY --from=builder --chown=slipstream:slipstream /app/apps/web/drizzle /app/apps/web/drizzle
 
 USER slipstream

@@ -15,6 +15,17 @@
 devMode:
   enabled: true
 
+image:
+  web:
+    repository: localhost:5001/slipstream-web
+    tag: local
+  agent:
+    repository: localhost:5001/slipstream-agent
+    tag: local
+  metricsSidecar:
+    repository: localhost:5001/slipstream-metrics-sidecar
+    tag: local
+
 web:
   replicas: 1
   resources:

@@ -3,7 +3,7 @@ import { db, namespaces, organizations, orgMembers, users } from '$lib/server/db
 import type { Organization, Namespace, OrgMember, User } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
-import { createK8sNamespace } from '$lib/server/k8s/namespace'
+import { ensureK8sNamespace } from '$lib/server/k8s/namespace'
 
 async function assertOrgOwner(userId: string, orgId: string): Promise<void> {
   const rows = await db
@@ -38,7 +38,7 @@ export const createOrganization = command(
       .returning()
 
     try {
-      await createK8sNamespace(k8sNs, arg.slug, 'org')
+      await ensureK8sNamespace(k8sNs, arg.slug, 'org')
     } catch (k8sErr) {
       await db.delete(namespaces).where(eq(namespaces.id, namespace.id))
       console.error('[createOrganization] k8s namespace creation failed:', k8sErr)

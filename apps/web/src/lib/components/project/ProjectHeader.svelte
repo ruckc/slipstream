@@ -8,16 +8,12 @@
     projectSlug,
     displayName,
     status = 'stopped',
-    onStart,
-    onStop,
   }: {
     namespaceSlug: string
     namespaceType?: 'user' | 'org'
     projectSlug: string
     displayName: string
     status?: string
-    onStart?: () => Promise<void>
-    onStop?: () => Promise<void>
   } = $props()
 </script>
 
@@ -36,7 +32,7 @@
     <span class="project-header-name">{displayName}</span>
   </a>
   <div class="project-header-status">
-    <ProjectStatusChip {status} size="sm" {onStart} {onStop} />
+    <ProjectStatusChip {status} size="sm" />
   </div>
   <div class="project-header-actions">
     <a

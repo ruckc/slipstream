@@ -1,5 +1,5 @@
-import { getCoreV1Api, getAppsV1Api } from './client'
-import type { V1Container, V1DeploymentSpec } from '@kubernetes/client-node'
+import { getCoreV1Api, getAppsV1Api, isApiError } from './client'
+import type { V1Container } from '@kubernetes/client-node'
 
 const WEB_NAMESPACE = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
 const SLIPSTREAM_WEB_URL = `http://slipstream-web.${WEB_NAMESPACE}.svc.cluster.local`
@@ -18,6 +18,7 @@ function buildContainers(projectId: string, idleTimeoutSeconds: number): V1Conta
     {
       name: 'agent',
       image: agentImage,
+      imagePullPolicy: 'Always',
       ports: [{ containerPort: 8080 }],
       env: [
         { name: 'JWKS_URL', value: JWKS_URL },
@@ -65,7 +66,13 @@ function buildContainers(projectId: string, idleTimeoutSeconds: number): V1Conta
   return containers
 }
 
-export async function createDeployment(
+/**
+ * Creates the project's Deployment if missing, or replaces its container spec
+ * (image, env, security context) if it already exists — so image/config
+ * changes take effect on every project start. Existing replica count and
+ * resourceVersion are preserved on replace.
+ */
+export async function ensureDeployment(
   k8sNamespace: string,
   projectId: string,
   pvcName: string,
@@ -75,84 +82,74 @@ export async function createDeployment(
   const name = buildDeploymentName(projectId)
   const containers = buildContainers(projectId, idleTimeoutSeconds)
 
-  await api.createNamespacedDeployment({
-    namespace: k8sNamespace,
-    body: {
-      apiVersion: 'apps/v1',
-      kind: 'Deployment',
+  const desiredSpec = {
+    replicas: 0,
+    selector: {
+      matchLabels: {
+        'slipstream.io/project': projectId,
+      },
+    },
+    template: {
       metadata: {
-        name,
-        namespace: k8sNamespace,
         labels: {
           'slipstream.io/project': projectId,
           app: `agent-${projectId}`,
         },
       },
       spec: {
-        replicas: 0,
-        selector: {
-          matchLabels: {
-            'slipstream.io/project': projectId,
-          },
+        automountServiceAccountToken: false,
+        securityContext: {
+          runAsNonRoot: true,
+          runAsUser: 1000,
+          fsGroup: 1000,
         },
-        template: {
-          metadata: {
-            labels: {
-              'slipstream.io/project': projectId,
-              app: `agent-${projectId}`,
-            },
+        containers,
+        volumes: [
+          {
+            name: 'workspace',
+            persistentVolumeClaim: { claimName: pvcName },
           },
-          spec: {
-            automountServiceAccountToken: false,
-            securityContext: {
-              runAsNonRoot: true,
-              runAsUser: 1000,
-              fsGroup: 1000,
-            },
-            containers,
-            volumes: [
-              {
-                name: 'workspace',
-                persistentVolumeClaim: { claimName: pvcName },
-              },
-              { name: 'tmp', emptyDir: {} },
-              { name: 'home', emptyDir: {} },
-            ],
-          },
-        },
+          { name: 'tmp', emptyDir: {} },
+          { name: 'home', emptyDir: {} },
+        ],
       },
     },
-  })
-}
+  }
 
-export async function applyDeploymentTemplate(
-  k8sNamespace: string,
-  projectId: string,
-  idleTimeoutSeconds: number
-): Promise<void> {
-  const api = getAppsV1Api()
-  const name = buildDeploymentName(projectId)
-  const containers = buildContainers(projectId, idleTimeoutSeconds)
-
-  const current = await api.readNamespacedDeployment({ name, namespace: k8sNamespace })
-
-  await api.replaceNamespacedDeployment({
-    name,
-    namespace: k8sNamespace,
-    body: {
-      ...current,
-      spec: {
-        ...current.spec,
-        template: {
-          ...current.spec?.template,
-          spec: {
-            ...current.spec?.template?.spec,
-            containers,
+  try {
+    await api.createNamespacedDeployment({
+      namespace: k8sNamespace,
+      body: {
+        apiVersion: 'apps/v1',
+        kind: 'Deployment',
+        metadata: {
+          name,
+          namespace: k8sNamespace,
+          labels: {
+            'slipstream.io/project': projectId,
+            app: `agent-${projectId}`,
           },
         },
-      } as V1DeploymentSpec,
-    },
-  })
+        spec: desiredSpec,
+      },
+    })
+  } catch (e) {
+    if (!isApiError(e, 409)) throw e
+
+    const current = await api.readNamespacedDeployment({ name, namespace: k8sNamespace })
+    await api.replaceNamespacedDeployment({
+      name,
+      namespace: k8sNamespace,
+      body: {
+        ...current,
+        spec: {
+          ...desiredSpec,
+          // Preserve the existing replica count — only the container template changes here.
+          replicas: current.spec?.replicas ?? 0,
+        },
+      },
+    })
+  }
 }
 
 export async function scaleDeployment(
@@ -175,17 +172,6 @@ export async function scaleDeployment(
       spec: { replicas },
     },
   })
-}
-
-export async function deploymentExists(k8sNamespace: string, projectId: string): Promise<boolean> {
-  const api = getAppsV1Api()
-  const name = buildDeploymentName(projectId)
-  try {
-    await api.readNamespacedDeployment({ name, namespace: k8sNamespace })
-    return true
-  } catch {
-    return false
-  }
 }
 
 export async function deleteDeployment(k8sNamespace: string, projectId: string): Promise<void> {

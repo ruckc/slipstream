@@ -1,7 +1,7 @@
 import type { Handle } from '@sveltejs/kit'
 import { validateSession } from '$lib/server/auth/session'
 
-const PUBLIC_API_ROUTES = ['/api/jwks', '/api/token']
+const PUBLIC_API_ROUTES = ['/api/jwks', '/api/token', '/api/agent/ready', '/api/agent/shutdown']
 
 // ---------------------------------------------------------------------------
 // In-memory sliding-window rate limiter

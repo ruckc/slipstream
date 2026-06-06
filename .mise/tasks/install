@@ -15,6 +15,10 @@ helm upgrade --install slipstream ./charts/slipstream \
   --create-namespace \
   "${VALUES_ARGS[@]}"
 
+echo "→ Restarting web deployment to pick up any image changes..."
+kubectl rollout restart deployment/slipstream-web \
+  --namespace slipstream-system
+
 echo "→ Waiting for web deployment to be ready..."
 kubectl rollout status deployment/slipstream-web \
   --namespace slipstream-system \
@@ -22,6 +26,10 @@ kubectl rollout status deployment/slipstream-web \
 
 echo "→ Applying database migrations..."
 kubectl exec --namespace slipstream-system deploy/slipstream-web \
-  -- node_modules/.bin/drizzle-kit migrate
+  -- node migrate.mjs
+
+echo "→ Seeding dev accounts..."
+kubectl exec --namespace slipstream-system deploy/slipstream-web \
+  -- node seed.mjs
 
 echo "Done."

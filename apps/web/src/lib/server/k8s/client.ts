@@ -29,3 +29,8 @@ export function getNetworkingV1Api(): k8s.NetworkingV1Api {
 export function getAppsV1Api(): k8s.AppsV1Api {
   return getKubeConfig().makeApiClient(k8s.AppsV1Api)
 }
+
+/** True if the error is a Kubernetes API error with the given HTTP status code. */
+export function isApiError(e: unknown, code: number): boolean {
+  return e instanceof k8s.ApiException && e.code === code
+}

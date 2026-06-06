@@ -27,6 +27,7 @@ export async function createPod(
     {
       name: 'agent',
       image: agentImage,
+      imagePullPolicy: 'Always',
       ports: [{ containerPort: 8080 }],
       env: [
         { name: 'JWKS_URL', value: JWKS_URL },
