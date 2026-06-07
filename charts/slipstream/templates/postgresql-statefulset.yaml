@@ -69,7 +69,6 @@ spec:
     - metadata:
         name: data
         labels:
-          {{- include "slipstream.labels" . | nindent 10 }}
           app.kubernetes.io/component: postgres
       spec:
         accessModes: [ReadWriteOnce]
