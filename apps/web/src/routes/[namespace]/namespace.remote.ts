@@ -1,35 +1,30 @@
+import { query, getRequestEvent } from '$app/server'
 import { redirect, error } from '@sveltejs/kit'
-import type { PageServerLoad } from './$types'
 import { db, namespaces, projects, organizations, orgMembers } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import { listDeploymentStatuses } from '$lib/server/k8s/deployment'
 
-export const load: PageServerLoad = async ({ params, locals }) => {
-  if (!locals.user) throw redirect(302, '/auth/login')
+export const getNamespacePage = query('unchecked', async (_: Record<string, never>) => {
+  const { locals, params } = getRequestEvent()
+  if (!locals.user) redirect(302, '/auth/login')
 
-  // Look up namespace by slug
   const nsRows = await db
     .select()
     .from(namespaces)
-    .where(eq(namespaces.slug, params.namespace))
+    .where(eq(namespaces.slug, params.namespace!))
     .limit(1)
 
-  if (nsRows.length === 0) throw error(404, 'Namespace not found')
+  if (nsRows.length === 0) error(404, 'Namespace not found')
 
   const namespace = nsRows[0]
 
-  // Check access
   let isOwner = false
   let orgData: { id: string; displayName: string; memberCount: number } | undefined
 
   if (namespace.type === 'user') {
-    // Must be the namespace owner
-    if (namespace.id !== locals.user.namespaceId) {
-      throw error(403, 'Access denied')
-    }
+    if (namespace.id !== locals.user.namespaceId) error(403, 'Access denied')
     isOwner = true
   } else if (namespace.type === 'org') {
-    // Must be a member
     const orgRows = await db
       .select({ org: organizations, member: orgMembers })
       .from(organizations)
@@ -40,11 +35,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       .where(eq(organizations.namespaceId, namespace.id))
       .limit(1)
 
-    if (orgRows.length === 0) throw error(403, 'Access denied')
+    if (orgRows.length === 0) error(403, 'Access denied')
 
     isOwner = orgRows[0].member.role === 'owner'
 
-    // Count members
     const memberCountRows = await db
       .select({ userId: orgMembers.userId })
       .from(orgMembers)
@@ -57,7 +51,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     }
   }
 
-  // Load projects in this namespace and derive running status from k8s
   const [projectRows, statuses] = await Promise.all([
     db.select().from(projects).where(eq(projects.namespaceId, namespace.id)),
     listDeploymentStatuses(),
@@ -70,4 +63,4 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     orgData,
     user: locals.user,
   }
-}
+})

@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { PageData } from './$types'
+  import { getNamespacePage } from './namespace.remote'
   import Icon from '$lib/components/common/Icon.svelte'
   import ProjectStatusChip from '$lib/components/project/ProjectStatusChip.svelte'
 
-  let { data }: { data: PageData } = $props()
+  const data = await getNamespacePage({})
 
   const isOrg = $derived(data.namespace.type === 'org')
 </script>

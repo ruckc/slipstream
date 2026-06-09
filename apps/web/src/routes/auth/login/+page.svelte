@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { PageData } from './$types'
+  import { getLoginData } from './login.remote'
 
-  let { data }: { data: PageData } = $props()
+  const data = await getLoginData({})
 </script>
 
 <div class="page">

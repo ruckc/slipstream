@@ -12,7 +12,7 @@
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
   import Icon from '$lib/components/common/Icon.svelte'
-  import Modal from '$lib/components/common/Modal.svelte'
+  import DeleteProjectModal from '$lib/components/common/DeleteProjectModal.svelte'
 
   const data = await getProjectSettings({
     namespace: page.params.namespace!,
@@ -22,7 +22,6 @@
   let addUserEmail = $state('')
   let addUserPerms = $state<string[]>(['files:read'])
   let deleteModalOpen = $state(false)
-  let deleteConfirmText = $state('')
 
   const ALL_PERMS = ['files:read', 'files:write', 'shell', 'project:manage'] as const
 
@@ -62,8 +61,6 @@
       addUserPerms = [...addUserPerms, p]
     }
   }
-
-  const canDelete = $derived(deleteConfirmText === data.project.slug)
 
   async function handleDelete() {
     const result = await deleteProject({
@@ -239,36 +236,12 @@
   </div>
 </div>
 
-<!-- Delete modal -->
-<Modal title="Delete project" bind:open={deleteModalOpen}>
-  <div class="delete-modal">
-    <p class="delete-modal__warning">
-      This will permanently delete <strong>{data.project.displayName}</strong> and all its workspace data.
-      This action cannot be undone.
-    </p>
-    <p class="delete-modal__confirm-label">
-      Type <code class="delete-modal__slug">{data.project.slug}</code> to confirm:
-    </p>
-    <input
-      class="delete-modal__input"
-      type="text"
-      bind:value={deleteConfirmText}
-      placeholder={data.project.slug}
-      autocomplete="off"
-    />
-    <div class="delete-modal__actions">
-      <Button variant="secondary" onclick={() => (deleteModalOpen = false)}>Cancel</Button>
-      <Button
-        variant="danger"
-        disabled={!canDelete}
-        loading={deleteProject.pending > 0}
-        onclick={handleDelete}
-      >
-        Delete project
-      </Button>
-    </div>
-  </div>
-</Modal>
+<DeleteProjectModal
+  bind:open={deleteModalOpen}
+  project={data.project}
+  loading={deleteProject.pending > 0}
+  onconfirm={handleDelete}
+/>
 
 <style>
   .settings-page {
@@ -481,58 +454,6 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
     max-width: 380px;
-  }
-
-  /* Delete modal */
-  .delete-modal {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-
-  .delete-modal__warning {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-primary);
-  }
-
-  .delete-modal__confirm-label {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-  }
-
-  .delete-modal__slug {
-    background: var(--color-bg-input);
-    padding: 1px 4px;
-    border-radius: var(--radius-sm);
-    font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-primary);
-  }
-
-  .delete-modal__input {
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-1) var(--space-2);
-    font-size: var(--font-size-sm);
-    font-family: var(--font-mono);
-    height: 28px;
-    width: 100%;
-    transition: border-color var(--transition-fast);
-  }
-
-  .delete-modal__input:focus {
-    border-color: var(--color-danger);
-    outline: none;
-  }
-
-  .delete-modal__actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
   }
 
   @media (max-width: 639px) {

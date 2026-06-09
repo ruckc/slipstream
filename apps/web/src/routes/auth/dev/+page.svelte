@@ -1,7 +1,18 @@
 <script lang="ts">
-  import type { PageData, ActionData } from './$types'
+  import { getDevAccounts, loginAsDev } from './dev.remote'
 
-  let { data, form }: { data: PageData; form: ActionData } = $props()
+  const { accounts } = await getDevAccounts({})
+
+  let loginError = $state<string | null>(null)
+
+  async function handleLogin(uuid: string) {
+    loginError = null
+    try {
+      await loginAsDev(uuid)
+    } catch (e) {
+      loginError = e instanceof Error ? e.message : 'Login failed'
+    }
+  }
 </script>
 
 <div class="page">
@@ -9,29 +20,26 @@
     <h1>Developer Login</h1>
     <p class="subtitle">Select a dev account to log in as</p>
 
-    {#if form?.error}
-      <div class="error-banner" role="alert">{form.error}</div>
+    {#if loginError}
+      <div class="error-banner" role="alert">{loginError}</div>
     {/if}
 
-    {#if data.accounts.length === 0}
+    {#if accounts.length === 0}
       <div class="empty">
         <p>No dev accounts found.</p>
         <code>Run: pnpm db:seed:dev</code>
       </div>
     {:else}
       <div class="accounts">
-        {#each data.accounts as account (account.id)}
+        {#each accounts as account (account.id)}
           <div class="account-card">
             <div class="account-info">
               <span class="account-name">{account.displayName}</span>
               <span class="account-email">{account.email}</span>
             </div>
-            <form method="POST" action="?/login">
-              <input type="hidden" name="uuid" value={account.id} />
-              <button type="submit" class="login-btn">
-                Login as {account.displayName}
-              </button>
-            </form>
+            <button class="login-btn" onclick={() => handleLogin(account.id)}>
+              Login as {account.displayName}
+            </button>
           </div>
         {/each}
       </div>

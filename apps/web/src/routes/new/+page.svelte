@@ -1,43 +1,23 @@
 <script lang="ts">
-  import { untrack } from 'svelte'
-  import { enhance } from '$app/forms'
-  import type { PageData, ActionData } from './$types'
+  import { getNewPageData, createProjectForm, createOrgForm } from './new.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
 
-  let { data, form }: { data: PageData; form: ActionData } = $props()
+  const { userNamespace, orgNamespaces } = await getNewPageData({})
 
   let activeTab = $state<'project' | 'org'>('project')
 
-  // Project form state
-  let projectNamespaceId = $state(untrack(() => data.userNamespace.id))
+  let projectNamespaceId = $state(userNamespace.id)
   let projectSlug = $state('')
   let projectDisplayName = $state('')
-  let projectLoading = $state(false)
 
-  // Org form state
   let orgSlug = $state('')
   let orgDisplayName = $state('')
-  let orgLoading = $state(false)
 
   const allNamespaces = $derived([
-    {
-      id: data.userNamespace.id,
-      slug: data.userNamespace.slug,
-      label: `${data.userNamespace.slug} (personal)`,
-    },
-    ...data.orgNamespaces.map((ns) => ({ id: ns.id, slug: ns.slug, label: `${ns.slug} (org)` })),
+    { id: userNamespace.id, slug: userNamespace.slug, label: `${userNamespace.slug} (personal)` },
+    ...orgNamespaces.map((ns) => ({ id: ns.id, slug: ns.slug, label: `${ns.slug} (org)` })),
   ])
-
-  // Show error/field for whichever form was last submitted
-  const projectError = $derived(form?.createProject ? form?.error : undefined)
-  const orgError = $derived(form?.createOrg ? form?.error : undefined)
-
-  $effect(() => {
-    // Switch to the relevant tab if there's an error
-    if (form?.createOrg) activeTab = 'org'
-    if (form?.createProject) activeTab = 'project'
-  })
 </script>
 
 <svelte:head>
@@ -74,18 +54,7 @@
 
     <!-- Project form -->
     {#if activeTab === 'project'}
-      <form
-        method="POST"
-        action="?/createProject"
-        class="form"
-        use:enhance={() => {
-          projectLoading = true
-          return async ({ update }) => {
-            projectLoading = false
-            await update()
-          }
-        }}
-      >
+      <form {...createProjectForm} class="form">
         <div class="form-field">
           <label class="form-label" for="project-namespace">Namespace</label>
           <select
@@ -107,7 +76,7 @@
           bind:value={projectSlug}
           placeholder="my-project"
           required
-          error={projectError && !projectSlug ? projectError : undefined}
+          error={createProjectForm.fields.slug?.issues()?.[0]?.message}
         />
         <p class="field-hint">Lowercase letters, numbers, and hyphens. Used in the URL.</p>
 
@@ -117,40 +86,34 @@
           bind:value={projectDisplayName}
           placeholder="My Project"
           required
+          error={createProjectForm.fields.displayName?.issues()?.[0]?.message}
         />
 
-        {#if projectError}
-          <div class="form-error" role="alert">{projectError}</div>
+        {#if createProjectForm.fields.namespaceId?.issues()?.[0]}
+          <div class="form-error" role="alert">
+            {createProjectForm.fields.namespaceId?.issues()?.[0]?.message}
+          </div>
         {/if}
 
         <div class="form-actions">
           <a href="/" class="cancel-link">Cancel</a>
-          <Button type="submit" variant="primary" loading={projectLoading}>Create project</Button>
+          <Button type="submit" variant="primary" loading={createProjectForm.pending > 0}>
+            Create project
+          </Button>
         </div>
       </form>
     {/if}
 
     <!-- Organization form -->
     {#if activeTab === 'org'}
-      <form
-        method="POST"
-        action="?/createOrg"
-        class="form"
-        use:enhance={() => {
-          orgLoading = true
-          return async ({ update }) => {
-            orgLoading = false
-            await update()
-          }
-        }}
-      >
+      <form {...createOrgForm} class="form">
         <Input
           label="Organization slug"
           name="slug"
           bind:value={orgSlug}
           placeholder="my-org"
           required
-          error={orgError && !orgSlug ? orgError : undefined}
+          error={createOrgForm.fields.slug?.issues()?.[0]?.message}
         />
         <p class="field-hint">
           Lowercase letters, numbers, and hyphens. This will be your org's URL path.
@@ -162,15 +125,14 @@
           bind:value={orgDisplayName}
           placeholder="My Organization"
           required
+          error={createOrgForm.fields.displayName?.issues()?.[0]?.message}
         />
-
-        {#if orgError}
-          <div class="form-error" role="alert">{orgError}</div>
-        {/if}
 
         <div class="form-actions">
           <a href="/" class="cancel-link">Cancel</a>
-          <Button type="submit" variant="primary" loading={orgLoading}>Create organization</Button>
+          <Button type="submit" variant="primary" loading={createOrgForm.pending > 0}>
+            Create organization
+          </Button>
         </div>
       </form>
     {/if}

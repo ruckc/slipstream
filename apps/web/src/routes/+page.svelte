@@ -1,11 +1,12 @@
 <script lang="ts">
-  import type { PageData } from './$types'
+  import { getDashboard } from './page.remote'
   import Icon from '$lib/components/common/Icon.svelte'
   import ContextMenu from '$lib/components/common/ContextMenu.svelte'
+  import DeleteProjectModal from '$lib/components/common/DeleteProjectModal.svelte'
   import { deleteProject } from '$lib/remote/project.remote'
   import { invalidateAll, goto } from '$app/navigation'
 
-  let { data }: { data: PageData } = $props()
+  const { user, projects } = await getDashboard({})
 
   const statusColors: Record<string, string> = {
     running: 'var(--color-success)',
@@ -17,9 +18,10 @@
   let menuOpen = $state(false)
   let menuX = $state(0)
   let menuY = $state(0)
-  let menuProject = $state<(typeof data.projects)[number] | null>(null)
+  let menuProject = $state<(typeof projects)[number] | null>(null)
+  let deleteModalOpen = $state(false)
 
-  function openMenu(e: MouseEvent, project: (typeof data.projects)[number]) {
+  function openMenu(e: MouseEvent, project: (typeof projects)[number]) {
     e.preventDefault()
     e.stopPropagation()
     const btn = e.currentTarget as HTMLElement
@@ -33,8 +35,8 @@
   async function handleDelete() {
     if (!menuProject) return
     const p = menuProject
-    menuOpen = false
-    await deleteProject({ actorUserId: data.user.id, projectId: p.id })
+    deleteModalOpen = false
+    await deleteProject({ actorUserId: user.id, projectId: p.id })
     await invalidateAll()
   }
 
@@ -49,7 +51,14 @@
               menuOpen = false
             },
           },
-          { label: 'Delete', icon: 'trash', action: handleDelete },
+          {
+            label: 'Delete',
+            icon: 'trash',
+            action: () => {
+              menuOpen = false
+              deleteModalOpen = true
+            },
+          },
         ]
       : []
   )
@@ -63,7 +72,7 @@
   <div class="dashboard__header">
     <div>
       <h1 class="dashboard__title">
-        Welcome back, {data.user.displayName}
+        Welcome back, {user.displayName}
       </h1>
       <p class="dashboard__subtitle">Your cloud dev environments</p>
     </div>
@@ -80,7 +89,7 @@
     </div>
   </div>
 
-  {#if data.projects.length === 0}
+  {#if projects.length === 0}
     <div class="empty-state">
       <div class="empty-state__icon">
         <Icon name="project" size={48} />
@@ -94,7 +103,7 @@
     </div>
   {:else}
     <div class="project-grid">
-      {#each data.projects as project (project.id)}
+      {#each projects as project (project.id)}
         <div class="project-card">
           <a href="/{project.namespaceSlug}/{project.slug}" class="project-card__link">
             <div class="project-card__header">
@@ -137,6 +146,15 @@
 </div>
 
 <ContextMenu items={menuItems} x={menuX} y={menuY} bind:open={menuOpen} />
+
+{#if menuProject}
+  <DeleteProjectModal
+    bind:open={deleteModalOpen}
+    project={menuProject}
+    loading={deleteProject.pending > 0}
+    onconfirm={handleDelete}
+  />
+{/if}
 
 <style>
   .dashboard {
