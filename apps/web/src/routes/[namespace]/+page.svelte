@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { getNamespacePage } from './namespace.remote'
+  import { getNamespacePage } from '$lib/remote/namespace-page.remote'
   import Icon from '$lib/components/common/Icon.svelte'
   import ProjectStatusChip from '$lib/components/project/ProjectStatusChip.svelte'
 
-  const data = await getNamespacePage({})
+  const data = await getNamespacePage()
 
   const isOrg = $derived(data.namespace.type === 'org')
 </script>

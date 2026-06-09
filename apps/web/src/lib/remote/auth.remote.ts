@@ -2,9 +2,10 @@ import { command, getRequestEvent } from '$app/server'
 import { db, users } from '$lib/server/db'
 import { eq } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
+import * as v from 'valibot'
 
 export const updateThemePreference = command(
-  'unchecked',
+  v.union([v.literal('system'), v.literal('light'), v.literal('dark')]),
   async (theme: 'system' | 'light' | 'dark') => {
     const { locals } = getRequestEvent()
     if (!locals.user) throw error(401, 'Unauthorized')

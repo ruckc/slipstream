@@ -11,7 +11,7 @@
     updateEgressListMode,
     addNamespaceEgressRule,
     removeNamespaceEgressRule,
-  } from './settings.remote'
+  } from '$lib/remote/namespace-settings.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
   import Icon from '$lib/components/common/Icon.svelte'

@@ -3,6 +3,7 @@ import { db, usageSamples, users } from '$lib/server/db'
 import { eq, and, gte, lte } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
 import { resolvePermissions } from '$lib/server/permissions'
+import * as v from 'valibot'
 
 type MetricType =
   | 'cpu_seconds'
@@ -11,8 +12,22 @@ type MetricType =
   | 'ingress_bytes'
   | 'egress_bytes'
 
+const metricType = v.union([
+  v.literal('cpu_seconds'),
+  v.literal('memory_byte_seconds'),
+  v.literal('disk_bytes'),
+  v.literal('ingress_bytes'),
+  v.literal('egress_bytes'),
+])
+
 export const recordUsageSample = command(
-  'unchecked',
+  v.object({
+    actorUserId: v.string(),
+    projectId: v.string(),
+    metric: metricType,
+    value: v.number(),
+    sampledAt: v.date(),
+  }),
   async (arg: {
     actorUserId: string
     projectId: string
@@ -36,7 +51,12 @@ export const recordUsageSample = command(
 )
 
 export const getProjectUsage = query(
-  'unchecked',
+  v.object({
+    actorUserId: v.string(),
+    projectId: v.string(),
+    from: v.date(),
+    to: v.date(),
+  }),
   async (arg: {
     actorUserId: string
     projectId: string

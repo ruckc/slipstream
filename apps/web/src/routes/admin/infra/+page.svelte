@@ -1,6 +1,6 @@
 <script lang="ts">
   import { SvelteSet } from 'svelte/reactivity'
-  import { getNamespaces, describePod, getPodLogs } from './infra.remote'
+  import { getNamespaces, describePod, getPodLogs } from '$lib/remote/admin-infra.remote'
 
   type PodSummary = { name: string; phase: string; ready: boolean; restarts: number }
   type DeploymentSummary = { name: string; replicas: number; readyReplicas: number }

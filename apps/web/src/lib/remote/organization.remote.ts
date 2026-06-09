@@ -3,6 +3,7 @@ import { db, namespaces, organizations, orgMembers, users } from '$lib/server/db
 import type { Organization, Namespace, OrgMember, User } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
+import * as v from 'valibot'
 
 async function assertOrgOwner(userId: string, orgId: string): Promise<void> {
   const rows = await db
@@ -16,7 +17,7 @@ async function assertOrgOwner(userId: string, orgId: string): Promise<void> {
 }
 
 export const createOrganization = command(
-  'unchecked',
+  v.object({ actorUserId: v.string(), slug: v.string(), displayName: v.string() }),
   async (arg: {
     actorUserId: string
     slug: string
@@ -46,7 +47,7 @@ export const createOrganization = command(
 )
 
 export const getOrganization = query(
-  'unchecked',
+  v.string(),
   async (slug: string): Promise<(Organization & { namespace: Namespace }) | null> => {
     const rows = await db
       .select({ org: organizations, namespace: namespaces })
@@ -60,7 +61,7 @@ export const getOrganization = query(
 )
 
 export const listOrgMembers = query(
-  'unchecked',
+  v.string(),
   async (orgId: string): Promise<Array<OrgMember & { user: User }>> => {
     const rows = await db
       .select({ member: orgMembers, user: users })
@@ -72,7 +73,7 @@ export const listOrgMembers = query(
 )
 
 export const inviteMember = command(
-  'unchecked',
+  v.object({ actorUserId: v.string(), orgId: v.string(), email: v.string() }),
   async (arg: { actorUserId: string; orgId: string; email: string }): Promise<OrgMember> => {
     await assertOrgOwner(arg.actorUserId, arg.orgId)
 
@@ -101,7 +102,7 @@ export const inviteMember = command(
 )
 
 export const removeMember = command(
-  'unchecked',
+  v.object({ actorUserId: v.string(), orgId: v.string(), targetUserId: v.string() }),
   async (arg: { actorUserId: string; orgId: string; targetUserId: string }): Promise<void> => {
     await assertOrgOwner(arg.actorUserId, arg.orgId)
 
@@ -121,7 +122,12 @@ export const removeMember = command(
 )
 
 export const setMemberRole = command(
-  'unchecked',
+  v.object({
+    actorUserId: v.string(),
+    orgId: v.string(),
+    targetUserId: v.string(),
+    role: v.union([v.literal('owner'), v.literal('member')]),
+  }),
   async (arg: {
     actorUserId: string
     orgId: string

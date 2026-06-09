@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
 import { resolvePermissions } from '$lib/server/permissions'
 import type { Permission } from '$lib/server/permissions'
+import * as v from 'valibot'
 
 async function assertProjectManage(userId: string, projectId: string): Promise<void> {
   const userRows = await db.select().from(users).where(eq(users.id, userId)).limit(1)
@@ -16,7 +17,7 @@ async function assertProjectManage(userId: string, projectId: string): Promise<v
 }
 
 export const getProjectPermissions = query(
-  'unchecked',
+  v.object({ actorUserId: v.string(), projectId: v.string() }),
   async (arg: { actorUserId: string; projectId: string }): Promise<ProjectPermission[]> => {
     await assertProjectManage(arg.actorUserId, arg.projectId)
     return db
@@ -26,8 +27,25 @@ export const getProjectPermissions = query(
   }
 )
 
+const permissionLiteral = v.union([
+  v.literal('files:read'),
+  v.literal('files:write'),
+  v.literal('shell'),
+  v.literal('project:manage'),
+])
+
 export const setProjectPermissions = command(
-  'unchecked',
+  v.object({
+    actorUserId: v.string(),
+    projectId: v.string(),
+    grants: v.array(
+      v.object({
+        principalType: v.union([v.literal('user'), v.literal('org')]),
+        principalId: v.string(),
+        permissions: v.array(permissionLiteral),
+      })
+    ),
+  }),
   async (arg: {
     actorUserId: string
     projectId: string

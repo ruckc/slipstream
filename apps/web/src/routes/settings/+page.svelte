@@ -4,7 +4,7 @@
     updateProfile,
     updateIdleTimeout,
     unlinkProvider,
-  } from './settings.remote'
+  } from '$lib/remote/user-settings.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
   import ThemePicker from '$lib/components/common/ThemePicker.svelte'

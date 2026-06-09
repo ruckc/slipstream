@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { getDashboardStats } from './admin.remote'
+  import { getDashboardStats } from '$lib/remote/admin.remote'
 
-  const stats = getDashboardStats({})
+  const stats = getDashboardStats()
 </script>
 
 <svelte:head>

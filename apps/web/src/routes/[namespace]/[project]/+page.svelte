@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state'
-  import { getProjectPage } from './project.remote'
+  import { getProjectPage } from '$lib/remote/project-page.remote'
   import { startProject } from '$lib/remote/project.remote'
   import AppShell from '$lib/components/layout/AppShell.svelte'
   import FileBrowser from '$lib/components/file-browser/FileBrowser.svelte'

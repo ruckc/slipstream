@@ -11,7 +11,7 @@
     updateProjectEgressFilterEnabled,
     addProjectEgressRule,
     removeProjectEgressRule,
-  } from './settings.remote'
+  } from '$lib/remote/project-settings.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
   import Icon from '$lib/components/common/Icon.svelte'

@@ -1,9 +1,9 @@
 <script lang="ts">
   import { page } from '$app/state'
-  import { listUsers, setUserRole } from './users.remote'
-  import type { UserRow } from './users.remote'
+  import { listUsers, setUserRole } from '$lib/remote/admin-users.remote'
+  import type { UserRow } from '$lib/remote/admin-users.remote'
 
-  const usersQuery = listUsers({})
+  const usersQuery = listUsers()
 
   let localRoles = $state<Record<string, 'admin' | 'user'>>({})
   let saving = $state<Record<string, boolean>>({})

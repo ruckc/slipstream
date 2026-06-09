@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { getNewPageData, createProjectForm, createOrgForm } from './new.remote'
+  import { getNewPageData, createProjectForm, createOrgForm } from '$lib/remote/new-project.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
 
-  const { userNamespace, orgNamespaces } = await getNewPageData({})
+  const { userNamespace, orgNamespaces } = await getNewPageData()
 
   let activeTab = $state<'project' | 'org'>('project')
 

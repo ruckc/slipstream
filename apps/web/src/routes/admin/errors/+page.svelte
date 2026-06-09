@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getErrors, getErrorRoutes, deleteErrors } from './errors.remote'
+  import { getErrors, getErrorRoutes, deleteErrors } from '$lib/remote/admin-errors.remote'
 
   let fromDate = $state('')
   let toDate = $state('')
@@ -31,7 +31,7 @@
     }
   }
 
-  const routes = getErrorRoutes({})
+  const routes = getErrorRoutes()
 
   let expandedId = $state<string | null>(null)
 

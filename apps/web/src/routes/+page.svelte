@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { getDashboard } from './page.remote'
+  import { getDashboard } from '$lib/remote/dashboard.remote'
   import Icon from '$lib/components/common/Icon.svelte'
   import ContextMenu from '$lib/components/common/ContextMenu.svelte'
   import DeleteProjectModal from '$lib/components/common/DeleteProjectModal.svelte'
   import { deleteProject } from '$lib/remote/project.remote'
-  import { invalidateAll, goto } from '$app/navigation'
+  import { goto } from '$app/navigation'
 
-  const { user, projects } = await getDashboard({})
+  const { user, projects } = await getDashboard()
 
   const statusColors: Record<string, string> = {
     running: 'var(--color-success)',
@@ -37,7 +37,7 @@
     const p = menuProject
     deleteModalOpen = false
     await deleteProject({ actorUserId: user.id, projectId: p.id })
-    await invalidateAll()
+    await getDashboard().refresh()
   }
 
   let menuItems = $derived(

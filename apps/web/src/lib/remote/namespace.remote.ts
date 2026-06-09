@@ -3,6 +3,7 @@ import { db, namespaces, projects, orgMembers, organizations, users } from '$lib
 import type { Namespace, Project } from '$lib/server/db'
 import { eq, inArray } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
+import * as v from 'valibot'
 
 async function checkSlugAvailableImpl(slug: string): Promise<boolean> {
   const rows = await db
@@ -70,14 +71,14 @@ async function listUserProjectsImpl(
   return projectRows.map((r) => ({ ...r.project, namespaceSlug: r.namespace.slug }))
 }
 
-export const checkSlugAvailable = query('unchecked', async (slug: string) =>
+export const checkSlugAvailable = query(v.string(), async (slug: string) =>
   checkSlugAvailableImpl(slug)
 )
 
-export const getUserNamespace = query('unchecked', async (userId: string) =>
+export const getUserNamespace = query(v.string(), async (userId: string) =>
   getUserNamespaceImpl(userId)
 )
 
-export const listUserProjects = query('unchecked', async (userId: string) =>
+export const listUserProjects = query(v.string(), async (userId: string) =>
   listUserProjectsImpl(userId)
 )

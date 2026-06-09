@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { getLoginData } from './login.remote'
+  import { getLoginData } from '$lib/remote/auth-login.remote'
 
-  const data = await getLoginData({})
+  const data = await getLoginData()
 </script>
 
 <div class="page">

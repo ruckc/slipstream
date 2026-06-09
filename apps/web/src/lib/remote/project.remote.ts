@@ -3,6 +3,7 @@ import { db, projects, namespaces, organizations, orgMembers, users } from '$lib
 import type { Project, Namespace } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
+import * as v from 'valibot'
 import { ensurePvc } from '$lib/server/k8s/pvc'
 import { ensureDeployment, scaleDeployment, getDeploymentStatus } from '$lib/server/k8s/deployment'
 import { ensureRouteAndService } from '$lib/server/k8s/route'
@@ -69,7 +70,12 @@ async function assertNamespaceAccess(userId: string, namespaceId: string): Promi
 }
 
 export const createProject = command(
-  'unchecked',
+  v.object({
+    actorUserId: v.string(),
+    namespaceId: v.string(),
+    slug: v.string(),
+    displayName: v.string(),
+  }),
   async (arg: {
     actorUserId: string
     namespaceId: string
@@ -137,7 +143,7 @@ export const createProject = command(
 )
 
 export const getProject = query(
-  'unchecked',
+  v.object({ namespaceSlug: v.string(), projectSlug: v.string() }),
   async (arg: {
     namespaceSlug: string
     projectSlug: string
@@ -154,7 +160,7 @@ export const getProject = query(
 )
 
 export const startProject = command(
-  'unchecked',
+  v.object({ projectId: v.string() }),
   async (arg: { projectId: string }): Promise<void> => {
     const { locals } = getRequestEvent()
     if (!locals.user) throw error(401, 'Unauthorized')
@@ -199,7 +205,7 @@ export const startProject = command(
 )
 
 export const deleteProject = command(
-  'unchecked',
+  v.object({ actorUserId: v.string(), projectId: v.string() }),
   async (arg: { actorUserId: string; projectId: string }): Promise<void> => {
     await getProjectById(arg.projectId)
     await assertProjectManage(arg.actorUserId, arg.projectId)

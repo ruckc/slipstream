@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { getDevAccounts, loginAsDev } from './dev.remote'
+  import { getDevAccounts, loginAsDev } from '$lib/remote/auth-dev.remote'
 
-  const { accounts } = await getDevAccounts({})
+  const { accounts } = await getDevAccounts()
 
   let loginError = $state<string | null>(null)
 

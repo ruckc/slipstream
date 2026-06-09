@@ -6,9 +6,10 @@ import { resolvePermissions } from '$lib/server/permissions'
 import { issueProjectToken } from '$lib/server/jwt/issue'
 import { getDeploymentStatus } from '$lib/server/k8s/deployment'
 import { projectK8sNamespace } from '$lib/server/k8s/namespace'
+import * as v from 'valibot'
 
 export const issueToken = command(
-  'unchecked',
+  v.object({ projectId: v.string() }),
   async (arg: { projectId: string }): Promise<{ token: string; expiresAt: number }> => {
     const { locals } = getRequestEvent()
     if (!locals.user) throw error(401, 'Unauthorized')
