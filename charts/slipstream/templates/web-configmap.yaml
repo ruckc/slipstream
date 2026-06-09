@@ -11,6 +11,7 @@ data:
   DEFAULT_IDLE_TIMEOUT_SECONDS: {{ .Values.agent.idleTimeoutSeconds | quote }}
   AGENT_IMAGE: {{ include "slipstream.agentImage" . | quote }}
   AGENT_STORAGE_CLASS: {{ .Values.agent.storageClass | quote }}
+  WEB_NAMESPACE: {{ .Release.Namespace | quote }}
   GATEWAY_NAME: {{ .Values.gateway.name | quote }}
   GATEWAY_NAMESPACE: {{ .Values.gateway.namespace | quote }}
   GATEWAY_HOSTNAME: {{ .Values.gateway.hostname | quote }}

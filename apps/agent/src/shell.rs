@@ -61,6 +61,7 @@ pub struct SessionInfo {
     pub session_id: String,
     pub created_at: DateTime<Utc>,
     pub active_connections: usize,
+    pub process_name: Option<String>,
 }
 
 impl SessionStore {
@@ -131,10 +132,16 @@ impl SessionStore {
             .iter()
             .map(|entry| {
                 let s = entry.value().lock();
+                let process_name = s.child.process_id().and_then(|pid| {
+                    std::fs::read_to_string(format!("/proc/{}/comm", pid))
+                        .ok()
+                        .map(|s| s.trim().to_string())
+                });
                 SessionInfo {
                     session_id: s.session_id.clone(),
                     created_at: s.created_at,
                     active_connections: s.active_connections.load(Ordering::Relaxed),
+                    process_name,
                 }
             })
             .collect()

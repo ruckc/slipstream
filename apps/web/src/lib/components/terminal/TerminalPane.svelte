@@ -11,6 +11,7 @@
     projectId,
     namespaceSlug,
     projectSlug,
+    onRename,
   }: {
     paneId?: string
     sessionId: string
@@ -85,6 +86,10 @@
 
     terminal.open(terminalEl)
     fitAddon.fit()
+
+    terminal.onTitleChange((title) => {
+      if (title) onRename?.(title)
+    })
 
     terminal.onData((data) => {
       if (!ws || ws.readyState !== WebSocket.OPEN) return

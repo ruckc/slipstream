@@ -191,21 +191,33 @@
         body: JSON.stringify({}),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = (await res.json()) as { session_id: string }
+      const { session_id } = (await res.json()) as { session_id: string }
+
+      const label = await resolveSessionLabel(session_id)
+
       const id: string = crypto.randomUUID()
-      const count = groups.flatMap((g) => g.panes).filter((p) => p.kind === 'terminal').length + 1
-      const pane: PaneData = {
-        kind: 'terminal',
-        id,
-        sessionId: data.session_id,
-        label: `Terminal ${count}`,
-      }
+      const pane: PaneData = { kind: 'terminal', id, sessionId: session_id, label }
       target.panes = [...target.panes, pane]
       target.activeId = id
       activeGroupId = target.id
     } catch {
       /* ignore */
     }
+  }
+
+  async function resolveSessionLabel(sessionId: string): Promise<string> {
+    type SessionInfo = { session_id: string; process_name?: string }
+    try {
+      const res = await podFetch(projectId, namespaceSlug, projectSlug, '/sessions')
+      if (!res.ok) throw new Error()
+      const data = (await res.json()) as { sessions: SessionInfo[] }
+      const match = data.sessions.find((s) => s.session_id === sessionId)
+      if (match?.process_name) return match.process_name
+    } catch {
+      /* fall through */
+    }
+    const count = groups.flatMap((g) => g.panes).filter((p) => p.kind === 'terminal').length + 1
+    return `Terminal ${count}`
   }
 
   // ── Context operations ─────────────────────────────────────────────────────
@@ -353,15 +365,42 @@
   }
   setContext(WORKSPACE_CTX, ctx)
 
-  // ── Auto terminal ──────────────────────────────────────────────────────────
+  // ── Session hydration ──────────────────────────────────────────────────────
 
-  let autoCreated = false
+  let hydrated = false
   $effect(() => {
-    if (projectStatus !== 'running' || !canShell || autoCreated) return
-    if (groups.some((g) => g.panes.some((p) => p.kind === 'terminal'))) return
-    autoCreated = true
-    createTerminal()
+    if (projectStatus !== 'running' || !canShell || hydrated) return
+    hydrated = true
+    hydrateTerminals()
   })
+
+  async function hydrateTerminals() {
+    type SessionInfo = { session_id: string; created_at: string; process_name?: string }
+    try {
+      const res = await podFetch(projectId, namespaceSlug, projectSlug, '/sessions')
+      if (!res.ok) throw new Error()
+      const data = (await res.json()) as { sessions: SessionInfo[] }
+      const sessions = (data.sessions ?? []).sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      )
+      if (sessions.length === 0) {
+        await createTerminal()
+        return
+      }
+      const target = getTargetGroup()
+      for (const session of sessions) {
+        const id: string = crypto.randomUUID()
+        const count = groups.flatMap((g) => g.panes).filter((p) => p.kind === 'terminal').length + 1
+        const label = session.process_name ?? `Terminal ${count}`
+        const pane: PaneData = { kind: 'terminal', id, sessionId: session.session_id, label }
+        target.panes = [...target.panes, pane]
+        target.activeId = id
+      }
+      activeGroupId = target.id
+    } catch {
+      await createTerminal()
+    }
+  }
 </script>
 
 <div class="workspace-root">
