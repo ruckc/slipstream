@@ -1,10 +1,4 @@
-/**
- * Client-side token store for pod JWT access tokens.
- *
- * Tokens are fetched from /api/token (POST) and cached in memory.
- * Concurrent refresh requests for the same project are deduplicated via
- * an inflight promise so only one network call is made.
- */
+import { issueToken } from '$lib/remote/jwt.remote'
 
 interface CacheEntry {
   token: string
@@ -36,21 +30,10 @@ class ProjectTokenStore {
 
   private async refresh(projectId: string): Promise<string> {
     try {
-      const res = await fetch('/api/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ projectId }),
-      })
-      if (!res.ok) throw new Error(`Token refresh failed: ${res.status} ${res.statusText}`)
-      const data = (await res.json()) as { token: string; expiresAt?: number; expiresIn?: number }
-      const expiresAt =
-        data.expiresAt ??
-        (data.expiresIn != null ? Date.now() + data.expiresIn * 1000 : Date.now() + 3600_000)
-      this.cache.set(projectId, { token: data.token, expiresAt })
+      const data = (await issueToken({ projectId })) as { token: string; expiresAt: number }
+      this.cache.set(projectId, { token: data.token, expiresAt: data.expiresAt })
       return data.token
     } catch (err) {
-      // Clear inflight on failure so the next call retries
       const entry = this.cache.get(projectId)
       if (entry) {
         this.cache.set(projectId, { token: entry.token, expiresAt: entry.expiresAt })

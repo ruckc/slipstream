@@ -24,6 +24,21 @@ kubectl rollout status deployment/slipstream-web \
   --namespace slipstream-system \
   --timeout=120s
 
+echo "→ Restarting running agent deployments to pick up any image changes..."
+kubectl get deployments \
+  --all-namespaces \
+  --selector='slipstream.io/project' \
+  --output=jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' \
+  2>/dev/null \
+| while read -r ns name; do
+  [[ -z "$ns" ]] && continue
+  replicas=$(kubectl get deployment "$name" -n "$ns" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+  if [[ "$replicas" -gt 0 ]]; then
+    echo "   restarting $ns/$name"
+    kubectl rollout restart deployment/"$name" -n "$ns"
+  fi
+done
+
 echo "→ Applying database migrations..."
 kubectl exec --namespace slipstream-system deploy/slipstream-web \
   -- node migrate.mjs

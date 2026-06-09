@@ -1,7 +1,10 @@
 import type { Handle } from '@sveltejs/kit'
 import { validateSession } from '$lib/server/auth/session'
+import { startReconciler } from '$lib/server/reconcile'
 
-const PUBLIC_API_ROUTES = ['/api/jwks', '/api/token', '/api/agent/ready', '/api/agent/shutdown']
+startReconciler()
+
+const PUBLIC_API_ROUTES = ['/api/jwks']
 
 // ---------------------------------------------------------------------------
 // In-memory sliding-window rate limiter
@@ -11,7 +14,7 @@ const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX_AUTH = 20 // requests per minute per IP on auth/token endpoints
 
 // Paths that are subject to the auth rate limit
-const RATE_LIMITED_PREFIXES = ['/auth/login/', '/auth/callback/', '/api/token']
+const RATE_LIMITED_PREFIXES = ['/auth/login/', '/auth/callback/']
 
 const rateLimitBuckets = new Map<string, number[]>()
 

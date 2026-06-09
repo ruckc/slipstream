@@ -1,4 +1,5 @@
 import { generateKeyPair, exportJWK, exportPKCS8, importPKCS8 } from 'jose'
+import { randomBytes } from 'crypto'
 
 export interface KeyPair {
   privateKey: CryptoKey
@@ -49,7 +50,7 @@ async function initKeys(): Promise<KeyPair> {
 
     const publicKeyJwk = {
       ...publicFields,
-      kid: 'slipstream-1',
+      kid: 'slipstream-1', // stable kid for persistent keys loaded from env
       alg: 'RS256',
       use: 'sig',
     } as JsonWebKey & { kid: string; alg: string; use: string }
@@ -57,11 +58,14 @@ async function initKeys(): Promise<KeyPair> {
     return { privateKey, publicKeyJwk }
   }
 
-  // Generate a new key pair (dev / single-replica mode)
+  // Generate a new key pair (dev / single-replica mode).
+  // Use a random kid so the agent's JWKS cache miss triggers a re-fetch when
+  // the web server restarts and regenerates the ephemeral key.
   const { privateKey, publicKey } = await generateKeyPair('RS256', { extractable: true })
+  const kid = randomBytes(8).toString('hex')
   const publicKeyJwk = {
     ...(await exportJWK(publicKey)),
-    kid: 'slipstream-1',
+    kid,
     alg: 'RS256',
     use: 'sig',
   } as JsonWebKey & { kid: string; alg: string; use: string }

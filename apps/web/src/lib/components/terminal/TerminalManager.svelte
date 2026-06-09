@@ -24,11 +24,11 @@
       const res = await podFetch(projectId, namespaceSlug, projectSlug, '/sessions')
       if (!res.ok) throw new Error('Failed to list sessions: ' + res.status)
       const data = (await res.json()) as {
-        sessions: Array<{ id: string; label?: string; name?: string }>
+        sessions: Array<{ session_id: string; label?: string }>
       }
       const loaded = (data.sessions ?? []).map((s, i) => ({
-        id: s.id,
-        label: s.label ?? s.name ?? `Terminal ${i + 1}`,
+        id: s.session_id,
+        label: s.label ?? `Terminal ${i + 1}`,
       }))
       if (loaded.length > 0) {
         sessions = loaded
@@ -51,9 +51,9 @@
         body: JSON.stringify({ label: `Terminal ${sessions.length + 1}` }),
       })
       if (!res.ok) throw new Error('Failed to create session: ' + res.status)
-      const data = (await res.json()) as { id: string; label?: string }
+      const data = (await res.json()) as { session_id: string; label?: string }
       const newSession: TerminalSession = {
-        id: data.id,
+        id: data.session_id,
         label: data.label ?? `Terminal ${sessions.length + 1}`,
       }
       sessions = [...sessions, newSession]

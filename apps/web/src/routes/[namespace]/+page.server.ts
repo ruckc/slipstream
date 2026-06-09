@@ -2,6 +2,7 @@ import { redirect, error } from '@sveltejs/kit'
 import type { PageServerLoad } from './$types'
 import { db, namespaces, projects, organizations, orgMembers } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
+import { listDeploymentStatuses } from '$lib/server/k8s/deployment'
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   if (!locals.user) throw redirect(302, '/auth/login')
@@ -56,12 +57,15 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     }
   }
 
-  // Load projects in this namespace
-  const projectRows = await db.select().from(projects).where(eq(projects.namespaceId, namespace.id))
+  // Load projects in this namespace and derive running status from k8s
+  const [projectRows, statuses] = await Promise.all([
+    db.select().from(projects).where(eq(projects.namespaceId, namespace.id)),
+    listDeploymentStatuses(),
+  ])
 
   return {
     namespace,
-    projects: projectRows,
+    projects: projectRows.map((p) => ({ ...p, status: statuses.get(p.id) ?? 'stopped' })),
     isOwner,
     orgData,
     user: locals.user,

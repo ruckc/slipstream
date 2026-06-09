@@ -32,13 +32,16 @@ export async function podFetch(
   return response
 }
 
-// WebSocket auth is handled by the caller sending an auth message after
-// connect (see TerminalPane.svelte), so no token is embedded in the URL.
-export function podWsUrl(namespaceSlug: string, projectSlug: string, path: string): string {
+export function podWsUrl(
+  namespaceSlug: string,
+  projectSlug: string,
+  path: string,
+  token: string
+): string {
   const proto =
     typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = typeof window !== 'undefined' ? window.location.host : 'localhost'
   const base = podProxyBase(namespaceSlug, projectSlug)
   const fullPath = base + (path.startsWith('/') ? path : '/' + path)
-  return `${proto}//${host}${fullPath}`
+  return `${proto}//${host}${fullPath}?token=${encodeURIComponent(token)}`
 }

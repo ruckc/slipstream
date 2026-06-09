@@ -2,8 +2,7 @@ import { getCoreV1Api, getAppsV1Api, isApiError } from './client'
 import type { V1Container } from '@kubernetes/client-node'
 
 const WEB_NAMESPACE = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
-const SLIPSTREAM_WEB_URL = `http://slipstream-web.${WEB_NAMESPACE}.svc.cluster.local`
-const JWKS_URL = `${SLIPSTREAM_WEB_URL}/api/jwks`
+const JWKS_URL = `http://slipstream-web.${WEB_NAMESPACE}.svc.cluster.local/api/jwks`
 
 export function buildDeploymentName(projectId: string): string {
   return `agent-${projectId}`.slice(0, 63)
@@ -26,7 +25,6 @@ function buildContainers(projectId: string, idleTimeoutSeconds: number): V1Conta
         { name: 'IDLE_TIMEOUT_SECONDS', value: String(idleTimeoutSeconds) },
         { name: 'WORKSPACE_PATH', value: '/workspace' },
         { name: 'CORS_ORIGIN', value: appUrl },
-        { name: 'SLIPSTREAM_WEB_URL', value: SLIPSTREAM_WEB_URL },
       ],
       volumeMounts: [
         { name: 'workspace', mountPath: '/workspace' },
@@ -75,6 +73,7 @@ function buildContainers(projectId: string, idleTimeoutSeconds: number): V1Conta
 export async function ensureDeployment(
   k8sNamespace: string,
   projectId: string,
+  projectSlug: string,
   pvcName: string,
   idleTimeoutSeconds: number
 ): Promise<void> {
@@ -97,6 +96,7 @@ export async function ensureDeployment(
         },
       },
       spec: {
+        hostname: projectSlug,
         automountServiceAccountToken: false,
         securityContext: {
           runAsNonRoot: true,
@@ -188,4 +188,51 @@ export async function getPodIP(k8sNamespace: string, projectId: string): Promise
   })
   const pod = pods.items.find((p) => p.status?.phase === 'Running')
   return pod?.status?.podIP ?? null
+}
+
+export type ProjectPodStatus = 'stopped' | 'starting' | 'running'
+
+function depToStatus(dep: {
+  spec?: { replicas?: number }
+  status?: { readyReplicas?: number }
+}): ProjectPodStatus {
+  if ((dep.spec?.replicas ?? 0) === 0) return 'stopped'
+  if ((dep.status?.readyReplicas ?? 0) > 0) return 'running'
+  return 'starting'
+}
+
+/** Returns the live pod status for a single project derived from its Deployment. */
+export async function getDeploymentStatus(
+  k8sNamespace: string,
+  projectId: string
+): Promise<ProjectPodStatus> {
+  const api = getAppsV1Api()
+  const name = buildDeploymentName(projectId)
+  try {
+    const dep = await api.readNamespacedDeployment({ name, namespace: k8sNamespace })
+    return depToStatus(dep)
+  } catch {
+    return 'stopped'
+  }
+}
+
+/**
+ * Bulk status check across all project deployments in a single API call.
+ * Returns a map of projectId → status; projects absent from k8s default to 'stopped'.
+ */
+export async function listDeploymentStatuses(): Promise<Map<string, ProjectPodStatus>> {
+  const api = getAppsV1Api()
+  try {
+    const deps = await api.listDeploymentForAllNamespaces({
+      labelSelector: 'slipstream.io/project',
+    })
+    const map = new Map<string, ProjectPodStatus>()
+    for (const dep of deps.items) {
+      const projectId = dep.metadata?.labels?.['slipstream.io/project']
+      if (projectId) map.set(projectId, depToStatus(dep))
+    }
+    return map
+  } catch {
+    return new Map()
+  }
 }

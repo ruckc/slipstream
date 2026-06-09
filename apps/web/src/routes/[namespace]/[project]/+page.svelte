@@ -4,13 +4,16 @@
   import { startProject } from '$lib/remote/project.remote'
   import AppShell from '$lib/components/layout/AppShell.svelte'
   import FileBrowser from '$lib/components/file-browser/FileBrowser.svelte'
-  import FilePreview from '$lib/components/preview/FilePreview.svelte'
-  import TerminalManager from '$lib/components/terminal/TerminalManager.svelte'
+  import WorkspaceManager from '$lib/components/workspace/WorkspaceManager.svelte'
   import ProjectHeader from '$lib/components/project/ProjectHeader.svelte'
-  import EditorTabBar from '$lib/components/layout/EditorTabBar.svelte'
   import Icon from '$lib/components/common/Icon.svelte'
 
-  const { project, namespace, permissions } = await getProjectPage({
+  const {
+    project,
+    namespace,
+    permissions,
+    podStatus: initialPodStatus,
+  } = await getProjectPage({
     namespace: page.params.namespace!,
     project: page.params.project!,
   })
@@ -19,40 +22,38 @@
   const canReadFiles = permissions.includes('files:read')
   const canShell = permissions.includes('shell')
 
-  let projectStatus = $state(project.status)
+  let projectStatus = $state(initialPodStatus)
   let startError = $state<string | null>(null)
+  let startAttempted = $state(false)
 
   // Show overlay eagerly: already starting, or stopped-and-will-auto-start
   let showStartingOverlay = $state(
-    project.status === 'starting' || (project.status === 'stopped' && canManage)
+    initialPodStatus === 'starting' || (initialPodStatus === 'stopped' && canManage)
   )
 
   // Auto-start when navigating to a stopped project
   $effect(() => {
-    if (project.status !== 'stopped' || !canManage) return
+    if (projectStatus !== 'stopped' || !canManage || startAttempted) return
+    startAttempted = true
     startProject({ projectId: project.id })
-      .then((started) => {
-        projectStatus = started.status
+      .then(() => {
+        projectStatus = 'starting'
       })
       .catch((e: unknown) => {
         startError = e instanceof Error ? e.message : String(e)
         showStartingOverlay = false
-        projectStatus = 'stopped'
       })
   })
 
-  // Poll for status while starting; dismiss overlay when running
+  // Poll the agent health endpoint directly while starting.
   $effect(() => {
     if (projectStatus !== 'starting') return
+    const healthUrl = `/env/${encodeURIComponent(namespace.slug)}/${encodeURIComponent(project.slug)}/health`
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/project/${project.id}/status`, {
-          credentials: 'same-origin',
-        })
-        if (!res.ok) return
-        const { status } = await res.json()
-        if (status !== 'starting') {
-          projectStatus = status
+        const res = await fetch(healthUrl)
+        if (res.ok) {
+          projectStatus = 'running'
           showStartingOverlay = false
         }
       } catch {
@@ -62,68 +63,10 @@
     return () => clearInterval(interval)
   })
 
-  // Editor tabs state
-  type OpenFile = {
-    id: string
-    path: string
-    label: string
-    content?: Uint8Array | null
-    loading: boolean
-  }
-
-  let openFiles = $state<OpenFile[]>([])
-  let activeFileId = $state<string | null>(null)
-
-  const activeFile = $derived(openFiles.find((f) => f.id === activeFileId) ?? null)
-
-  const editorTabs = $derived(
-    openFiles.map((f) => ({
-      id: f.id,
-      label: f.label,
-      icon: 'file',
-    }))
-  )
-
-  async function openFile(path: string) {
-    const existing = openFiles.find((f) => f.path === path)
-    if (existing) {
-      activeFileId = existing.id
-      return
-    }
-
-    const id = crypto.randomUUID()
-    const label = path.split('/').pop() ?? path
-
-    openFiles = [...openFiles, { id, path, label, content: null, loading: true }]
-    activeFileId = id
-
-    try {
-      const res = await fetch(
-        `/env/${encodeURIComponent(namespace.slug)}/${encodeURIComponent(project.slug)}/fs/read?path=${encodeURIComponent(path)}`,
-        { credentials: 'same-origin' }
-      )
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const buf = await res.arrayBuffer()
-      openFiles = openFiles.map((f) =>
-        f.id === id ? { ...f, content: new Uint8Array(buf), loading: false } : f
-      )
-    } catch {
-      openFiles = openFiles.map((f) => (f.id === id ? { ...f, loading: false } : f))
-    }
-  }
-
-  function closeFile(id: string) {
-    openFiles = openFiles.filter((f) => f.id !== id)
-    if (activeFileId === id) {
-      activeFileId = openFiles[openFiles.length - 1]?.id ?? null
-    }
-  }
+  let workspaceManager: WorkspaceManager = $state(null!)
 
   const activityItems = $derived([
     ...(canReadFiles ? [{ id: 'files', icon: 'files', label: 'Explorer', onClick: () => {} }] : []),
-    ...(canShell
-      ? [{ id: 'terminal', icon: 'terminal', label: 'Terminal', onClick: () => {} }]
-      : []),
     ...(canManage
       ? [{ id: 'settings', icon: 'settings', label: 'Settings', onClick: () => {} }]
       : []),
@@ -152,7 +95,7 @@
           projectId={project.id}
           namespaceSlug={namespace.slug}
           projectSlug={project.slug}
-          onOpenFile={openFile}
+          onOpenFile={(path) => workspaceManager?.openFile(path)}
         />
       {:else}
         <div class="sidebar-empty">
@@ -168,60 +111,27 @@
     {/if}
   {/snippet}
 
-  {#snippet editorContent()}
-    <div class="editor-column">
-      {#if editorTabs.length > 0}
-        <EditorTabBar tabs={editorTabs} bind:activeTab={activeFileId} onClose={closeFile} />
-      {/if}
-
-      {#if activeFile}
-        <FilePreview
-          filename={activeFile.label}
-          content={activeFile.content}
-          loading={activeFile.loading}
-        />
-      {:else}
-        <div class="editor-empty">
-          {#if projectStatus !== 'running'}
-            <div class="editor-empty__icon">
-              <Icon name="project" size={48} />
-            </div>
-            <p class="editor-empty__title">{project.displayName}</p>
-            <p class="editor-empty__subtitle">Project is {projectStatus}</p>
-            {#if startError && projectStatus === 'stopped'}
-              <p class="editor-empty__error">{startError}</p>
-            {/if}
-          {:else}
-            <div class="editor-empty__icon">
-              <Icon name="files" size={48} />
-            </div>
-            <p class="editor-empty__subtitle">
-              {canReadFiles ? 'Select a file from the explorer' : 'No file access permissions'}
-            </p>
-          {/if}
-        </div>
-      {/if}
-    </div>
-  {/snippet}
-
-  {#snippet panelContent()}
-    {#if canShell}
-      {#if projectStatus === 'running'}
-        <TerminalManager
-          projectId={project.id}
-          namespaceSlug={namespace.slug}
-          projectSlug={project.slug}
-        />
-      {:else}
-        <div class="panel-empty">
-          <Icon name="terminal" size={24} />
-          <span>Start the project to open a terminal</span>
-        </div>
-      {/if}
+  {#snippet workspaceContent()}
+    {#if projectStatus === 'running'}
+      <WorkspaceManager
+        bind:this={workspaceManager}
+        projectId={project.id}
+        namespaceSlug={namespace.slug}
+        projectSlug={project.slug}
+        {projectStatus}
+        {canShell}
+        {canReadFiles}
+      />
     {:else}
-      <div class="panel-empty">
-        <Icon name="warning" size={24} />
-        <span>No shell access</span>
+      <div class="workspace-idle">
+        <div class="workspace-idle__icon">
+          <Icon name="project" size={48} />
+        </div>
+        <p class="workspace-idle__title">{project.displayName}</p>
+        <p class="workspace-idle__subtitle">Project is {projectStatus}</p>
+        {#if startError && projectStatus === 'stopped'}
+          <p class="workspace-idle__error">{startError}</p>
+        {/if}
       </div>
     {/if}
   {/snippet}
@@ -238,50 +148,6 @@
 </AppShell>
 
 <style>
-  .editor-column {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .editor-empty {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-3);
-    color: var(--color-text-muted);
-    font-size: var(--font-size-sm);
-    text-align: center;
-    padding: var(--space-6);
-  }
-
-  .editor-empty__icon {
-    opacity: 0.25;
-  }
-
-  .editor-empty__title {
-    margin: 0;
-    font-size: var(--font-size-md);
-    font-weight: 600;
-    color: var(--color-text-primary);
-  }
-
-  .editor-empty__subtitle {
-    margin: 0;
-    color: var(--color-text-muted);
-  }
-
-  .editor-empty__error {
-    margin: 0;
-    color: var(--color-danger, #e53e3e);
-    font-size: var(--font-size-xs, 0.75rem);
-    max-width: 320px;
-    text-align: center;
-  }
-
   .starting-overlay {
     position: fixed;
     inset: 0;
@@ -332,8 +198,7 @@
     color: var(--color-text-muted);
   }
 
-  .sidebar-empty,
-  .panel-empty {
+  .sidebar-empty {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -345,5 +210,43 @@
     text-align: center;
     height: 100%;
     opacity: 0.7;
+  }
+
+  .workspace-idle {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    text-align: center;
+    padding: var(--space-6);
+    height: 100%;
+  }
+
+  .workspace-idle__icon {
+    opacity: 0.25;
+  }
+
+  .workspace-idle__title {
+    margin: 0;
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .workspace-idle__subtitle {
+    margin: 0;
+    color: var(--color-text-muted);
+  }
+
+  .workspace-idle__error {
+    margin: 0;
+    color: var(--color-danger, #e53e3e);
+    font-size: var(--font-size-xs, 0.75rem);
+    max-width: 320px;
+    text-align: center;
   }
 </style>

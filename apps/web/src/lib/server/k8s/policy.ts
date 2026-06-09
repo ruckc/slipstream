@@ -68,7 +68,9 @@ export async function ensureNetworkPolicy(k8sNamespace: string, projectId: strin
       policyTypes: ['Ingress', 'Egress'],
       ingress: buildIngressRule(),
       egress: [
-        // JWKS endpoint — slipstream-web in slipstream-system, port 80 (HTTP).
+        // JWKS endpoint — slipstream-web in slipstream-system.
+        // Port 3000 is the container port; kube-proxy DNAT is evaluated before NetworkPolicy
+        // in the iptables FORWARD chain, so the post-NAT container port must be allowed.
         {
           to: [
             {
@@ -84,7 +86,7 @@ export async function ensureNetworkPolicy(k8sNamespace: string, projectId: strin
               },
             },
           ],
-          ports: [{ protocol: 'TCP', port: 80 }],
+          ports: [{ protocol: 'TCP', port: 3000 }],
         },
         // VictoriaMetrics metrics push.
         {

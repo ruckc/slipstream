@@ -19,6 +19,7 @@
     flex-direction: column;
     overflow: hidden;
     min-width: 0;
+    min-height: 0;
     background: var(--color-bg-base);
   }
 </style>

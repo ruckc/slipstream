@@ -147,16 +147,12 @@ export const projects = pgTable(
       .notNull(),
     slug: text('slug').notNull(),
     displayName: text('display_name').notNull(),
-    status: text('status').notNull().default('stopped'), // 'stopped'|'starting'|'running'|'stopping'
     idleTimeoutSeconds: integer('idle_timeout_seconds'), // null = inherit
     k8sPvcName: text('k8s_pvc_name').notNull(), // always set at creation
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
   },
-  (t) => [
-    unique().on(t.namespaceId, t.slug),
-    check('projects_status_check', sql`status IN ('stopped', 'starting', 'running', 'stopping')`),
-  ]
+  (t) => [unique().on(t.namespaceId, t.slug)]
 )
 
 export type Project = InferSelectModel<typeof projects>

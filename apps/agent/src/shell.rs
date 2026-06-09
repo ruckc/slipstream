@@ -40,6 +40,7 @@ const OUTPUT_RING_MAX: usize = 2000;
 pub struct Session {
     pub session_id: String,
     pub pty_master: Box<dyn MasterPty + Send>,
+    pub pty_writer: Arc<Mutex<Box<dyn Write + Send>>>,
     pub child: Box<dyn Child + Send + Sync>,
     pub output_buf: VecDeque<(u64, Bytes)>,
     pub next_seq: u64,
@@ -102,8 +103,14 @@ impl SessionStore {
 
         let session_id = Uuid::new_v4().to_string();
 
+        let pty_writer = pair
+            .master
+            .take_writer()
+            .map_err(|e| anyhow::anyhow!("Failed to take PTY writer: {}", e))?;
+
         let session = Session {
             session_id: session_id.clone(),
+            pty_writer: Arc::new(Mutex::new(pty_writer)),
             pty_master: pair.master,
             child,
             output_buf: VecDeque::new(),
@@ -243,18 +250,11 @@ async fn handle_ws(socket: WebSocket, session_arc: Arc<Mutex<Session>>, state: A
                 return;
             }
         };
-        let writer = match session.pty_master.take_writer() {
-            Ok(w) => w,
-            Err(e) => {
-                error!("Failed to take PTY writer: {}", e);
-                return;
-            }
-        };
 
         (
             session.active_connections.clone(),
             reader,
-            writer,
+            session.pty_writer.clone(),
             session.session_id.clone(),
         )
     };
@@ -331,9 +331,6 @@ async fn handle_ws(socket: WebSocket, session_arc: Arc<Mutex<Session>>, state: A
         // Attempt a clean close.
         let _ = ws_sink.close().await;
     });
-
-    // Wrap PTY writer for use in the receive loop.
-    let pty_writer = Arc::new(parking_lot::Mutex::new(pty_writer));
 
     // --- Main loop: WS receiver → PTY input / resize / replay ---
     while let Some(result) = ws_stream.next().await {

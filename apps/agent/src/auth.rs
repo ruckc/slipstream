@@ -238,16 +238,30 @@ where
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("JwksCache not in extensions")))?
             .clone();
 
-        // Extract the Bearer token from the Authorization header.
-        let auth_header = parts
+        // For WebSocket upgrades browsers cannot set custom headers, so accept
+        // the token from a `?token=` query parameter as a fallback.
+        let token_from_header = parts
             .headers
             .get(axum::http::header::AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
-            .ok_or_else(|| AppError::Unauthorized("Missing Authorization header".to_string()))?;
+            .and_then(|v| v.strip_prefix("Bearer "))
+            .map(str::to_owned);
 
-        let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
-            AppError::Unauthorized("Authorization header must be Bearer token".to_string())
-        })?;
+        let token_from_query = parts.uri.query().and_then(|q| {
+            q.split('&').find_map(|pair| {
+                let (k, v) = pair.split_once('=')?;
+                if k == "token" {
+                    Some(v.to_owned())
+                } else {
+                    None
+                }
+            })
+        });
+
+        let token_owned = token_from_header
+            .or(token_from_query)
+            .ok_or_else(|| AppError::Unauthorized("Missing credentials".to_string()))?;
+        let token = token_owned.as_str();
 
         let claims = jwks_ext.0.validate(token).await?;
 

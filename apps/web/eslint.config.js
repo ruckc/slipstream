@@ -8,9 +8,9 @@ export default [
   ...ts.configs.recommended,
   ...svelte.configs['flat/recommended'],
 
-  // TypeScript parser for Svelte files
+  // TypeScript parser for Svelte files and .svelte.ts rune files
   {
-    files: ['**/*.svelte'],
+    files: ['**/*.svelte', '**/*.svelte.ts'],
     languageOptions: {
       parserOptions: {
         parser: ts.parser,

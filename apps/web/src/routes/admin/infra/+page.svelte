@@ -1,5 +1,6 @@
 <script lang="ts">
   import { SvelteSet } from 'svelte/reactivity'
+  import { getNamespaces, describePod, getPodLogs } from './infra.remote'
 
   type PodSummary = { name: string; phase: string; ready: boolean; restarts: number }
   type DeploymentSummary = { name: string; replicas: number; readyReplicas: number }
@@ -39,9 +40,7 @@
   async function loadNamespaces() {
     loadError = ''
     try {
-      const res = await fetch('/api/admin/namespaces', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      namespaces = await res.json()
+      namespaces = (await getNamespaces()) as NamespaceSummary[]
     } catch (e) {
       loadError = e instanceof Error ? e.message : 'Failed to load'
     }
@@ -62,11 +61,7 @@
     logsError = ''
     liveMode = false
     try {
-      const res = await fetch(`/api/admin/pods/${ns}/${pod}/describe`, {
-        credentials: 'same-origin',
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      describeResult = await res.json()
+      describeResult = (await describePod({ namespace: ns, pod })) as DescribeResult
     } catch (e) {
       describeError = e instanceof Error ? e.message : 'Failed to describe pod'
     } finally {
@@ -80,11 +75,7 @@
     logsError = ''
     logs = ''
     try {
-      const res = await fetch(`/api/admin/pods/${ns}/${pod}/logs?tail=200`, {
-        credentials: 'same-origin',
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      logs = await res.text()
+      logs = (await getPodLogs({ namespace: ns, pod, tail: 200 })) as string
     } catch (e) {
       logsError = e instanceof Error ? e.message : 'Failed to fetch logs'
     } finally {

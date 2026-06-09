@@ -2,34 +2,28 @@
   import type { Snippet } from 'svelte'
   import ActivityBar from './ActivityBar.svelte'
   import Sidebar from './Sidebar.svelte'
-  import EditorArea from './EditorArea.svelte'
-  import PanelArea from './PanelArea.svelte'
   import StatusBar from './StatusBar.svelte'
   import ResizableDivider from './ResizableDivider.svelte'
 
   let {
     sidebarContent,
-    editorContent,
-    panelContent,
+    workspaceContent,
     statusLeftContent,
     statusRightContent,
     activityItems = [],
   }: {
     sidebarContent?: Snippet
-    editorContent?: Snippet
-    panelContent?: Snippet
+    workspaceContent?: Snippet
     statusLeftContent?: Snippet
     statusRightContent?: Snippet
     activityItems?: Array<{ id: string; icon: string; label: string; onClick: () => void }>
   } = $props()
 
   let sidebarWidth = $state(240)
-  let panelHeight = $state(220)
   const _initiallyMobile =
     typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
   let isMobile = $state(_initiallyMobile)
   let sidebarVisible = $state(!_initiallyMobile)
-  let panelVisible = $state(true)
   let activeActivityItem = $state<string | null>('files')
 
   $effect(() => {
@@ -61,9 +55,6 @@
 </script>
 
 <div class="app-shell">
-  <!-- Activity Bar -->
-  <ActivityBar items={wrappedItems} bind:activeId={activeActivityItem} />
-
   <!-- Mobile backdrop: closes sidebar when tapped -->
   {#if sidebarVisible && isMobile}
     <button
@@ -76,8 +67,11 @@
     ></button>
   {/if}
 
-  <!-- Main content (sidebar + divider + editor/panel column) -->
+  <!-- Main content (activity bar + sidebar + divider + editor/panel column) -->
   <div class="app-shell-main">
+    <!-- Activity Bar -->
+    <ActivityBar items={wrappedItems} bind:activeId={activeActivityItem} />
+
     <!-- Sidebar -->
     {#if sidebarVisible}
       <Sidebar
@@ -96,45 +90,26 @@
       />
     {/if}
 
-    <!-- Editor + Panel column -->
+    <!-- Workspace column -->
     <div class="app-shell-center">
-      <!-- Editor area -->
-      <EditorArea>
-        {#if editorContent}
-          {@render editorContent()}
-        {:else}
-          <div class="app-shell-empty">No editor content</div>
-        {/if}
-      </EditorArea>
-
-      <!-- Panel area -->
-      {#if panelVisible}
-        <ResizableDivider
-          direction="vertical"
-          bind:size={panelHeight}
-          minSize={80}
-          maxSize={600}
-          inverted={true}
-        />
-        <PanelArea bind:height={panelHeight}>
-          {#if panelContent}
-            {@render panelContent()}
-          {/if}
-        </PanelArea>
+      {#if workspaceContent}
+        {@render workspaceContent()}
+      {:else}
+        <div class="app-shell-empty">No workspace content</div>
       {/if}
     </div>
   </div>
 
   <!-- Status bar -->
-  <StatusBar bind:panelVisible leftContent={statusLeftContent} rightContent={statusRightContent} />
+  <StatusBar leftContent={statusLeftContent} rightContent={statusRightContent} />
 </div>
 
 <style>
   .app-shell {
     display: flex;
     flex-direction: column;
-    height: 100dvh;
-    width: 100vw;
+    position: fixed;
+    inset: 0;
     overflow: hidden;
     background: var(--color-bg-base);
   }
@@ -154,6 +129,7 @@
     flex: 1;
     overflow: hidden;
     min-width: 0;
+    min-height: 0;
   }
 
   .app-shell-empty {

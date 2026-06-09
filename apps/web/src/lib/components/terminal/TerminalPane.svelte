@@ -113,7 +113,7 @@
     try {
       statusMessage = reconnectAttempt > 0 ? `Reconnecting… (attempt ${reconnectAttempt})` : null
       const token = await tokenStore.get(projectId)
-      const url = podWsUrl(namespaceSlug, projectSlug, `/sessions/${sessionId}/attach`)
+      const url = podWsUrl(namespaceSlug, projectSlug, `/sessions/${sessionId}/attach`, token)
 
       if (destroyed) return
 
@@ -124,8 +124,6 @@
         if (!ws) return
         statusMessage = null
         reconnectAttempt = 0
-        // Authenticate
-        ws.send(JSON.stringify({ type: 'auth', token }))
         // Request replay from last seen sequence
         if (lastSeq > 0) {
           ws.send(JSON.stringify({ type: 'replay_from', seq: lastSeq }))
@@ -238,7 +236,8 @@
   .terminal-pane {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     background: #1e1e1e;
     overflow: hidden;
   }
@@ -259,11 +258,12 @@
   /* xterm.js global styles */
   .xterm-host :global(.xterm) {
     height: 100%;
-    padding: 8px;
+    background: #1e1e1e; /* fill gap below last row before xterm sets it inline */
   }
 
   .xterm-host :global(.xterm-viewport) {
-    overflow-y: scroll;
+    overflow-y: auto;
+    background: #1e1e1e !important; /* prevent transparent strip below rows */
   }
 
   .terminal-status {

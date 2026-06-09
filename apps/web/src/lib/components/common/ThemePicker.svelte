@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from './Icon.svelte'
   import Tooltip from './Tooltip.svelte'
+  import { updateThemePreference } from '$lib/remote/auth.remote'
 
   type ThemeValue = 'system' | 'light' | 'dark'
 
@@ -28,12 +29,7 @@
     current = theme
     localStorage.setItem('theme', theme)
     applyTheme(theme)
-    // Fire-and-forget server persist
-    fetch('/api/theme', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme }),
-    })
+    updateThemePreference(theme)
   }
 
   const options: Array<{ value: ThemeValue; label: string; icon: string }> = [

@@ -4,7 +4,12 @@ import type { Project, Namespace } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
 import { ensurePvc, deletePvc } from '$lib/server/k8s/pvc'
-import { ensureDeployment, scaleDeployment, deleteDeployment } from '$lib/server/k8s/deployment'
+import {
+  ensureDeployment,
+  scaleDeployment,
+  deleteDeployment,
+  getDeploymentStatus,
+} from '$lib/server/k8s/deployment'
 import { ensureRouteAndService, deleteRouteAndService } from '$lib/server/k8s/route'
 import { ensureNetworkPolicy, deleteNetworkPolicy } from '$lib/server/k8s/policy'
 import { resolvePermissions, resolveIdleTimeout } from '$lib/server/permissions'
@@ -90,7 +95,6 @@ export const createProject = command(
         namespaceId: arg.namespaceId,
         slug: arg.slug,
         displayName: arg.displayName,
-        status: 'stopped',
         k8sPvcName: 'pending',
       })
       .returning()
@@ -101,7 +105,7 @@ export const createProject = command(
       const pvcName = await ensurePvc(ns.k8sNamespace, project.id)
       await db.update(projects).set({ k8sPvcName: pvcName }).where(eq(projects.id, project.id))
       await ensureNetworkPolicy(ns.k8sNamespace, project.id)
-      await ensureDeployment(ns.k8sNamespace, project.id, pvcName, idleTimeout)
+      await ensureDeployment(ns.k8sNamespace, project.id, arg.slug, pvcName, idleTimeout)
       await ensureRouteAndService(ns.k8sNamespace, project.id, ns.slug, arg.slug)
     } catch (e) {
       await db.delete(projects).where(eq(projects.id, project.id))
@@ -139,28 +143,29 @@ export const getProject = query(
 
 export const startProject = command(
   'unchecked',
-  async (arg: { projectId: string }): Promise<Project> => {
+  async (arg: { projectId: string }): Promise<void> => {
     const { locals } = getRequestEvent()
     if (!locals.user) throw error(401, 'Unauthorized')
     const project = await getProjectById(arg.projectId)
     await assertProjectManage(locals.user.id, arg.projectId)
 
-    // Already starting or running — idempotent no-op
-    if (project.status === 'starting' || project.status === 'running') {
-      return project
-    }
-
-    if (project.status !== 'stopped') {
-      throw error(409, `Project cannot be started from status '${project.status}'`)
-    }
-
     const ns = await getNamespaceById(project.namespaceId)
+
+    // Idempotent — already scaling or running
+    const currentStatus = await getDeploymentStatus(ns.k8sNamespace, arg.projectId)
+    if (currentStatus !== 'stopped') return
 
     const idleTimeout = await resolveIdleTimeout(arg.projectId)
 
     try {
       await ensureNetworkPolicy(ns.k8sNamespace, arg.projectId)
-      await ensureDeployment(ns.k8sNamespace, arg.projectId, project.k8sPvcName, idleTimeout)
+      await ensureDeployment(
+        ns.k8sNamespace,
+        arg.projectId,
+        project.slug,
+        project.k8sPvcName,
+        idleTimeout
+      )
       await ensureRouteAndService(ns.k8sNamespace, arg.projectId, ns.slug, project.slug)
       await scaleDeployment(ns.k8sNamespace, arg.projectId, 1)
     } catch (e) {
@@ -173,13 +178,6 @@ export const startProject = command(
       })
       throw error(500, 'Failed to start project')
     }
-
-    const [updated] = await db
-      .update(projects)
-      .set({ status: 'starting', updatedAt: new Date() })
-      .where(eq(projects.id, arg.projectId))
-      .returning()
-    return updated
   }
 )
 
