@@ -8,6 +8,11 @@ import { ensureDeployment, scaleDeployment, getDeploymentStatus } from '$lib/ser
 import { ensureRouteAndService } from '$lib/server/k8s/route'
 import { ensureNetworkPolicy } from '$lib/server/k8s/policy'
 import {
+  resolveEgressPolicy,
+  ensureCiliumEgressPolicy,
+  deleteCiliumEgressPolicy,
+} from '$lib/server/k8s/cilium-policy'
+import {
   projectK8sNamespace,
   ensureProjectNamespace,
   deleteProjectNamespace,
@@ -106,8 +111,10 @@ export const createProject = command(
       await ensureProjectNamespace(project.id, ns.id, ns.slug, ns.type as 'user' | 'org')
       const pvcName = await ensurePvc(k8sNs, project.id)
       await db.update(projects).set({ k8sPvcName: pvcName }).where(eq(projects.id, project.id))
-      await ensureNetworkPolicy(k8sNs, project.id)
-      await ensureDeployment(k8sNs, project.id, arg.slug, pvcName, idleTimeout)
+      const egressPolicy = await resolveEgressPolicy(ns.id, project.id)
+      await ensureNetworkPolicy(k8sNs, project.id, egressPolicy.enabled)
+      await ensureCiliumEgressPolicy(k8sNs, project.id, egressPolicy)
+      await ensureDeployment(k8sNs, project.id, arg.slug, pvcName, idleTimeout, ns.slug)
       await ensureRouteAndService(k8sNs, project.id, ns.slug, arg.slug)
     } catch (e) {
       await Promise.allSettled([
@@ -165,8 +172,17 @@ export const startProject = command(
 
     try {
       await ensureProjectNamespace(arg.projectId, ns.id, ns.slug, ns.type as 'user' | 'org')
-      await ensureNetworkPolicy(k8sNs, arg.projectId)
-      await ensureDeployment(k8sNs, arg.projectId, project.slug, project.k8sPvcName, idleTimeout)
+      const egressPolicy = await resolveEgressPolicy(ns.id, arg.projectId)
+      await ensureNetworkPolicy(k8sNs, arg.projectId, egressPolicy.enabled)
+      await ensureCiliumEgressPolicy(k8sNs, arg.projectId, egressPolicy)
+      await ensureDeployment(
+        k8sNs,
+        arg.projectId,
+        project.slug,
+        project.k8sPvcName,
+        idleTimeout,
+        ns.slug
+      )
       await ensureRouteAndService(k8sNs, arg.projectId, ns.slug, project.slug)
       await scaleDeployment(k8sNs, arg.projectId, 1)
     } catch (e) {
@@ -188,7 +204,13 @@ export const deleteProject = command(
     await getProjectById(arg.projectId)
     await assertProjectManage(arg.actorUserId, arg.projectId)
 
-    await deleteProjectNamespace(arg.projectId)
+    // Namespace deletion cascades all resources including the CNP, but explicitly
+    // clean up in case the namespace is already gone.
+    const k8sNs = projectK8sNamespace(arg.projectId)
+    await Promise.allSettled([
+      deleteProjectNamespace(arg.projectId),
+      deleteCiliumEgressPolicy(k8sNs, arg.projectId),
+    ])
 
     await db.delete(projects).where(eq(projects.id, arg.projectId))
   }

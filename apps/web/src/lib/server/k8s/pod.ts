@@ -12,7 +12,8 @@ export async function createPod(
   k8sNamespace: string,
   projectId: string,
   pvcName: string,
-  idleTimeoutSeconds: number
+  idleTimeoutSeconds: number,
+  namespaceSlug: string
 ): Promise<string> {
   const api = getCoreV1Api()
   const agentImageBase = process.env.AGENT_IMAGE
@@ -81,6 +82,7 @@ export async function createPod(
         namespace: k8sNamespace,
         labels: {
           'slipstream.io/project': projectId,
+          'slipstream.io/namespace': namespaceSlug,
           app: `agent-${projectId}`,
         },
       },

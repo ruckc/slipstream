@@ -40,14 +40,104 @@ function buildIngressRule() {
   return [{ ports: [{ protocol: 'TCP', port: 8080 }] }]
 }
 
+// Internet egress rule — allowed when Cilium egress filtering is not active.
+const INTERNET_EGRESS_RULE = {
+  to: [
+    {
+      ipBlock: {
+        cidr: '0.0.0.0/0',
+        except: [
+          '10.0.0.0/8',
+          '172.16.0.0/12',
+          '192.168.0.0/16',
+          '169.254.0.0/16', // link-local / cloud IMDS
+        ],
+      },
+    },
+  ],
+  ports: [
+    { protocol: 'TCP', port: 80 },
+    { protocol: 'TCP', port: 443 },
+  ],
+}
+
+// Internal egress rules shared between NetworkPolicy and CiliumNetworkPolicy.
+export const INTERNAL_EGRESS_RULES = {
+  jwksNamespace: WEB_NAMESPACE,
+  jwksComponent: 'web',
+  jwksPort: 3000,
+  metricsNamespace: 'metrics',
+  metricsApp: 'victoriametrics',
+  metricsPort: 8428,
+  dnsNamespace: 'kube-system',
+  dnsApp: 'kube-dns',
+  dnsPort: 53,
+}
+
 /**
  * Creates the project's NetworkPolicy if missing, or replaces it with the
  * current desired spec if it already exists — so spec changes (e.g. selector
  * fixes) are picked up on every project start, not just on first creation.
+ *
+ * When egressFilteringEnabled is true, the broad internet egress rule is
+ * omitted — Cilium egress policy takes over external traffic control.
  */
-export async function ensureNetworkPolicy(k8sNamespace: string, projectId: string): Promise<void> {
+export async function ensureNetworkPolicy(
+  k8sNamespace: string,
+  projectId: string,
+  egressFilteringEnabled = false
+): Promise<void> {
   const api = getNetworkingV1Api()
   const name = policyName(projectId)
+
+  const egressRules = [
+    // JWKS endpoint — slipstream-web pod on port 3000 (container port).
+    // kube-proxy DNAT rewrites ClusterIP:80 → PodIP:3000 in PREROUTING, before
+    // NetworkPolicy is enforced in FORWARD, so the post-NAT container port is required.
+    {
+      to: [
+        {
+          namespaceSelector: {
+            matchLabels: { 'kubernetes.io/metadata.name': WEB_NAMESPACE },
+          },
+          podSelector: {
+            matchLabels: { 'app.kubernetes.io/component': 'web' },
+          },
+        },
+      ],
+      ports: [{ protocol: 'TCP', port: 3000 }],
+    },
+    // VictoriaMetrics metrics push.
+    {
+      to: [
+        {
+          namespaceSelector: {
+            matchLabels: { 'kubernetes.io/metadata.name': 'metrics' },
+          },
+          podSelector: {
+            matchLabels: { app: 'victoriametrics' },
+          },
+        },
+      ],
+      ports: [{ protocol: 'TCP', port: 8428 }],
+    },
+    // DNS.
+    {
+      to: [
+        {
+          namespaceSelector: {
+            matchLabels: { 'kubernetes.io/metadata.name': 'kube-system' },
+          },
+          podSelector: {
+            matchLabels: { 'k8s-app': 'kube-dns' },
+          },
+        },
+      ],
+      ports: [{ protocol: 'UDP', port: 53 }],
+    },
+    // Internet egress only when Cilium filtering is not managing external traffic.
+    ...(egressFilteringEnabled ? [] : [INTERNET_EGRESS_RULE]),
+  ]
 
   const body = {
     apiVersion: 'networking.k8s.io/v1',
@@ -55,94 +145,13 @@ export async function ensureNetworkPolicy(k8sNamespace: string, projectId: strin
     metadata: {
       name,
       namespace: k8sNamespace,
-      labels: {
-        'slipstream.io/project': projectId,
-      },
+      labels: { 'slipstream.io/project': projectId },
     },
     spec: {
-      podSelector: {
-        matchLabels: {
-          'slipstream.io/project': projectId,
-        },
-      },
+      podSelector: { matchLabels: { 'slipstream.io/project': projectId } },
       policyTypes: ['Ingress', 'Egress'],
       ingress: buildIngressRule(),
-      egress: [
-        // JWKS endpoint — slipstream-web service on port 80 in the web namespace.
-        {
-          to: [
-            {
-              namespaceSelector: {
-                matchLabels: {
-                  'kubernetes.io/metadata.name': WEB_NAMESPACE,
-                },
-              },
-              podSelector: {
-                matchLabels: {
-                  'app.kubernetes.io/component': 'web',
-                },
-              },
-            },
-          ],
-          ports: [{ protocol: 'TCP', port: 80 }],
-        },
-        // VictoriaMetrics metrics push.
-        {
-          to: [
-            {
-              namespaceSelector: {
-                matchLabels: {
-                  'kubernetes.io/metadata.name': 'metrics',
-                },
-              },
-              podSelector: {
-                matchLabels: {
-                  app: 'victoriametrics',
-                },
-              },
-            },
-          ],
-          ports: [{ protocol: 'TCP', port: 8428 }],
-        },
-        // Internet egress on HTTP/HTTPS, excluding RFC1918 and link-local (IMDS).
-        {
-          to: [
-            {
-              ipBlock: {
-                cidr: '0.0.0.0/0',
-                except: [
-                  '10.0.0.0/8',
-                  '172.16.0.0/12',
-                  '192.168.0.0/16',
-                  '169.254.0.0/16', // link-local / cloud IMDS
-                ],
-              },
-            },
-          ],
-          ports: [
-            { protocol: 'TCP', port: 80 },
-            { protocol: 'TCP', port: 443 },
-          ],
-        },
-        // DNS.
-        {
-          to: [
-            {
-              namespaceSelector: {
-                matchLabels: {
-                  'kubernetes.io/metadata.name': 'kube-system',
-                },
-              },
-              podSelector: {
-                matchLabels: {
-                  'k8s-app': 'kube-dns',
-                },
-              },
-            },
-          ],
-          ports: [{ protocol: 'UDP', port: 53 }],
-        },
-      ],
+      egress: egressRules,
     },
   }
 

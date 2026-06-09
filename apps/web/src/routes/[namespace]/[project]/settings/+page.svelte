@@ -8,6 +8,9 @@
     addUserPermission,
     removePermission,
     deleteProject,
+    updateProjectEgressFilterEnabled,
+    addProjectEgressRule,
+    removeProjectEgressRule,
   } from './settings.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
@@ -60,6 +63,55 @@
     } else {
       addUserPerms = [...addUserPerms, p]
     }
+  }
+
+  let projectEgressAllowRules = $state(data.projectEgressAllowRules)
+  let newAllowDomain = $state('')
+  let newAllowPorts = $state('80,443')
+  const egressEnabled = $derived(
+    data.project.egressFilterEnabled ?? data.namespaceEgressFilterEnabled
+  )
+  const forceMode = $derived(
+    data.namespaceEgressListMode === 'force' && data.namespaceEgressFilterEnabled
+  )
+
+  async function toggleProjectEgressFilter() {
+    const current = data.project.egressFilterEnabled
+    // Cycle: null (inherit) → true → false → null
+    const next = current === null ? true : current === true ? false : null
+    await updateProjectEgressFilterEnabled({
+      namespaceSlug: page.params.namespace!,
+      projectSlug: page.params.project!,
+      enabled: next,
+    })
+    data.project.egressFilterEnabled = next
+  }
+
+  async function addAllowRule() {
+    const domain = newAllowDomain.trim().toLowerCase()
+    const ports = newAllowPorts
+      .split(',')
+      .map((p) => parseInt(p.trim(), 10))
+      .filter((p) => !isNaN(p) && p > 0)
+    if (!domain || ports.length === 0) return
+    const rule = await addProjectEgressRule({
+      namespaceSlug: page.params.namespace!,
+      projectSlug: page.params.project!,
+      domain,
+      ports,
+    })
+    projectEgressAllowRules = [...projectEgressAllowRules, rule]
+    newAllowDomain = ''
+    newAllowPorts = '80,443'
+  }
+
+  async function removeAllowRule(ruleId: string) {
+    await removeProjectEgressRule({
+      namespaceSlug: page.params.namespace!,
+      projectSlug: page.params.project!,
+      ruleId,
+    })
+    projectEgressAllowRules = projectEgressAllowRules.filter((r) => r.id !== ruleId)
   }
 
   async function handleDelete() {
@@ -218,6 +270,88 @@
           </div>
         </form>
       </div>
+    </section>
+
+    <!-- Egress filtering -->
+    <section class="settings-section">
+      <div class="section-header-row">
+        <div>
+          <h2 class="section-title">Egress filtering</h2>
+          <p class="section-desc">
+            {#if data.namespaceEgressFilterEnabled}
+              Namespace egress filtering is <strong>on</strong>. This project inherits it.
+              {data.project.egressFilterEnabled === true
+                ? 'Project also explicitly enables filtering.'
+                : data.project.egressFilterEnabled === false
+                  ? 'Project override: disabled (has no effect while namespace filtering is on).'
+                  : 'Project override: inherit (following namespace).'}
+            {:else}
+              Namespace egress filtering is <strong>off</strong>. Enable here to restrict this
+              project only.
+            {/if}
+          </p>
+        </div>
+        <button
+          class="toggle"
+          class:toggle--on={egressEnabled}
+          class:toggle--inherit={data.project.egressFilterEnabled === null}
+          onclick={toggleProjectEgressFilter}
+          title={data.project.egressFilterEnabled === null
+            ? 'Inheriting from namespace — click to override'
+            : data.project.egressFilterEnabled
+              ? 'Filtering on — click to turn off'
+              : 'Filtering off — click to inherit'}
+        >
+          <span class="toggle-thumb"></span>
+        </button>
+      </div>
+
+      {#if egressEnabled}
+        {#if forceMode}
+          <p class="egress-force-notice">
+            Namespace is in <strong>force</strong> mode — only namespace allow-list rules apply to this
+            project. Add project-specific rules in namespace settings.
+          </p>
+        {:else}
+          <div class="egress-subsection">
+            <h3 class="subsection-title">Project allow rules</h3>
+            <p class="subsection-desc">
+              These rules are merged with namespace rules. Patterns: <code>api.example.com</code>,
+              <code>*.example.com</code>, <code>**.example.com</code>
+            </p>
+            <div class="rule-list">
+              {#each projectEgressAllowRules as rule (rule.id)}
+                <div class="rule-row">
+                  <code class="rule-domain">{rule.domain}</code>
+                  <span class="rule-ports">:{rule.ports.join(', ')}</span>
+                  <button
+                    class="rule-remove"
+                    onclick={() => removeAllowRule(rule.id)}
+                    aria-label="Remove rule">×</button
+                  >
+                </div>
+              {/each}
+            </div>
+            <div class="rule-add-row">
+              <input
+                class="rule-input"
+                type="text"
+                placeholder="api.example.com or **.example.com"
+                bind:value={newAllowDomain}
+                onkeydown={(e) => e.key === 'Enter' && addAllowRule()}
+              />
+              <input
+                class="rule-ports-input"
+                type="text"
+                placeholder="80,443"
+                bind:value={newAllowPorts}
+                onkeydown={(e) => e.key === 'Enter' && addAllowRule()}
+              />
+              <Button variant="secondary" size="sm" onclick={addAllowRule}>Add</Button>
+            </div>
+          </div>
+        {/if}
+      {/if}
     </section>
 
     <!-- Danger zone -->
@@ -468,5 +602,164 @@
     .perm-checkboxes__grid {
       grid-template-columns: 1fr;
     }
+  }
+
+  /* Egress filtering */
+  .section-header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+
+  .section-header-row .section-title {
+    margin-bottom: var(--space-1);
+  }
+
+  .section-header-row .section-desc {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    max-width: 460px;
+  }
+
+  .toggle {
+    flex-shrink: 0;
+    width: 40px;
+    height: 22px;
+    border-radius: 11px;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    background: var(--color-border);
+    transition: background 0.15s;
+    position: relative;
+  }
+
+  .toggle--on {
+    background: var(--color-accent);
+  }
+
+  .toggle--inherit {
+    opacity: 0.7;
+  }
+
+  .toggle-thumb {
+    display: block;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: white;
+    transition: transform 0.15s;
+  }
+
+  .toggle--on .toggle-thumb {
+    transform: translateX(18px);
+  }
+
+  .egress-force-notice {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    padding: var(--space-3);
+    background: var(--color-bg-elevated);
+    border-radius: var(--radius-md);
+    margin: var(--space-3) 0 0;
+  }
+
+  .egress-subsection {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .subsection-title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .subsection-desc {
+    margin: 0 0 var(--space-3);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  .rule-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-bottom: var(--space-3);
+  }
+
+  .rule-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-elevated);
+    border-radius: var(--radius-md);
+  }
+
+  .rule-domain {
+    flex: 1;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-primary);
+  }
+
+  .rule-ports {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+
+  .rule-remove {
+    background: none;
+    border: none;
+    padding: 0 var(--space-1);
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+    line-height: 1;
+    border-radius: var(--radius-sm);
+  }
+
+  .rule-remove:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-input);
+  }
+
+  .rule-add-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .rule-input {
+    flex: 1;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    min-width: 0;
+  }
+
+  .rule-ports-input {
+    width: 90px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+  }
+
+  .rule-input:focus,
+  .rule-ports-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
   }
 </style>

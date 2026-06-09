@@ -1,11 +1,18 @@
 import { query, form, command, getRequestEvent } from '$app/server'
 import { redirect, error, invalid } from '@sveltejs/kit'
-import { db, projects, users } from '$lib/server/db'
-import { eq } from 'drizzle-orm'
+import { db, projects, namespaces, users, egressRules } from '$lib/server/db'
+import { eq, and } from 'drizzle-orm'
 import { getProject, deleteProject as deleteProjectCmd } from '$lib/remote/project.remote'
 import { getProjectPermissions, setProjectPermissions } from '$lib/remote/permissions.remote'
 import { resolvePermissions } from '$lib/server/permissions'
 import type { Permission } from '$lib/server/permissions'
+import { patchRunningPodForProject } from '$lib/server/k8s/cilium-policy'
+
+const DOMAIN_RE = /^(\*\*\.|\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i
+
+function validateDomain(domain: string): boolean {
+  return DOMAIN_RE.test(domain)
+}
 
 const VALID_PERMISSIONS = new Set<Permission>([
   'files:read',
@@ -26,12 +33,25 @@ export const getProjectSettings = query(
     const permissions = await resolvePermissions(locals.user, project.id)
     if (!permissions.includes('project:manage')) error(403, 'Access denied')
 
-    const grants = await getProjectPermissions({
-      actorUserId: locals.user.id,
-      projectId: project.id,
-    })
+    const [grants, projectEgressAllowRules, nsRows] = await Promise.all([
+      getProjectPermissions({ actorUserId: locals.user.id, projectId: project.id }),
+      db
+        .select()
+        .from(egressRules)
+        .where(and(eq(egressRules.ownerType, 'project'), eq(egressRules.ownerId, project.id))),
+      db.select().from(namespaces).where(eq(namespaces.id, project.namespaceId)).limit(1),
+    ])
 
-    return { project, namespace: project.namespace, grants }
+    const ns = nsRows[0]
+
+    return {
+      project,
+      namespace: project.namespace,
+      grants,
+      projectEgressAllowRules,
+      namespaceEgressFilterEnabled: ns?.egressFilterEnabled ?? false,
+      namespaceEgressListMode: ns?.egressListMode ?? 'merge',
+    }
   }
 )
 
@@ -220,5 +240,112 @@ export const deleteProject = command(
     await deleteProjectCmd({ actorUserId: locals.user.id, projectId: project.id })
 
     return { redirectTo: `/${arg.namespaceSlug}` }
+  }
+)
+
+export const updateProjectEgressFilterEnabled = command(
+  'unchecked',
+  async (arg: { namespaceSlug: string; projectSlug: string; enabled: boolean | null }) => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) redirect(302, '/auth/login')
+
+    const project = await getProject({
+      namespaceSlug: arg.namespaceSlug,
+      projectSlug: arg.projectSlug,
+    })
+    if (!project) error(404)
+
+    const perms = await resolvePermissions(locals.user, project.id)
+    if (!perms.includes('project:manage')) error(403)
+
+    await db
+      .update(projects)
+      .set({ egressFilterEnabled: arg.enabled, updatedAt: new Date() })
+      .where(eq(projects.id, project.id))
+    await patchRunningPodForProject(project.id, project.namespaceId)
+  }
+)
+
+export const addProjectEgressRule = command(
+  'unchecked',
+  async (arg: { namespaceSlug: string; projectSlug: string; domain: string; ports: number[] }) => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) redirect(302, '/auth/login')
+
+    const project = await getProject({
+      namespaceSlug: arg.namespaceSlug,
+      projectSlug: arg.projectSlug,
+    })
+    if (!project) error(404)
+
+    const perms = await resolvePermissions(locals.user, project.id)
+    if (!perms.includes('project:manage')) error(403)
+
+    // Check namespace is not in force mode — project rules are ignored in force mode
+    // but we still allow managing them so they're ready if the mode changes.
+    if (!validateDomain(arg.domain)) error(400, 'Invalid domain pattern')
+    if (arg.ports.length === 0) error(400, 'At least one port is required')
+
+    const [rule] = await db
+      .insert(egressRules)
+      .values({
+        ownerType: 'project',
+        ownerId: project.id,
+        ruleType: 'allow',
+        domain: arg.domain.toLowerCase(),
+        ports: arg.ports,
+      })
+      .returning()
+
+    await patchRunningPodForProject(project.id, project.namespaceId)
+    return rule
+  }
+)
+
+export const removeProjectEgressRule = command(
+  'unchecked',
+  async (arg: { namespaceSlug: string; projectSlug: string; ruleId: string }) => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) redirect(302, '/auth/login')
+
+    const project = await getProject({
+      namespaceSlug: arg.namespaceSlug,
+      projectSlug: arg.projectSlug,
+    })
+    if (!project) error(404)
+
+    const perms = await resolvePermissions(locals.user, project.id)
+    if (!perms.includes('project:manage')) error(403)
+
+    await db
+      .delete(egressRules)
+      .where(and(eq(egressRules.id, arg.ruleId), eq(egressRules.ownerId, project.id)))
+    await patchRunningPodForProject(project.id, project.namespaceId)
+  }
+)
+
+export const updateProjectEgressRulePorts = command(
+  'unchecked',
+  async (arg: { namespaceSlug: string; projectSlug: string; ruleId: string; ports: number[] }) => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) redirect(302, '/auth/login')
+
+    const project = await getProject({
+      namespaceSlug: arg.namespaceSlug,
+      projectSlug: arg.projectSlug,
+    })
+    if (!project) error(404)
+
+    const perms = await resolvePermissions(locals.user, project.id)
+    if (!perms.includes('project:manage')) error(403)
+
+    if (arg.ports.length === 0) error(400, 'At least one port is required')
+
+    await db
+      .update(egressRules)
+      .set({ ports: arg.ports })
+      .where(and(eq(egressRules.id, arg.ruleId), eq(egressRules.ownerId, project.id)))
+
+    await patchRunningPodForProject(project.id, project.namespaceId)
   }
 )

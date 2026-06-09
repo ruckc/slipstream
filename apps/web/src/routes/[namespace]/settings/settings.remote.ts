@@ -1,6 +1,6 @@
 import { query, form, command, getRequestEvent } from '$app/server'
 import { redirect, error, invalid } from '@sveltejs/kit'
-import { db, namespaces, organizations, orgMembers, users } from '$lib/server/db'
+import { db, namespaces, organizations, orgMembers, users, egressRules } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import {
   listOrgMembers,
@@ -8,6 +8,42 @@ import {
   removeMember as orgRemoveMember,
   setMemberRole as orgSetMemberRole,
 } from '$lib/remote/organization.remote'
+import { patchRunningPodsForNamespace } from '$lib/server/k8s/cilium-policy'
+
+const DOMAIN_RE = /^(\*\*\.|\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i
+
+function validateDomain(domain: string): boolean {
+  return DOMAIN_RE.test(domain)
+}
+
+async function assertNamespaceOwner(userId: string, namespaceSlug: string) {
+  const nsRows = await db
+    .select()
+    .from(namespaces)
+    .where(eq(namespaces.slug, namespaceSlug))
+    .limit(1)
+  if (nsRows.length === 0) error(404, 'Namespace not found')
+  const ns = nsRows[0]
+
+  if (ns.type === 'user') {
+    const userRows = await db.select().from(users).where(eq(users.id, userId)).limit(1)
+    if (userRows.length === 0 || userRows[0].namespaceId !== ns.id) error(403, 'Access denied')
+    return ns
+  }
+
+  const orgRows = await db
+    .select({ member: orgMembers })
+    .from(organizations)
+    .innerJoin(
+      orgMembers,
+      and(eq(orgMembers.orgId, organizations.id), eq(orgMembers.userId, userId))
+    )
+    .where(eq(organizations.namespaceId, ns.id))
+    .limit(1)
+
+  if (orgRows.length === 0 || orgRows[0].member.role !== 'owner') error(403, 'Access denied')
+  return ns
+}
 
 export const getNamespaceSettings = query('unchecked', async (namespaceSlug: string) => {
   const { locals } = getRequestEvent()
@@ -23,6 +59,29 @@ export const getNamespaceSettings = query('unchecked', async (namespaceSlug: str
 
   const namespace = nsRows[0]
 
+  const [nsEgressAllowRules, nsEgressDenyRules] = await Promise.all([
+    db
+      .select()
+      .from(egressRules)
+      .where(
+        and(
+          eq(egressRules.ownerType, 'namespace'),
+          eq(egressRules.ownerId, namespace.id),
+          eq(egressRules.ruleType, 'allow')
+        )
+      ),
+    db
+      .select()
+      .from(egressRules)
+      .where(
+        and(
+          eq(egressRules.ownerType, 'namespace'),
+          eq(egressRules.ownerId, namespace.id),
+          eq(egressRules.ruleType, 'deny')
+        )
+      ),
+  ])
+
   if (namespace.type === 'user') {
     if (namespace.id !== locals.user.namespaceId) error(403, 'Access denied')
     return {
@@ -32,6 +91,8 @@ export const getNamespaceSettings = query('unchecked', async (namespaceSlug: str
       members: null as null,
       isOwner: true,
       user: locals.user,
+      egressAllowRules: nsEgressAllowRules,
+      egressDenyRules: nsEgressDenyRules,
     }
   }
 
@@ -59,6 +120,8 @@ export const getNamespaceSettings = query('unchecked', async (namespaceSlug: str
     members,
     isOwner,
     user: locals.user,
+    egressAllowRules: nsEgressAllowRules,
+    egressDenyRules: nsEgressDenyRules,
   }
 })
 
@@ -222,5 +285,102 @@ export const removeMember = command(
       orgId: orgRows[0].org.id,
       targetUserId: arg.userId,
     })
+  }
+)
+
+export const updateEgressFilterEnabled = command(
+  'unchecked',
+  async (arg: { namespaceSlug: string; enabled: boolean }) => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) redirect(302, '/auth/login')
+    const ns = await assertNamespaceOwner(locals.user.id, arg.namespaceSlug)
+    await db
+      .update(namespaces)
+      .set({ egressFilterEnabled: arg.enabled })
+      .where(eq(namespaces.id, ns.id))
+    await patchRunningPodsForNamespace(ns.id)
+  }
+)
+
+export const updateEgressListMode = command(
+  'unchecked',
+  async (arg: { namespaceSlug: string; mode: 'force' | 'merge' }) => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) redirect(302, '/auth/login')
+    const ns = await assertNamespaceOwner(locals.user.id, arg.namespaceSlug)
+    await db.update(namespaces).set({ egressListMode: arg.mode }).where(eq(namespaces.id, ns.id))
+    await patchRunningPodsForNamespace(ns.id)
+  }
+)
+
+export const addNamespaceEgressRule = command(
+  'unchecked',
+  async (arg: {
+    namespaceSlug: string
+    ruleType: 'allow' | 'deny'
+    domain: string
+    ports: number[]
+  }) => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) redirect(302, '/auth/login')
+    const ns = await assertNamespaceOwner(locals.user.id, arg.namespaceSlug)
+
+    if (!validateDomain(arg.domain)) error(400, 'Invalid domain pattern')
+    if (arg.ruleType === 'deny' && arg.ports.length > 0)
+      error(400, 'Deny rules cannot specify ports')
+    if (arg.ruleType === 'allow' && arg.ports.length === 0)
+      error(400, 'Allow rules require at least one port')
+
+    const [rule] = await db
+      .insert(egressRules)
+      .values({
+        ownerType: 'namespace',
+        ownerId: ns.id,
+        ruleType: arg.ruleType,
+        domain: arg.domain.toLowerCase(),
+        ports: arg.ports,
+      })
+      .returning()
+
+    await patchRunningPodsForNamespace(ns.id)
+    return rule
+  }
+)
+
+export const removeNamespaceEgressRule = command(
+  'unchecked',
+  async (arg: { namespaceSlug: string; ruleId: string }) => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) redirect(302, '/auth/login')
+    const ns = await assertNamespaceOwner(locals.user.id, arg.namespaceSlug)
+
+    await db
+      .delete(egressRules)
+      .where(and(eq(egressRules.id, arg.ruleId), eq(egressRules.ownerId, ns.id)))
+    await patchRunningPodsForNamespace(ns.id)
+  }
+)
+
+export const updateNamespaceEgressRulePorts = command(
+  'unchecked',
+  async (arg: { namespaceSlug: string; ruleId: string; ports: number[] }) => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) redirect(302, '/auth/login')
+    const ns = await assertNamespaceOwner(locals.user.id, arg.namespaceSlug)
+
+    if (arg.ports.length === 0) error(400, 'Allow rules require at least one port')
+
+    await db
+      .update(egressRules)
+      .set({ ports: arg.ports })
+      .where(
+        and(
+          eq(egressRules.id, arg.ruleId),
+          eq(egressRules.ownerId, ns.id),
+          eq(egressRules.ruleType, 'allow')
+        )
+      )
+
+    await patchRunningPodsForNamespace(ns.id)
   }
 )

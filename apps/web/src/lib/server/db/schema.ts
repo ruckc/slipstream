@@ -8,6 +8,7 @@ import {
   unique,
   primaryKey,
   check,
+  boolean,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm'
@@ -21,9 +22,14 @@ export const namespaces = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     slug: text('slug').unique().notNull(),
     type: text('type').notNull(), // 'user'|'org'
+    egressFilterEnabled: boolean('egress_filter_enabled').notNull().default(false),
+    egressListMode: text('egress_list_mode').notNull().default('merge'), // 'force'|'merge'
     createdAt: timestamp('created_at').defaultNow(),
   },
-  () => [check('namespaces_type_check', sql`type IN ('user', 'org')`)]
+  () => [
+    check('namespaces_type_check', sql`type IN ('user', 'org')`),
+    check('namespaces_egress_list_mode_check', sql`egress_list_mode IN ('force', 'merge')`),
+  ]
 )
 
 export type Namespace = InferSelectModel<typeof namespaces>
@@ -147,6 +153,7 @@ export const projects = pgTable(
     slug: text('slug').notNull(),
     displayName: text('display_name').notNull(),
     idleTimeoutSeconds: integer('idle_timeout_seconds'), // null = inherit
+    egressFilterEnabled: boolean('egress_filter_enabled'), // null = inherit from namespace
     k8sPvcName: text('k8s_pvc_name').notNull(), // always set at creation
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
@@ -203,6 +210,33 @@ export const usageSamples = pgTable('usage_samples', {
 
 export type UsageSample = InferSelectModel<typeof usageSamples>
 export type NewUsageSample = InferInsertModel<typeof usageSamples>
+
+// ---------------------------------------------------------------------------
+// egress_rules
+// ---------------------------------------------------------------------------
+export const egressRules = pgTable(
+  'egress_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerType: text('owner_type').notNull(), // 'namespace'|'project'
+    ownerId: uuid('owner_id').notNull(),
+    ruleType: text('rule_type').notNull(), // 'allow'|'deny'  (deny only valid for namespace)
+    domain: text('domain').notNull(), // e.g. 'api.github.com', '*.github.com', '**.github.com'
+    ports: integer('ports').array().notNull().default([80, 443]),
+    createdAt: timestamp('created_at').defaultNow(),
+  },
+  () => [
+    check('egress_rules_owner_type_check', sql`owner_type IN ('namespace', 'project')`),
+    check('egress_rules_rule_type_check', sql`rule_type IN ('allow', 'deny')`),
+    check(
+      'egress_rules_deny_namespace_only_check',
+      sql`rule_type = 'allow' OR owner_type = 'namespace'`
+    ),
+  ]
+)
+
+export type EgressRule = InferSelectModel<typeof egressRules>
+export type NewEgressRule = InferInsertModel<typeof egressRules>
 
 // ---------------------------------------------------------------------------
 // server_errors — admin-visible exception log

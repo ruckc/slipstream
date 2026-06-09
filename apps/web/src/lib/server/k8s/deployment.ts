@@ -75,7 +75,8 @@ export async function ensureDeployment(
   projectId: string,
   projectSlug: string,
   pvcName: string,
-  idleTimeoutSeconds: number
+  idleTimeoutSeconds: number,
+  namespaceSlug: string
 ): Promise<void> {
   const api = getAppsV1Api()
   const name = buildDeploymentName(projectId)
@@ -92,6 +93,7 @@ export async function ensureDeployment(
       metadata: {
         labels: {
           'slipstream.io/project': projectId,
+          'slipstream.io/namespace': namespaceSlug,
           app: `agent-${projectId}`,
         },
       },
