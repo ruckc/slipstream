@@ -134,10 +134,7 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
         const baseSlug = slugifyEmail(profile.email)
         const slug = await uniqueSlug(baseSlug)
 
-        const [namespace] = await db
-          .insert(namespaces)
-          .values({ slug, type: 'user' })
-          .returning()
+        const [namespace] = await db.insert(namespaces).values({ slug, type: 'user' }).returning()
 
         const newUserId = randomUUID()
         await db.insert(users).values({

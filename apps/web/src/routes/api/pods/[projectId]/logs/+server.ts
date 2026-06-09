@@ -9,11 +9,7 @@ import { projectK8sNamespace } from '$lib/server/k8s/namespace'
 export const GET: RequestHandler = async ({ params, locals }) => {
   if (!locals.user) error(401, 'Unauthorized')
 
-  const rows = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, params.projectId))
-    .limit(1)
+  const rows = await db.select().from(projects).where(eq(projects.id, params.projectId)).limit(1)
 
   if (rows.length === 0) error(404, 'Project not found')
   const project = rows[0]

@@ -4,11 +4,7 @@ import type { Project, Namespace } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
 import { ensurePvc } from '$lib/server/k8s/pvc'
-import {
-  ensureDeployment,
-  scaleDeployment,
-  getDeploymentStatus,
-} from '$lib/server/k8s/deployment'
+import { ensureDeployment, scaleDeployment, getDeploymentStatus } from '$lib/server/k8s/deployment'
 import { ensureRouteAndService } from '$lib/server/k8s/route'
 import { ensureNetworkPolicy } from '$lib/server/k8s/policy'
 import {

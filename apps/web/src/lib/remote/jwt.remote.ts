@@ -14,11 +14,7 @@ export const issueToken = command(
     if (!locals.user) throw error(401, 'Unauthorized')
     const userId = locals.user.id
 
-    const rows = await db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, arg.projectId))
-      .limit(1)
+    const rows = await db.select().from(projects).where(eq(projects.id, arg.projectId)).limit(1)
     if (rows.length === 0) throw error(404, 'Project not found')
 
     const podStatus = await getDeploymentStatus(projectK8sNamespace(arg.projectId), arg.projectId)
