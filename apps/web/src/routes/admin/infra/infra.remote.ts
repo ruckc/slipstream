@@ -16,7 +16,7 @@ export const getNamespaces = query(async () => {
   const namespaceNames = nsResult.items
     .map((ns) => ns.metadata?.name)
     .filter((n): n is string => !!n)
-    .filter((n) => n === 'slipstream-system' || n.startsWith('u-') || n.startsWith('o-'))
+    .filter((n) => n === 'slipstream-system' || n.startsWith('project-'))
     .sort()
 
   return Promise.all(

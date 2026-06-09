@@ -18,15 +18,12 @@ async function main() {
   // 1. Upsert user namespaces + users
   // -------------------------------------------------------------------------
   for (const account of DEV_ACCOUNTS) {
-    const k8sNamespace = `u-${account.namespaceSlug}`
-
     // Upsert namespace
     const [ns] = await db
       .insert(schema.namespaces)
       .values({
         slug: account.namespaceSlug,
         type: 'user',
-        k8sNamespace,
       })
       .onConflictDoNothing()
       .returning()
@@ -56,14 +53,12 @@ async function main() {
   // 2. Upsert dev org namespace + organization
   // -------------------------------------------------------------------------
   const orgSlug = 'dev-org'
-  const orgK8sNamespace = 'o-dev-org'
 
   const [orgNs] = await db
     .insert(schema.namespaces)
     .values({
       slug: orgSlug,
       type: 'org',
-      k8sNamespace: orgK8sNamespace,
     })
     .onConflictDoNothing()
     .returning()

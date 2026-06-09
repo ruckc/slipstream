@@ -1,6 +1,7 @@
-import { db, projects, namespaces } from '$lib/server/db'
-import { eq, inArray } from 'drizzle-orm'
+import { db, projects } from '$lib/server/db'
+import { inArray } from 'drizzle-orm'
 import { listDeploymentStatuses, scaleDeployment } from '$lib/server/k8s/deployment'
+import { projectK8sNamespace } from '$lib/server/k8s/namespace'
 import { queryMetricByProject } from '$lib/server/victoriametrics'
 import { resolveIdleTimeout } from '$lib/server/permissions'
 
@@ -23,17 +24,16 @@ async function runOnce(): Promise<void> {
 
   if (activeProjectIds.length === 0) return
 
-  // Load namespace info for all active projects in one query.
+  // Load project info for all active projects in one query.
   const rows = await db
-    .select({ project: projects, namespace: namespaces })
+    .select({ project: projects })
     .from(projects)
-    .innerJoin(namespaces, eq(projects.namespaceId, namespaces.id))
     .where(inArray(projects.id, activeProjectIds))
 
   const now = Date.now() / 1000 // Unix seconds
 
   await Promise.all(
-    rows.map(async ({ project, namespace }) => {
+    rows.map(async ({ project }) => {
       const lastActivity = lastActivityMap.get(project.id)
       // No metric yet means the agent hasn't pushed one — don't touch it.
       if (lastActivity === undefined) return
@@ -42,7 +42,7 @@ async function runOnce(): Promise<void> {
       if (now - lastActivity < idleTimeout) return
 
       try {
-        await scaleDeployment(namespace.k8sNamespace, project.id, 0)
+        await scaleDeployment(projectK8sNamespace(project.id), project.id, 0)
       } catch (e) {
         console.error(`reconcile: failed to scale down ${project.id}`, e)
       }

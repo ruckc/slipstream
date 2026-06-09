@@ -3,15 +3,19 @@ import { db, projects, namespaces, organizations, orgMembers, users } from '$lib
 import type { Project, Namespace } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
-import { ensurePvc, deletePvc } from '$lib/server/k8s/pvc'
+import { ensurePvc } from '$lib/server/k8s/pvc'
 import {
   ensureDeployment,
   scaleDeployment,
-  deleteDeployment,
   getDeploymentStatus,
 } from '$lib/server/k8s/deployment'
-import { ensureRouteAndService, deleteRouteAndService } from '$lib/server/k8s/route'
-import { ensureNetworkPolicy, deleteNetworkPolicy } from '$lib/server/k8s/policy'
+import { ensureRouteAndService } from '$lib/server/k8s/route'
+import { ensureNetworkPolicy } from '$lib/server/k8s/policy'
+import {
+  projectK8sNamespace,
+  ensureProjectNamespace,
+  deleteProjectNamespace,
+} from '$lib/server/k8s/namespace'
 import { resolvePermissions, resolveIdleTimeout } from '$lib/server/permissions'
 import { logServerError } from '$lib/server/error-log'
 
@@ -100,21 +104,26 @@ export const createProject = command(
       .returning()
 
     const idleTimeout = await resolveIdleTimeout(project.id)
+    const k8sNs = projectK8sNamespace(project.id)
 
     try {
-      const pvcName = await ensurePvc(ns.k8sNamespace, project.id)
+      await ensureProjectNamespace(project.id, ns.id, ns.slug, ns.type as 'user' | 'org')
+      const pvcName = await ensurePvc(k8sNs, project.id)
       await db.update(projects).set({ k8sPvcName: pvcName }).where(eq(projects.id, project.id))
-      await ensureNetworkPolicy(ns.k8sNamespace, project.id)
-      await ensureDeployment(ns.k8sNamespace, project.id, arg.slug, pvcName, idleTimeout)
-      await ensureRouteAndService(ns.k8sNamespace, project.id, ns.slug, arg.slug)
+      await ensureNetworkPolicy(k8sNs, project.id)
+      await ensureDeployment(k8sNs, project.id, arg.slug, pvcName, idleTimeout)
+      await ensureRouteAndService(k8sNs, project.id, ns.slug, arg.slug)
     } catch (e) {
-      await db.delete(projects).where(eq(projects.id, project.id))
+      await Promise.allSettled([
+        deleteProjectNamespace(project.id),
+        db.delete(projects).where(eq(projects.id, project.id)),
+      ])
       const body = (e as { body?: unknown }).body
       const msg = body ? JSON.stringify(body) : (e as Error).message
       await logServerError(msg, {
         route: 'createProject/provision',
         stack: (e as Error).stack,
-        context: { projectId: project.id, k8sNamespace: ns.k8sNamespace },
+        context: { projectId: project.id, k8sNamespace: k8sNs },
       })
       throw error(500, 'Failed to provision project resources')
     }
@@ -150,31 +159,27 @@ export const startProject = command(
     await assertProjectManage(locals.user.id, arg.projectId)
 
     const ns = await getNamespaceById(project.namespaceId)
+    const k8sNs = projectK8sNamespace(arg.projectId)
 
     // Idempotent — already scaling or running
-    const currentStatus = await getDeploymentStatus(ns.k8sNamespace, arg.projectId)
+    const currentStatus = await getDeploymentStatus(k8sNs, arg.projectId)
     if (currentStatus !== 'stopped') return
 
     const idleTimeout = await resolveIdleTimeout(arg.projectId)
 
     try {
-      await ensureNetworkPolicy(ns.k8sNamespace, arg.projectId)
-      await ensureDeployment(
-        ns.k8sNamespace,
-        arg.projectId,
-        project.slug,
-        project.k8sPvcName,
-        idleTimeout
-      )
-      await ensureRouteAndService(ns.k8sNamespace, arg.projectId, ns.slug, project.slug)
-      await scaleDeployment(ns.k8sNamespace, arg.projectId, 1)
+      await ensureProjectNamespace(arg.projectId, ns.id, ns.slug, ns.type as 'user' | 'org')
+      await ensureNetworkPolicy(k8sNs, arg.projectId)
+      await ensureDeployment(k8sNs, arg.projectId, project.slug, project.k8sPvcName, idleTimeout)
+      await ensureRouteAndService(k8sNs, arg.projectId, ns.slug, project.slug)
+      await scaleDeployment(k8sNs, arg.projectId, 1)
     } catch (e) {
       const body = (e as { body?: unknown }).body
       const msg = body ? JSON.stringify(body) : (e as Error).message
       await logServerError(msg, {
         route: 'startProject/provision',
         stack: (e as Error).stack,
-        context: { projectId: arg.projectId, k8sNamespace: ns.k8sNamespace },
+        context: { projectId: arg.projectId, k8sNamespace: k8sNs },
       })
       throw error(500, 'Failed to start project')
     }
@@ -184,17 +189,10 @@ export const startProject = command(
 export const deleteProject = command(
   'unchecked',
   async (arg: { actorUserId: string; projectId: string }): Promise<void> => {
-    const project = await getProjectById(arg.projectId)
+    await getProjectById(arg.projectId)
     await assertProjectManage(arg.actorUserId, arg.projectId)
 
-    const ns = await getNamespaceById(project.namespaceId)
-
-    await Promise.allSettled([
-      deleteDeployment(ns.k8sNamespace, arg.projectId),
-      deleteRouteAndService(ns.k8sNamespace, arg.projectId),
-      deleteNetworkPolicy(ns.k8sNamespace, arg.projectId),
-      deletePvc(ns.k8sNamespace, project.k8sPvcName),
-    ])
+    await deleteProjectNamespace(arg.projectId)
 
     await db.delete(projects).where(eq(projects.id, arg.projectId))
   }

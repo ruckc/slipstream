@@ -10,7 +10,6 @@ import {
   SESSION_COOKIE_OPTIONS,
 } from '$lib/server/auth/session'
 import { getActiveProviders, type Provider } from '$lib/server/auth/providers'
-import { ensureK8sNamespace } from '$lib/server/k8s/namespace'
 
 const LOGIN_ERROR_URL = '/auth/login?error=auth_failed'
 
@@ -134,20 +133,11 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
         // 3. Brand-new user: create namespace, user, oidc_connection
         const baseSlug = slugifyEmail(profile.email)
         const slug = await uniqueSlug(baseSlug)
-        const k8sNamespace = `u-${slug}`
 
         const [namespace] = await db
           .insert(namespaces)
-          .values({ slug, type: 'user', k8sNamespace })
+          .values({ slug, type: 'user' })
           .returning()
-
-        try {
-          await ensureK8sNamespace(k8sNamespace, slug, 'user')
-        } catch (k8sErr) {
-          await db.delete(namespaces).where(eq(namespaces.id, namespace.id))
-          console.error(`[auth/callback/${provider}] k8s namespace creation failed:`, k8sErr)
-          throw redirect(302, LOGIN_ERROR_URL)
-        }
 
         const newUserId = randomUUID()
         await db.insert(users).values({

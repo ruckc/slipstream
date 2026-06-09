@@ -5,6 +5,7 @@ import { resolvePermissions } from '$lib/server/permissions'
 import type { Permission } from '$lib/server/permissions'
 import { getDeploymentStatus } from '$lib/server/k8s/deployment'
 import type { ProjectPodStatus } from '$lib/server/k8s/deployment'
+import { projectK8sNamespace } from '$lib/server/k8s/namespace'
 
 export const getProjectPage = query(
   'unchecked',
@@ -17,7 +18,7 @@ export const getProjectPage = query(
 
     const [permissions, podStatus] = await Promise.all([
       resolvePermissions(locals.user, project.id) as Promise<Permission[]>,
-      getDeploymentStatus(project.namespace.k8sNamespace, project.id),
+      getDeploymentStatus(projectK8sNamespace(project.id), project.id),
     ])
     if (permissions.length === 0) error(403, 'Access denied')
 

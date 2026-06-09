@@ -1,28 +1,42 @@
 import { getCoreV1Api, isApiError } from './client'
 
-/** Creates the Kubernetes namespace if it doesn't already exist. */
-export async function ensureK8sNamespace(
-  k8sNamespace: string,
-  namespaceSlug: string,
-  type: 'user' | 'org'
+export function projectK8sNamespace(projectId: string): string {
+  return `project-${projectId}`
+}
+
+export async function ensureProjectNamespace(
+  projectId: string,
+  ownerNamespaceId: string,
+  ownerNamespaceSlug: string,
+  ownerNamespaceType: 'user' | 'org'
 ): Promise<void> {
   const api = getCoreV1Api()
-
   try {
     await api.createNamespace({
       body: {
         apiVersion: 'v1',
         kind: 'Namespace',
         metadata: {
-          name: k8sNamespace,
+          name: projectK8sNamespace(projectId),
           labels: {
-            'slipstream.io/type': type,
-            'slipstream.io/namespace-slug': namespaceSlug,
+            'slipstream.io/project': projectId,
+            'slipstream.io/owner-namespace-id': ownerNamespaceId,
+            'slipstream.io/owner-namespace-slug': ownerNamespaceSlug,
+            'slipstream.io/owner-type': ownerNamespaceType,
           },
         },
       },
     })
   } catch (e) {
     if (!isApiError(e, 409)) throw e
+  }
+}
+
+export async function deleteProjectNamespace(projectId: string): Promise<void> {
+  const api = getCoreV1Api()
+  try {
+    await api.deleteNamespace({ name: projectK8sNamespace(projectId) })
+  } catch (e) {
+    if (!isApiError(e, 404)) throw e
   }
 }

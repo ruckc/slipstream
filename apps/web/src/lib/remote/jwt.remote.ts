@@ -1,10 +1,11 @@
 import { command, getRequestEvent } from '$app/server'
-import { db, namespaces, projects, users } from '$lib/server/db'
+import { db, projects, users } from '$lib/server/db'
 import { eq } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
 import { resolvePermissions } from '$lib/server/permissions'
 import { issueProjectToken } from '$lib/server/jwt/issue'
 import { getDeploymentStatus } from '$lib/server/k8s/deployment'
+import { projectK8sNamespace } from '$lib/server/k8s/namespace'
 
 export const issueToken = command(
   'unchecked',
@@ -14,15 +15,13 @@ export const issueToken = command(
     const userId = locals.user.id
 
     const rows = await db
-      .select({ project: projects, namespace: namespaces })
+      .select()
       .from(projects)
-      .innerJoin(namespaces, eq(projects.namespaceId, namespaces.id))
       .where(eq(projects.id, arg.projectId))
       .limit(1)
     if (rows.length === 0) throw error(404, 'Project not found')
 
-    const { namespace } = rows[0]
-    const podStatus = await getDeploymentStatus(namespace.k8sNamespace, arg.projectId)
+    const podStatus = await getDeploymentStatus(projectK8sNamespace(arg.projectId), arg.projectId)
     if (podStatus !== 'running') {
       throw error(409, 'Project is not running')
     }

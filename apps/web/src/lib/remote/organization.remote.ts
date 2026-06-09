@@ -3,7 +3,6 @@ import { db, namespaces, organizations, orgMembers, users } from '$lib/server/db
 import type { Organization, Namespace, OrgMember, User } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
-import { ensureK8sNamespace } from '$lib/server/k8s/namespace'
 
 async function assertOrgOwner(userId: string, orgId: string): Promise<void> {
   const rows = await db
@@ -30,20 +29,10 @@ export const createOrganization = command(
       .limit(1)
     if (existing.length > 0) throw error(409, 'Slug is already taken')
 
-    const k8sNs = `ss-org-${arg.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}`
-
     const [namespace] = await db
       .insert(namespaces)
-      .values({ slug: arg.slug, type: 'org', k8sNamespace: k8sNs })
+      .values({ slug: arg.slug, type: 'org' })
       .returning()
-
-    try {
-      await ensureK8sNamespace(k8sNs, arg.slug, 'org')
-    } catch (k8sErr) {
-      await db.delete(namespaces).where(eq(namespaces.id, namespace.id))
-      console.error('[createOrganization] k8s namespace creation failed:', k8sErr)
-      throw error(500, 'Failed to provision Kubernetes namespace for organization')
-    }
 
     const [org] = await db
       .insert(organizations)

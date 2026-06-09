@@ -21,7 +21,6 @@ export const namespaces = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     slug: text('slug').unique().notNull(),
     type: text('type').notNull(), // 'user'|'org'
-    k8sNamespace: text('k8s_namespace').notNull(),
     createdAt: timestamp('created_at').defaultNow(),
   },
   () => [check('namespaces_type_check', sql`type IN ('user', 'org')`)]
