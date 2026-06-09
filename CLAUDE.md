@@ -146,7 +146,9 @@ Four independent permission bits: `files:read`, `files:write`, `shell`, `project
 
 ### Remote functions pattern
 
-Pages use SvelteKit's experimental remote functions (`query`, `form`, `command`) instead of `+page.server.ts` load functions and form actions. The config is already set in `svelte.config.js` (`kit.experimental.remoteFunctions: true`, `compilerOptions.experimental.async: true`).
+**Do not create `+page.server.ts` files.** This project uses SvelteKit's experimental remote functions exclusively — see https://svelte.dev/docs/kit/remote-functions. The config is already set in `svelte.config.js` (`kit.experimental.remoteFunctions: true`, `compilerOptions.experimental.async: true`).
+
+Pages use `query`, `form`, and `command` remote functions instead of load functions and form actions.
 
 **Route-level remote files** live as `<route>/*.remote.ts` (e.g. `src/routes/settings/settings.remote.ts`). They export `query`/`form`/`command` functions and are imported directly in `.svelte` components. Use `/remote-route` to convert a route.
 
