@@ -1,12 +1,12 @@
 {{- if .Values.certManager.enabled }}
 ---
+# ClusterIssuer is required when certManager is enabled because the Certificate
+# is created in gateway.namespace (so the gateway can reference it directly via
+# certificateRefs), which may differ from the release namespace.
 apiVersion: cert-manager.io/v1
-kind: {{ .Values.certManager.issuer.kind }}
+kind: ClusterIssuer
 metadata:
   name: {{ include "slipstream.fullname" . }}
-  {{- if eq .Values.certManager.issuer.kind "Issuer" }}
-  namespace: {{ .Release.Namespace }}
-  {{- end }}
   labels:
     {{- include "slipstream.labels" . | nindent 4 }}
 spec:
@@ -23,18 +23,21 @@ spec:
                 namespace: {{ .Values.gateway.namespace }}
                 kind: Gateway
 ---
+# Certificate lives in the gateway namespace so the gateway listener can
+# reference it directly in spec.listeners[].tls.certificateRefs without a
+# cross-namespace ReferenceGrant.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: {{ include "slipstream.fullname" . }}-tls
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ .Values.gateway.namespace }}
   labels:
     {{- include "slipstream.labels" . | nindent 4 }}
 spec:
-  secretName: {{ include "slipstream.fullname" . }}-tls
+  secretName: {{ include "slipstream.tlsSecretName" . }}
   dnsNames:
     - {{ .Values.gateway.hostname | quote }}
   issuerRef:
     name: {{ include "slipstream.fullname" . }}
-    kind: {{ .Values.certManager.issuer.kind }}
+    kind: ClusterIssuer
 {{- end }}
