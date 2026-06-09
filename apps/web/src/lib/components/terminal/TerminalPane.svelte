@@ -1,24 +1,27 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, getContext } from 'svelte'
   import { podWsUrl } from '$lib/pod-fetch'
   import { tokenStore } from '$lib/token-store'
-  import TerminalToolbar from './TerminalToolbar.svelte'
+  import { WORKSPACE_CTX } from '$lib/components/workspace/WorkspaceTypes.js'
+  import type { WorkspaceCtx } from '$lib/components/workspace/WorkspaceTypes.js'
 
   let {
+    paneId,
     sessionId,
-    sessionLabel,
     projectId,
     namespaceSlug,
     projectSlug,
-    onRename,
   }: {
+    paneId?: string
     sessionId: string
-    sessionLabel: string
+    sessionLabel?: string
     projectId: string
     namespaceSlug: string
     projectSlug: string
-    onRename: (newLabel: string) => void
+    onRename?: (newLabel: string) => void
   } = $props()
+
+  const ctx = getContext<WorkspaceCtx | undefined>(WORKSPACE_CTX)
 
   let terminalEl = $state<HTMLDivElement | undefined>(undefined)
   let statusMessage = $state<string | null>(null)
@@ -208,8 +211,12 @@
   }
 
   onMount(() => {
+    if (ctx && paneId) {
+      ctx.registerTerminalActions(paneId, { clear: clearTerminal, kill: killSession })
+    }
     initTerminal()
     return () => {
+      if (ctx && paneId) ctx.unregisterTerminalActions(paneId)
       destroyed = true
       if (reconnectTimeout) clearTimeout(reconnectTimeout)
       if (ws) {
@@ -223,7 +230,6 @@
 </script>
 
 <div class="terminal-pane" id="terminal-pane-{sessionId}">
-  <TerminalToolbar {sessionLabel} onClear={clearTerminal} {onRename} onKill={killSession} />
   <div class="terminal-container">
     <div class="xterm-host" bind:this={terminalEl}></div>
     {#if statusMessage}

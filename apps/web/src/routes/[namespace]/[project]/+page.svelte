@@ -64,13 +64,6 @@
   })
 
   let workspaceManager: WorkspaceManager = $state(null!)
-
-  const activityItems = $derived([
-    ...(canReadFiles ? [{ id: 'files', icon: 'files', label: 'Explorer', onClick: () => {} }] : []),
-    ...(canManage
-      ? [{ id: 'settings', icon: 'settings', label: 'Settings', onClick: () => {} }]
-      : []),
-  ])
 </script>
 
 <svelte:head>
@@ -87,7 +80,7 @@
   </div>
 {/if}
 
-<AppShell {activityItems}>
+<AppShell>
   {#snippet sidebarContent()}
     {#if canReadFiles}
       {#if projectStatus === 'running'}

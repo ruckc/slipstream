@@ -1,12 +1,8 @@
 <script lang="ts">
   import '../app.css'
-  import { page } from '$app/state'
   import type { LayoutData } from './$types'
 
   let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props()
-
-  // Routes that use a full-screen AppShell — suppress global chrome
-  const isFullScreen = $derived(page.route.id === '/[namespace]/[project]')
 
   // Apply theme from user preference before first paint
   $effect(() => {
@@ -24,7 +20,7 @@
   <meta name="description" content="Cloud dev environments, powered by Kubernetes" />
 </svelte:head>
 
-{#if data.user && !isFullScreen}
+{#if data.user}
   <div class="app-root">
     <header class="top-bar">
       <a href="/" class="top-bar__logo" aria-label="Slipstream home">
@@ -60,8 +56,6 @@
       {@render children()}
     </main>
   </div>
-{:else if data.user && isFullScreen}
-  {@render children()}
 {:else}
   {@render children()}
 {/if}

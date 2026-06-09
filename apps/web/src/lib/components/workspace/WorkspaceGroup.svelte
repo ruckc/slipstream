@@ -5,6 +5,7 @@
   import { workspaceDrag } from './workspaceDrag.svelte.js'
   import WorkspacePane from './WorkspacePane.svelte'
   import Icon from '$lib/components/common/Icon.svelte'
+  import Tooltip from '$lib/components/common/Tooltip.svelte'
 
   let { group }: { group: Group } = $props()
 
@@ -12,6 +13,11 @@
 
   let el = $state<HTMLElement | undefined>(undefined)
   let dropZone = $state<DropZone | null>(null)
+  let renamingPaneId = $state<string | null>(null)
+  let renameValue = $state('')
+
+  const activePane = $derived(group.panes.find((p) => p.id === group.activeId) ?? null)
+  const activeIsTerminal = $derived(activePane?.kind === 'terminal')
 
   function computeZone(e: DragEvent): DropZone {
     if (!el) return 'center'
@@ -24,6 +30,30 @@
     if (y < edge) return 'top'
     if (y > r.height - edge) return 'bottom'
     return 'center'
+  }
+
+  function startRename(paneId: string, currentLabel: string) {
+    renameValue = currentLabel
+    renamingPaneId = paneId
+  }
+
+  function commitRename() {
+    if (!renamingPaneId) return
+    const trimmed = renameValue.trim()
+    if (trimmed) {
+      const pane = group.panes.find((p) => p.id === renamingPaneId)
+      if (pane) pane.label = trimmed
+    }
+    renamingPaneId = null
+  }
+
+  function cancelRename() {
+    renamingPaneId = null
+  }
+
+  function handleRenameKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') commitRename()
+    else if (e.key === 'Escape') cancelRename()
   }
 </script>
 
@@ -50,54 +80,155 @@
   }}
 >
   <!-- Tab bar -->
-  <div class="tab-bar" role="tablist">
-    {#each group.panes as pane (pane.id)}
-      <div
-        class="tab"
-        class:tab--active={pane.id === group.activeId}
-        role="tab"
-        aria-selected={pane.id === group.activeId}
-        draggable="true"
-        tabindex="0"
-        ondragstart={(e) => {
-          e.dataTransfer?.setData('text/plain', pane.id)
-          workspaceDrag.start(pane.id, group.id)
-        }}
-        ondragend={() => {
-          workspaceDrag.end()
-          dropZone = null
-        }}
-        onclick={() => {
-          group.activeId = pane.id
-          ctx.setActiveGroupId(group.id)
-        }}
-        onkeydown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
+  <div class="tab-bar">
+    <!-- Scrollable tab list -->
+    <div class="tab-list" role="tablist">
+      {#each group.panes as pane (pane.id)}
+        <div
+          class="tab"
+          class:tab--active={pane.id === group.activeId}
+          role="tab"
+          aria-selected={pane.id === group.activeId}
+          draggable={renamingPaneId !== pane.id}
+          tabindex="0"
+          ondragstart={(e) => {
+            if (renamingPaneId) return
+            e.dataTransfer?.setData('text/plain', pane.id)
+            workspaceDrag.start(pane.id, group.id)
+          }}
+          ondragend={() => {
+            workspaceDrag.end()
+            dropZone = null
+          }}
+          onclick={() => {
             group.activeId = pane.id
             ctx.setActiveGroupId(group.id)
-          }
-        }}
-      >
-        {#if pane.kind === 'terminal'}
-          <Icon name="terminal" size={12} />
-        {:else}
-          <Icon name="file" size={12} />
-        {/if}
-        <span class="tab-label">{pane.label}</span>
-        <button
-          class="tab-close"
-          type="button"
-          tabindex="-1"
-          onclick={(e) => {
-            e.stopPropagation()
-            ctx.closePane(group.id, pane.id)
           }}
-          aria-label="Close {pane.label}"
+          ondblclick={() => {
+            group.activeId = pane.id
+            ctx.setActiveGroupId(group.id)
+            startRename(pane.id, pane.label)
+          }}
+          onkeydown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              group.activeId = pane.id
+              ctx.setActiveGroupId(group.id)
+            }
+          }}
         >
-          <Icon name="close" size={12} />
+          {#if pane.kind === 'terminal'}
+            <Icon name="terminal" size={12} />
+          {:else if pane.kind === 'pod-logs'}
+            <Icon name="file-text" size={12} />
+          {:else if pane.kind === 'pod-describe'}
+            <Icon name="info" size={12} />
+          {:else}
+            <Icon name="file" size={12} />
+          {/if}
+
+          {#if renamingPaneId === pane.id}
+            <!-- svelte-ignore a11y_autofocus -->
+            <input
+              class="tab-rename-input"
+              bind:value={renameValue}
+              autofocus
+              onblur={commitRename}
+              onkeydown={handleRenameKeydown}
+              onclick={(e) => e.stopPropagation()}
+              aria-label="Rename tab"
+              maxlength={64}
+            />
+          {:else}
+            <span class="tab-label">{pane.label}</span>
+          {/if}
+
+          <button
+            class="tab-close"
+            type="button"
+            tabindex="-1"
+            onclick={(e) => {
+              e.stopPropagation()
+              if (renamingPaneId === pane.id) renamingPaneId = null
+              ctx.closePane(group.id, pane.id)
+            }}
+            aria-label="Close {pane.label}"
+          >
+            <Icon name="close" size={12} />
+          </button>
+        </div>
+      {/each}
+    </div>
+
+    <!-- Pinned actions on the right -->
+    <div class="tab-actions">
+      {#if activeIsTerminal}
+        <div class="tab-actions-divider"></div>
+        <Tooltip text="Clear terminal" position="bottom" delay={300}>
+          <button
+            class="tab-action-btn"
+            type="button"
+            aria-label="Clear terminal"
+            onclick={() => ctx.getTerminalActions(group.activeId!)?.clear()}
+          >
+            <Icon name="trash" size={13} />
+          </button>
+        </Tooltip>
+        <Tooltip text="Rename" position="bottom" delay={300}>
+          <button
+            class="tab-action-btn"
+            type="button"
+            aria-label="Rename terminal"
+            onclick={() => activePane && startRename(activePane.id, activePane.label)}
+          >
+            <Icon name="edit" size={13} />
+          </button>
+        </Tooltip>
+        <Tooltip text="Kill session" position="bottom" delay={300}>
+          <button
+            class="tab-action-btn"
+            type="button"
+            aria-label="Kill session"
+            onclick={() => ctx.getTerminalActions(group.activeId!)?.kill()}
+          >
+            <Icon name="stop" size={13} />
+          </button>
+        </Tooltip>
+        <div class="tab-actions-divider"></div>
+      {/if}
+
+      {#if ctx.canShell}
+        <Tooltip text="New terminal" position="bottom" delay={300}>
+          <button
+            class="tab-action-btn"
+            type="button"
+            aria-label="New terminal"
+            onclick={() => ctx.createTerminal()}
+          >
+            <Icon name="terminal" size={13} />
+          </button>
+        </Tooltip>
+      {/if}
+      <Tooltip text="Pod logs" position="bottom" delay={300}>
+        <button
+          class="tab-action-btn"
+          type="button"
+          aria-label="Pod logs"
+          onclick={() => ctx.openPodLogs()}
+        >
+          <Icon name="file-text" size={13} />
         </button>
-      </div>
-    {/each}
+      </Tooltip>
+      <Tooltip text="Describe pod" position="bottom" delay={300}>
+        <button
+          class="tab-action-btn"
+          type="button"
+          aria-label="Describe pod"
+          onclick={() => ctx.openPodDescribe()}
+        >
+          <Icon name="info" size={13} />
+        </button>
+      </Tooltip>
+    </div>
   </div>
 
   <!-- Content -->
@@ -138,12 +269,21 @@
     min-height: 35px;
     background: var(--color-bg-surface);
     border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .tab-list {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    flex: 1;
     overflow-x: auto;
     overflow-y: hidden;
-    flex-shrink: 0;
     scrollbar-width: none;
+    min-width: 0;
   }
-  .tab-bar::-webkit-scrollbar {
+  .tab-list::-webkit-scrollbar {
     display: none;
   }
 
@@ -180,6 +320,18 @@
     white-space: nowrap;
     min-width: 0;
   }
+  .tab-rename-input {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-primary);
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-border-focus);
+    border-radius: var(--radius-sm);
+    padding: 1px var(--space-1);
+    height: 20px;
+  }
   .tab-close {
     display: flex;
     align-items: center;
@@ -202,6 +354,41 @@
   .tab-close:hover {
     background: var(--color-bg-elevated);
     color: var(--color-text-primary);
+  }
+
+  /* Right-side action buttons */
+  .tab-actions {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    border-left: 1px solid var(--color-border-subtle);
+    padding: 0 var(--space-1);
+    gap: 1px;
+  }
+
+  .tab-actions-divider {
+    width: 1px;
+    height: 16px;
+    background: var(--color-border-subtle);
+    margin: 0 var(--space-1);
+    flex-shrink: 0;
+  }
+
+  .tab-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    color: var(--color-text-muted);
+    border-radius: var(--radius-sm);
+    transition:
+      color var(--transition-fast),
+      background var(--transition-fast);
+  }
+  .tab-action-btn:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-hover);
   }
 
   .group-content {

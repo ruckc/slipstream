@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { PageData } from './$types'
   import Icon from '$lib/components/common/Icon.svelte'
+  import ContextMenu from '$lib/components/common/ContextMenu.svelte'
+  import { deleteProject } from '$lib/remote/project.remote'
+  import { invalidateAll, goto } from '$app/navigation'
 
   let { data }: { data: PageData } = $props()
 
@@ -10,6 +13,46 @@
     stopping: 'var(--color-warning)',
     stopped: 'var(--color-text-muted)',
   }
+
+  let menuOpen = $state(false)
+  let menuX = $state(0)
+  let menuY = $state(0)
+  let menuProject = $state<(typeof data.projects)[number] | null>(null)
+
+  function openMenu(e: MouseEvent, project: (typeof data.projects)[number]) {
+    e.preventDefault()
+    e.stopPropagation()
+    const btn = e.currentTarget as HTMLElement
+    const rect = btn.getBoundingClientRect()
+    menuX = rect.right
+    menuY = rect.bottom + 4
+    menuProject = project
+    menuOpen = true
+  }
+
+  async function handleDelete() {
+    if (!menuProject) return
+    const p = menuProject
+    menuOpen = false
+    await deleteProject({ actorUserId: data.user.id, projectId: p.id })
+    await invalidateAll()
+  }
+
+  let menuItems = $derived(
+    menuProject
+      ? [
+          {
+            label: 'Settings',
+            icon: 'settings',
+            action: () => {
+              goto(`/${menuProject!.namespaceSlug}/${menuProject!.slug}/settings`)
+              menuOpen = false
+            },
+          },
+          { label: 'Delete', icon: 'trash', action: handleDelete },
+        ]
+      : []
+  )
 </script>
 
 <svelte:head>
@@ -52,36 +95,48 @@
   {:else}
     <div class="project-grid">
       {#each data.projects as project (project.id)}
-        <a href="/{project.namespaceSlug}/{project.slug}" class="project-card">
-          <div class="project-card__header">
-            <Icon name="project" size={16} />
-            <span class="project-card__slug">{project.namespaceSlug}/{project.slug}</span>
-          </div>
+        <div class="project-card">
+          <a href="/{project.namespaceSlug}/{project.slug}" class="project-card__link">
+            <div class="project-card__header">
+              <Icon name="project" size={16} />
+              <span class="project-card__slug">{project.namespaceSlug}/{project.slug}</span>
+            </div>
 
-          <div class="project-card__name">{project.displayName}</div>
+            <div class="project-card__name">{project.displayName}</div>
 
-          <div class="project-card__footer">
-            <span
-              class="status-chip"
-              style:color={statusColors[project.status] ?? 'var(--color-text-muted)'}
-            >
+            <div class="project-card__footer">
               <span
-                class="status-dot"
-                style:background={statusColors[project.status] ?? 'var(--color-text-muted)'}
-              ></span>
-              {project.status}
-            </span>
-            {#if project.updatedAt}
-              <span class="project-card__date">
-                {new Date(project.updatedAt).toLocaleDateString()}
+                class="status-chip"
+                style:color={statusColors[project.status] ?? 'var(--color-text-muted)'}
+              >
+                <span
+                  class="status-dot"
+                  style:background={statusColors[project.status] ?? 'var(--color-text-muted)'}
+                ></span>
+                {project.status}
               </span>
-            {/if}
-          </div>
-        </a>
+              {#if project.updatedAt}
+                <span class="project-card__date">
+                  {new Date(project.updatedAt).toLocaleDateString()}
+                </span>
+              {/if}
+            </div>
+          </a>
+
+          <button
+            class="project-card__menu-btn"
+            aria-label="Project options"
+            onclick={(e) => openMenu(e, project)}
+          >
+            <Icon name="ellipsis" size={14} />
+          </button>
+        </div>
       {/each}
     </div>
   {/if}
 </div>
+
+<ContextMenu items={menuItems} x={menuX} y={menuY} bind:open={menuOpen} />
 
 <style>
   .dashboard {
@@ -198,15 +253,10 @@
   }
 
   .project-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-4);
+    position: relative;
     background: var(--color-bg-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    text-decoration: none;
-    color: var(--color-text-primary);
     transition:
       background var(--transition-fast),
       border-color var(--transition-fast);
@@ -215,7 +265,50 @@
   .project-card:hover {
     background: var(--color-bg-elevated);
     border-color: var(--color-border-focus);
+  }
+
+  .project-card__link {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    padding-right: var(--space-8);
     text-decoration: none;
+    color: var(--color-text-primary);
+  }
+
+  .project-card__link:hover {
+    text-decoration: none;
+  }
+
+  .project-card__menu-btn {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition:
+      opacity var(--transition-fast),
+      background var(--transition-fast),
+      color var(--transition-fast);
+  }
+
+  .project-card:hover .project-card__menu-btn {
+    opacity: 1;
+  }
+
+  .project-card__menu-btn:hover {
+    background: var(--color-bg-active);
+    color: var(--color-text-primary);
   }
 
   .project-card__header {

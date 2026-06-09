@@ -1,6 +1,14 @@
 <script lang="ts">
   import { setContext } from 'svelte'
-  import type { Group, Layout, PaneData, DropZone, WorkspaceCtx } from './WorkspaceTypes.js'
+  import { SvelteMap } from 'svelte/reactivity'
+  import type {
+    Group,
+    Layout,
+    PaneData,
+    DropZone,
+    WorkspaceCtx,
+    TerminalActions,
+  } from './WorkspaceTypes.js'
   import { WORKSPACE_CTX } from './WorkspaceTypes.js'
   import { podFetch } from '$lib/pod-fetch'
   import WorkspaceNode from './WorkspaceNode.svelte'
@@ -88,6 +96,88 @@
       const g = findGroup(groupId)
       if (!g) return
       g.panes = g.panes.map((p) => (p.id === paneId ? { ...p, loading: false } : p))
+    }
+  }
+
+  export async function openPodLogs() {
+    const target = getTargetGroup()
+    const existing = groups.flatMap((g) => g.panes).find((p) => p.kind === 'pod-logs')
+    if (existing) {
+      for (const g of groups) {
+        if (g.panes.some((p) => p.id === existing.id)) {
+          g.activeId = existing.id
+          activeGroupId = g.id
+        }
+      }
+      await fetchPodLogs(existing.id)
+      return
+    }
+    const id: string = crypto.randomUUID()
+    const pane = { kind: 'pod-logs' as const, id, label: 'Pod Logs', logs: null, loading: true }
+    target.panes = [...target.panes, pane]
+    target.activeId = id
+    activeGroupId = target.id
+    await fetchPodLogs(id)
+  }
+
+  export async function openPodDescribe() {
+    const target = getTargetGroup()
+    const existing = groups.flatMap((g) => g.panes).find((p) => p.kind === 'pod-describe')
+    if (existing) {
+      for (const g of groups) {
+        if (g.panes.some((p) => p.id === existing.id)) {
+          g.activeId = existing.id
+          activeGroupId = g.id
+        }
+      }
+      await fetchPodDescribe(existing.id)
+      return
+    }
+    const id: string = crypto.randomUUID()
+    const pane = {
+      kind: 'pod-describe' as const,
+      id,
+      label: 'Describe Pod',
+      pod: null,
+      loading: true,
+    }
+    target.panes = [...target.panes, pane]
+    target.activeId = id
+    activeGroupId = target.id
+    await fetchPodDescribe(id)
+  }
+
+  async function fetchPodLogs(paneId: string) {
+    setPaneField(paneId, { loading: true })
+    try {
+      const res = await fetch(`/api/pods/${projectId}/logs`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = (await res.json()) as { logs: string }
+      setPaneField(paneId, { logs: data.logs, loading: false })
+    } catch {
+      setPaneField(paneId, { logs: null, loading: false })
+    }
+  }
+
+  async function fetchPodDescribe(paneId: string) {
+    setPaneField(paneId, { loading: true })
+    try {
+      const res = await fetch(`/api/pods/${projectId}/describe`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = (await res.json()) as { pod: Record<string, unknown> | null }
+      setPaneField(paneId, { pod: data.pod, loading: false })
+    } catch {
+      setPaneField(paneId, { pod: null, loading: false })
+    }
+  }
+
+  function setPaneField(paneId: string, fields: Record<string, unknown>) {
+    for (const g of groups) {
+      const idx = g.panes.findIndex((p) => p.id === paneId)
+      if (idx !== -1) {
+        g.panes = g.panes.map((p, i) => (i === idx ? { ...p, ...fields } : p))
+        return
+      }
     }
   }
 
@@ -227,6 +317,10 @@
     }
   }
 
+  // ── Terminal actions registry ──────────────────────────────────────────────
+
+  const terminalActionsMap = new SvelteMap<string, TerminalActions>()
+
   // ── Context ────────────────────────────────────────────────────────────────
 
   const ctx: WorkspaceCtx = {
@@ -239,12 +333,23 @@
     get projectSlug() {
       return projectSlug
     },
+    get canShell() {
+      return canShell
+    },
     getActiveGroupId: () => activeGroupId,
     setActiveGroupId: (id) => {
       activeGroupId = id
     },
     closePane,
     dropPane,
+    refreshPodLogs: fetchPodLogs,
+    refreshPodDescribe: fetchPodDescribe,
+    createTerminal,
+    openPodLogs,
+    openPodDescribe,
+    registerTerminalActions: (paneId, actions) => terminalActionsMap.set(paneId, actions),
+    unregisterTerminalActions: (paneId) => terminalActionsMap.delete(paneId),
+    getTerminalActions: (paneId) => terminalActionsMap.get(paneId),
   }
   setContext(WORKSPACE_CTX, ctx)
 
