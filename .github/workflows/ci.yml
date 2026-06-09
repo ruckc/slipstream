@@ -30,14 +30,10 @@ jobs:
         with:
           version: v3.17.0
 
-      - name: Install kind
-        run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
-
-      - name: Create kind cluster
-        run: kind create cluster --name slipstream-test --wait 60s
+      - uses: helm/kind-action@v1.12.0
+        with:
+          cluster_name: slipstream-test
+          version: v0.24.0
 
       - name: Install Gateway API CRDs
         run: |
