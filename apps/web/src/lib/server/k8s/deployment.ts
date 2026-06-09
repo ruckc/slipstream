@@ -1,7 +1,7 @@
 import { getCoreV1Api, getAppsV1Api, isApiError } from './client'
 import type { V1Container } from '@kubernetes/client-node'
 
-const WEB_NAMESPACE = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
+const WEB_NAMESPACE = process.env.WEB_NAMESPACE ?? 'slipstream-system'
 const JWKS_URL = `http://slipstream-web.${WEB_NAMESPACE}.svc.cluster.local/api/jwks`
 
 export function buildDeploymentName(projectId: string): string {
