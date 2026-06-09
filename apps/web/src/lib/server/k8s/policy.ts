@@ -4,8 +4,8 @@ function policyName(projectId: string): string {
   return `netpol-${projectId}`
 }
 
-// Namespace where the gateway and slipstream-web live.
-const SLIPSTREAM_SYSTEM_NS = process.env.GATEWAY_NAMESPACE ?? 'slipstream-system'
+// Namespace where slipstream-web lives (the release namespace).
+const WEB_NAMESPACE = process.env.WEB_NAMESPACE ?? 'slipstream'
 
 // When GATEWAY_PROXY_NAMESPACE is set, ingress to the agent port is restricted
 // to pods in that namespace matching the given label. Leave unset on clusters
@@ -68,15 +68,13 @@ export async function ensureNetworkPolicy(k8sNamespace: string, projectId: strin
       policyTypes: ['Ingress', 'Egress'],
       ingress: buildIngressRule(),
       egress: [
-        // JWKS endpoint — slipstream-web in slipstream-system.
-        // Port 3000 is the container port; kube-proxy DNAT is evaluated before NetworkPolicy
-        // in the iptables FORWARD chain, so the post-NAT container port must be allowed.
+        // JWKS endpoint — slipstream-web service on port 80 in the web namespace.
         {
           to: [
             {
               namespaceSelector: {
                 matchLabels: {
-                  'kubernetes.io/metadata.name': SLIPSTREAM_SYSTEM_NS,
+                  'kubernetes.io/metadata.name': WEB_NAMESPACE,
                 },
               },
               podSelector: {
@@ -86,7 +84,7 @@ export async function ensureNetworkPolicy(k8sNamespace: string, projectId: strin
               },
             },
           ],
-          ports: [{ protocol: 'TCP', port: 3000 }],
+          ports: [{ protocol: 'TCP', port: 80 }],
         },
         // VictoriaMetrics metrics push.
         {
