@@ -1,4 +1,4 @@
-import { getCustomObjectsApi, getKubeConfig, isApiError } from './client'
+import { getCustomObjectsApi, isApiError } from './client'
 import type { ResolvedEgressPolicy } from '$lib/server/k8s/egress'
 
 const GROUP = 'slipstream.io'
@@ -93,20 +93,19 @@ export async function patchProjectEnvironmentSpec(
   projectId: string,
   patch: Partial<ProjectEnvironmentSpec>
 ): Promise<void> {
-  const kc = getKubeConfig()
-  const cluster = kc.getCurrentCluster()!
-  const url = `${cluster.server}/apis/${GROUP}/${VERSION}/${PLURAL}/${crName(projectId)}`
-  const baseHeaders: Record<string, string> = {}
-  const opts = await kc.applyToFetchOptions({ headers: baseHeaders })
-  const res = await fetch(url, {
-    ...opts,
-    method: 'PATCH',
-    headers: { ...baseHeaders, 'Content-Type': 'application/merge-patch+json' },
-    body: JSON.stringify({ spec: patch }),
+  const api = getCustomObjectsApi()
+  const ops = Object.entries(patch).map(([key, value]) => ({
+    op: 'add',
+    path: `/spec/${key}`,
+    value,
+  }))
+  await api.patchClusterCustomObject({
+    group: GROUP,
+    version: VERSION,
+    plural: PLURAL,
+    name: crName(projectId),
+    body: ops,
   })
-  if (!res.ok) {
-    throw new Error(`PATCH ${url} failed: ${res.status} ${await res.text()}`)
-  }
 }
 
 export async function deleteProjectEnvironment(projectId: string): Promise<void> {
