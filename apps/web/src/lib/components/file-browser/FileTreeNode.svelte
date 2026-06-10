@@ -15,6 +15,7 @@
     selectedPath,
     onOpenFile,
     onContextMenu,
+    onUpload,
   }: {
     entry: FileEntry
     depth: number
@@ -25,6 +26,7 @@
     selectedPath: string
     onOpenFile: (path: string) => void
     onContextMenu: (e: MouseEvent, entry: FileEntry, path: string) => void
+    onUpload: (uploads: import('./file-upload').FileUpload[], targetPath: string) => void
   } = $props()
 
   let expanded = $state(false)
@@ -83,6 +85,7 @@
     selected={selectedPath === path}
     onToggle={handleToggle}
     {onContextMenu}
+    {onUpload}
   />
   {#if expanded}
     <div class="children" aria-label="Contents of {entry.name}">
@@ -106,6 +109,7 @@
             {selectedPath}
             {onOpenFile}
             {onContextMenu}
+            {onUpload}
           />
         {/each}
       {/if}

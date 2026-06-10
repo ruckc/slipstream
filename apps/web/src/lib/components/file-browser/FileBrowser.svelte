@@ -13,6 +13,7 @@
   import { podFetch } from '$lib/pod-fetch'
   import Icon from '$lib/components/common/Icon.svelte'
   import Button from '$lib/components/common/Button.svelte'
+  import { uploadsFromFileList, type FileUpload } from './file-upload'
 
   const CHUNK_SIZE = 1024 * 1024 // 1 MB
 
@@ -102,11 +103,36 @@
   }
 
   async function handleCtxDownload(path: string) {
+    const filename = path.split('/').pop() ?? 'download'
+    const res = await podFetch(
+      projectId,
+      namespaceSlug,
+      projectSlug,
+      '/fs/download?path=' + encodeURIComponent(path)
+    )
+    if (!res.ok) throw new Error('Download failed: ' + res.status)
+
+    if ('showSaveFilePicker' in window && res.body) {
+      try {
+        const handle = await (
+          window as Window & { showSaveFilePicker: (o: object) => Promise<FileSystemFileHandle> }
+        ).showSaveFilePicker({ suggestedName: filename })
+        const writable = await handle.createWritable()
+        await res.body.pipeTo(writable)
+        return
+      } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+        // API failed — fall through to blob
+      }
+    }
+
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    const base = `/env/${encodeURIComponent(namespaceSlug)}/${encodeURIComponent(projectSlug)}`
-    a.href = base + '/fs/download?path=' + encodeURIComponent(path)
-    a.download = path.split('/').pop() ?? 'download'
+    a.href = blobUrl
+    a.download = filename
     a.click()
+    URL.revokeObjectURL(blobUrl)
   }
 
   function handleCtxRename(path: string) {
@@ -184,13 +210,14 @@
     await loadDirectory(currentPath)
   }
 
-  function handleUpload(files: File[], targetPath: string) {
-    for (const file of files) {
+  function handleUpload(uploads: FileUpload[], targetPath: string) {
+    const base = targetPath.endsWith('/') ? targetPath : targetPath + '/'
+    for (const upload of uploads) {
       const id = Math.random().toString(36).slice(2)
       let cancelled = false
       const item: UploadItem = {
         id,
-        filename: file.name,
+        filename: upload.relativePath,
         progress: 0,
         error: null,
         cancel: () => {
@@ -198,8 +225,8 @@
         },
       }
       uploadItems = [...uploadItems, item]
-      const dest = (targetPath.endsWith('/') ? targetPath : targetPath + '/') + file.name
-      uploadFile(file, dest, id, () => cancelled)
+      const dest = base + upload.relativePath
+      uploadFile(upload.file, dest, id, () => cancelled)
     }
   }
 
@@ -218,9 +245,9 @@
           projectId,
           namespaceSlug,
           projectSlug,
-          '/fs/upload?path=' + encodeURIComponent(destPath),
+          '/fs/write?path=' + encodeURIComponent(destPath),
           {
-            method: 'POST',
+            method: 'PUT',
             headers: {
               'Content-Range': `bytes ${offset}-${end - 1}/${total}`,
               'Content-Type': 'application/octet-stream',
@@ -264,6 +291,25 @@
     newItemParent = currentPath
     newItemOpen = true
   }
+
+  let fileInputEl = $state<HTMLInputElement | undefined>(undefined)
+  let dirInputEl = $state<HTMLInputElement | undefined>(undefined)
+
+  function handleUploadButton() {
+    fileInputEl?.click()
+  }
+
+  function handleUploadDirButton() {
+    dirInputEl?.click()
+  }
+
+  function handleFileInputChange(e: Event) {
+    const input = e.currentTarget as HTMLInputElement
+    if (input.files && input.files.length > 0) {
+      handleUpload(uploadsFromFileList(input.files), currentPath)
+    }
+    input.value = ''
+  }
 </script>
 
 <div class="file-browser">
@@ -279,8 +325,28 @@
       <Button variant="ghost" size="sm" onclick={handleNewFolderHere} title="New Folder">
         <Icon name="folder" size={12} />
       </Button>
+      <Button variant="ghost" size="sm" onclick={handleUploadButton} title="Upload Files">
+        <Icon name="upload" size={12} />
+      </Button>
+      <Button variant="ghost" size="sm" onclick={handleUploadDirButton} title="Upload Folder">
+        <Icon name="folder" size={12} />
+      </Button>
     </div>
   </div>
+  <input
+    bind:this={fileInputEl}
+    type="file"
+    multiple
+    class="upload-input-hidden"
+    onchange={handleFileInputChange}
+  />
+  <input
+    bind:this={dirInputEl}
+    type="file"
+    webkitdirectory
+    class="upload-input-hidden"
+    onchange={handleFileInputChange}
+  />
 
   <div class="file-browser-body">
     {#if loading}
@@ -304,6 +370,7 @@
           {selectedPath}
           onOpenFile={handleOpenFile}
           onContextMenu={handleContextMenu}
+          onUpload={handleUpload}
         />
       </FileUploadDropZone>
     {/if}
@@ -407,5 +474,9 @@
     padding: var(--space-4) var(--space-3);
     font-size: var(--font-size-sm);
     color: var(--color-danger);
+  }
+
+  .upload-input-hidden {
+    display: none;
   }
 </style>

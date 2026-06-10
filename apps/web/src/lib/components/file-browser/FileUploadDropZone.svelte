@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import Icon from '$lib/components/common/Icon.svelte'
+  import { uploadsFromDataTransfer } from './file-upload'
 
   let {
     targetPath,
@@ -8,7 +9,7 @@
     children,
   }: {
     targetPath: string
-    onUpload: (files: File[], targetPath: string) => void
+    onUpload: (uploads: import('./file-upload').FileUpload[], targetPath: string) => void
     children: Snippet
   } = $props()
 
@@ -38,14 +39,14 @@
     }
   }
 
-  function handleDrop(e: DragEvent) {
+  async function handleDrop(e: DragEvent) {
     e.preventDefault()
     dragOver = false
     dragCounter = 0
-
-    const files = Array.from(e.dataTransfer?.files ?? [])
-    if (files.length > 0) {
-      onUpload(files, targetPath)
+    if (!e.dataTransfer) return
+    const uploads = await uploadsFromDataTransfer(e.dataTransfer)
+    if (uploads.length > 0) {
+      onUpload(uploads, targetPath)
     }
   }
 </script>

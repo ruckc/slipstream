@@ -144,6 +144,7 @@
   title={path}
   aria-label={entry.name}
 >
+  <span class="file-chevron-spacer" aria-hidden="true"></span>
   <span class="file-icon">
     <Icon name={icon} size={14} />
   </span>
@@ -183,6 +184,12 @@
 
   .file-row--selected:hover {
     background: var(--color-bg-selection);
+  }
+
+  .file-chevron-spacer {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
   }
 
   .file-icon {

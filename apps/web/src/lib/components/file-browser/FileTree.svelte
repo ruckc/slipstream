@@ -11,6 +11,7 @@
     selectedPath = '',
     onOpenFile,
     onContextMenu,
+    onUpload,
   }: {
     entries: FileEntry[]
     currentPath: string
@@ -20,6 +21,7 @@
     selectedPath?: string
     onOpenFile: (path: string) => void
     onContextMenu: (e: MouseEvent, entry: FileEntry, path: string) => void
+    onUpload: (uploads: import('./file-upload').FileUpload[], targetPath: string) => void
   } = $props()
 
   let containerEl = $state<HTMLDivElement | undefined>(undefined)
@@ -82,6 +84,7 @@
         {selectedPath}
         {onOpenFile}
         {onContextMenu}
+        {onUpload}
       />
     {/each}
   {/if}

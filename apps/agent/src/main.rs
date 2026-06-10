@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{
     http::{HeaderValue, Method},
     response::Json,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Extension, Router,
 };
 use serde_json::json;
@@ -119,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST, Method::DELETE])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers(Any)
         .allow_origin(allow_origin);
 
@@ -138,9 +138,10 @@ async fn main() -> anyhow::Result<()> {
         // Filesystem (requires 'files:read' or 'files:write')
         .route("/fs", get(fs::list_dir))
         .route("/fs/download", get(fs::download_file))
-        .route("/fs/upload", post(fs::upload_file))
         .route("/fs", delete(fs::delete_path))
         .route("/fs/mkdir", post(fs::create_dir))
+        .route("/fs/move", post(fs::move_path))
+        .route("/fs/write", put(fs::write_file))
         // Attach state and layers
         .with_state(state.clone())
         .layer(Extension(JwksCacheExt(jwks)))

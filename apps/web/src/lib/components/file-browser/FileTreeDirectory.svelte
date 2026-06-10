@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from '$lib/components/common/Icon.svelte'
   import type { FileEntry } from './FileTreeFile.svelte'
+  import { uploadsFromDataTransfer, type FileUpload } from './file-upload'
 
   let {
     entry,
@@ -11,6 +12,7 @@
     selected = false,
     onToggle,
     onContextMenu,
+    onUpload,
   }: {
     entry: FileEntry
     depth: number
@@ -20,7 +22,49 @@
     selected?: boolean
     onToggle: () => void
     onContextMenu: (e: MouseEvent, entry: FileEntry, path: string) => void
+    onUpload: (uploads: FileUpload[], targetPath: string) => void
   } = $props()
+
+  let dirDragOver = $state(false)
+  let dirDragCounter = $state(0)
+
+  function handleDirDragEnter(e: DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    dirDragCounter++
+    if (e.dataTransfer?.types.includes('Files')) {
+      dirDragOver = true
+    }
+  }
+
+  function handleDirDragLeave(e: DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    dirDragCounter--
+    if (dirDragCounter === 0) {
+      dirDragOver = false
+    }
+  }
+
+  function handleDirDragOver(e: DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy'
+    }
+  }
+
+  async function handleDirDrop(e: DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    dirDragOver = false
+    dirDragCounter = 0
+    if (!e.dataTransfer) return
+    const uploads = await uploadsFromDataTransfer(e.dataTransfer)
+    if (uploads.length > 0) {
+      onUpload(uploads, path)
+    }
+  }
 
   let longPressTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -43,6 +87,7 @@
 <button
   class="dir-row"
   class:dir-row--selected={selected}
+  class:dir-row--drag-over={dirDragOver}
   style="padding-left: calc(var(--space-2) + {depth * 16}px)"
   onclick={onToggle}
   oncontextmenu={(e) => {
@@ -52,6 +97,10 @@
   ontouchstart={handleTouchStart}
   ontouchend={cancelLongPress}
   ontouchcancel={cancelLongPress}
+  ondragenter={handleDirDragEnter}
+  ondragleave={handleDirDragLeave}
+  ondragover={handleDirDragOver}
+  ondrop={handleDirDrop}
   aria-expanded={expanded}
   title={path}
 >
@@ -91,6 +140,12 @@
 
   .dir-row--selected {
     background: var(--color-bg-selection);
+  }
+
+  .dir-row--drag-over {
+    outline: 2px dashed var(--color-accent);
+    outline-offset: -2px;
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
   }
 
   .dir-chevron {

@@ -22,6 +22,12 @@ use tokio::io::AsyncReadExt;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info};
 
+#[derive(Deserialize)]
+pub struct MoveBody {
+    pub from: String,
+    pub to: String,
+}
+
 // ---------------------------------------------------------------------------
 // Path safety
 // ---------------------------------------------------------------------------
@@ -282,142 +288,6 @@ pub async fn download_file(
     }
 }
 
-// ---------------------------------------------------------------------------
-// upload_file: POST /fs/upload?path=/some/file
-// Supports Content-Range: bytes START-END/TOTAL
-// ---------------------------------------------------------------------------
-
-pub async fn upload_file(
-    State(state): State<Arc<AppState>>,
-    AuthUser(claims): AuthUser,
-    Query(params): Query<PathQuery>,
-    headers: HeaderMap,
-    body: Bytes,
-) -> Result<impl IntoResponse, AppError> {
-    require_permission(&claims, "files:write")?;
-    state.idle.touch();
-
-    let file_path = safe_path(&state.config.workspace_path, &params.path)?;
-
-    // Ensure parent directory exists.
-    if let Some(parent) = file_path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| AppError::Internal(e.into()))?;
-    }
-
-    // Parse Content-Range header: `bytes START-END/TOTAL`
-    let content_range = headers
-        .get(header::CONTENT_RANGE)
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string());
-
-    if let Some(range_str) = content_range {
-        // Parse "bytes START-END/TOTAL"
-        if let Some(rest) = range_str.strip_prefix("bytes ") {
-            let parts: Vec<&str> = rest.splitn(2, '/').collect();
-            if parts.len() == 2 {
-                let range_parts: Vec<&str> = parts[0].splitn(2, '-').collect();
-                let total: u64 = parts[1]
-                    .parse()
-                    .map_err(|_| AppError::BadRequest("Invalid Content-Range: bad total".into()))?;
-
-                if range_parts.len() == 2 {
-                    let start: u64 = range_parts[0].parse().map_err(|_| {
-                        AppError::BadRequest("Invalid Content-Range: bad start".into())
-                    })?;
-                    let end: u64 = range_parts[1].parse().map_err(|_| {
-                        AppError::BadRequest("Invalid Content-Range: bad end".into())
-                    })?;
-
-                    if end < start {
-                        return Err(AppError::BadRequest(
-                            "Content-Range: end must be >= start".into(),
-                        ));
-                    }
-                    if end >= total {
-                        return Err(AppError::BadRequest(
-                            "Content-Range: end must be < total".into(),
-                        ));
-                    }
-                    let expected_body_len = (end - start + 1) as usize;
-                    if body.len() != expected_body_len {
-                        return Err(AppError::BadRequest(format!(
-                            "Content-Range: body length {} does not match range {}-{} (expected {})",
-                            body.len(),
-                            start,
-                            end,
-                            expected_body_len,
-                        )));
-                    }
-
-                    // Write chunk at the correct offset.
-                    use tokio::io::{AsyncSeekExt, AsyncWriteExt};
-
-                    let mut file = if start == 0 {
-                        // First chunk — create/truncate the file.
-                        tokio::fs::OpenOptions::new()
-                            .create(true)
-                            .write(true)
-                            .truncate(true)
-                            .open(&file_path)
-                            .await
-                            .map_err(|e| AppError::Internal(e.into()))?
-                    } else {
-                        // Subsequent chunk — open for writing, keep existing data.
-                        tokio::fs::OpenOptions::new()
-                            .create(true)
-                            .write(true)
-                            .truncate(false)
-                            .open(&file_path)
-                            .await
-                            .map_err(|e| AppError::Internal(e.into()))?
-                    };
-
-                    file.seek(std::io::SeekFrom::Start(start))
-                        .await
-                        .map_err(|e| AppError::Internal(e.into()))?;
-
-                    file.write_all(&body)
-                        .await
-                        .map_err(|e| AppError::Internal(e.into()))?;
-
-                    let received = end + 1;
-                    let complete = received >= total;
-
-                    info!(
-                        "Upload chunk {}-{}/{} for '{}', complete={}",
-                        start, end, total, params.path, complete
-                    );
-
-                    return Ok((
-                        StatusCode::OK,
-                        Json(json!({"received": received, "complete": complete})),
-                    )
-                        .into_response());
-                }
-            }
-        }
-
-        return Err(AppError::BadRequest(
-            "Invalid Content-Range header".to_string(),
-        ));
-    }
-
-    // No Content-Range → write entire file.
-    tokio::fs::write(&file_path, &body)
-        .await
-        .map_err(|e| AppError::Internal(e.into()))?;
-
-    let received = body.len() as u64;
-    info!("Uploaded '{}' ({} bytes)", params.path, received);
-
-    Ok((
-        StatusCode::OK,
-        Json(json!({"received": received, "complete": true})),
-    )
-        .into_response())
-}
 
 // ---------------------------------------------------------------------------
 // delete_path: DELETE /fs?path=/some/path
@@ -475,4 +345,182 @@ pub async fn create_dir(
 
     info!("Created directory '{}'", params.path);
     Ok((StatusCode::CREATED, Json(json!({"created": params.path}))))
+}
+
+// ---------------------------------------------------------------------------
+// write_file: PUT /fs/write?path=/some/file
+// Creates or overwrites a file. Supports Content-Range for chunked/resumable
+// uploads of arbitrarily large files. Without Content-Range the body is
+// streamed directly to disk (no memory buffering).
+//
+// Resume: send HEAD or GET /fs?path=<file> to learn the current byte offset,
+// then resume with Content-Range: bytes <offset>-<end>/<total>.
+// ---------------------------------------------------------------------------
+
+pub async fn write_file(
+    State(state): State<Arc<AppState>>,
+    AuthUser(claims): AuthUser,
+    Query(params): Query<PathQuery>,
+    headers: HeaderMap,
+    body: axum::body::Body,
+) -> Result<impl IntoResponse, AppError> {
+    use futures_util::StreamExt;
+    use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+
+    require_permission(&claims, "files:write")?;
+    state.idle.touch();
+
+    let file_path = safe_path(&state.config.workspace_path, &params.path)?;
+
+    if let Some(parent) = file_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
+    }
+
+    let content_range = headers
+        .get(header::CONTENT_RANGE)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    if let Some(range_str) = content_range {
+        if let Some(rest) = range_str.strip_prefix("bytes ") {
+            let parts: Vec<&str> = rest.splitn(2, '/').collect();
+            if parts.len() == 2 {
+                let range_parts: Vec<&str> = parts[0].splitn(2, '-').collect();
+                let total: u64 = parts[1]
+                    .parse()
+                    .map_err(|_| AppError::BadRequest("Invalid Content-Range: bad total".into()))?;
+
+                if range_parts.len() == 2 {
+                    let start: u64 = range_parts[0].parse().map_err(|_| {
+                        AppError::BadRequest("Invalid Content-Range: bad start".into())
+                    })?;
+                    let end: u64 = range_parts[1].parse().map_err(|_| {
+                        AppError::BadRequest("Invalid Content-Range: bad end".into())
+                    })?;
+
+                    if end < start {
+                        return Err(AppError::BadRequest(
+                            "Content-Range: end must be >= start".into(),
+                        ));
+                    }
+                    if end >= total {
+                        return Err(AppError::BadRequest(
+                            "Content-Range: end must be < total".into(),
+                        ));
+                    }
+
+                    let mut file = if start == 0 {
+                        tokio::fs::OpenOptions::new()
+                            .create(true)
+                            .write(true)
+                            .truncate(true)
+                            .open(&file_path)
+                            .await
+                            .map_err(|e| AppError::Internal(e.into()))?
+                    } else {
+                        tokio::fs::OpenOptions::new()
+                            .create(true)
+                            .write(true)
+                            .truncate(false)
+                            .open(&file_path)
+                            .await
+                            .map_err(|e| AppError::Internal(e.into()))?
+                    };
+
+                    file.seek(std::io::SeekFrom::Start(start))
+                        .await
+                        .map_err(|e| AppError::Internal(e.into()))?;
+
+                    let mut stream = body.into_data_stream();
+                    let mut written: u64 = 0;
+                    while let Some(chunk) = stream.next().await {
+                        let chunk =
+                            chunk.map_err(|e| AppError::Internal(anyhow::anyhow!("{e}")))?;
+                        file.write_all(&chunk)
+                            .await
+                            .map_err(|e| AppError::Internal(e.into()))?;
+                        written += chunk.len() as u64;
+                    }
+
+                    let received = start + written;
+                    let complete = received >= total;
+
+                    info!(
+                        "Write chunk {}-{}/{} for '{}', complete={}",
+                        start,
+                        start + written.saturating_sub(1),
+                        total,
+                        params.path,
+                        complete
+                    );
+
+                    return Ok((
+                        StatusCode::OK,
+                        Json(json!({"received": received, "complete": complete})),
+                    )
+                        .into_response());
+                }
+            }
+        }
+        return Err(AppError::BadRequest(
+            "Invalid Content-Range header".to_string(),
+        ));
+    }
+
+    // No Content-Range — stream entire body directly to disk.
+    let mut file = tokio::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&file_path)
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
+    let mut stream = body.into_data_stream();
+    let mut received: u64 = 0;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| AppError::Internal(anyhow::anyhow!("{e}")))?;
+        file.write_all(&chunk)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
+        received += chunk.len() as u64;
+    }
+
+    info!("Wrote '{}' ({} bytes)", params.path, received);
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({"received": received, "complete": true})),
+    )
+        .into_response())
+}
+
+// ---------------------------------------------------------------------------
+// move_path: POST /fs/move  body: {"from": "/old", "to": "/new"}
+// ---------------------------------------------------------------------------
+
+pub async fn move_path(
+    State(state): State<Arc<AppState>>,
+    AuthUser(claims): AuthUser,
+    Json(body): Json<MoveBody>,
+) -> Result<impl IntoResponse, AppError> {
+    require_permission(&claims, "files:write")?;
+    state.idle.touch();
+
+    let from_path = safe_path(&state.config.workspace_path, &body.from)?;
+    let to_path = safe_path(&state.config.workspace_path, &body.to)?;
+
+    if let Some(parent) = to_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
+    }
+
+    tokio::fs::rename(&from_path, &to_path)
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
+    info!("Moved '{}' -> '{}'", body.from, body.to);
+    Ok(Json(json!({"from": body.from, "to": body.to})))
 }
