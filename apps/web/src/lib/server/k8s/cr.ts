@@ -96,7 +96,10 @@ export async function patchProjectEnvironmentSpec(
   const res = await fetch(url, {
     ...opts,
     method: 'PATCH',
-    headers: { ...(opts.headers as Record<string, string>), 'Content-Type': 'application/merge-patch+json' },
+    headers: {
+      ...(opts.headers as Record<string, string>),
+      'Content-Type': 'application/merge-patch+json',
+    },
     body: JSON.stringify({ spec: patch }),
   })
   if (!res.ok) {
