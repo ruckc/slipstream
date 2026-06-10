@@ -32,8 +32,10 @@ spec:
                   type: string
                 namespaceSlug:
                   type: string
+                  minLength: 1
                 projectSlug:
                   type: string
+                  minLength: 1
                 desiredState:
                   type: string
                   enum: [running, stopped]

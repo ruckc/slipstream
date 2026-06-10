@@ -290,6 +290,9 @@ var httpRouteGVR = schema.GroupVersionResource{
 }
 
 func (c *Controller) ensureHTTPRoute(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
+	if pe.Spec.NamespaceSlug == "" || pe.Spec.ProjectSlug == "" {
+		return fmt.Errorf("namespaceSlug and projectSlug must not be empty (got %q / %q)", pe.Spec.NamespaceSlug, pe.Spec.ProjectSlug)
+	}
 	ns := projectNamespace(pe)
 	name := routeName(pe)
 	desired := buildHTTPRoute(pe, c.cfg)

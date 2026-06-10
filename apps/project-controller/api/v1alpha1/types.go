@@ -29,9 +29,11 @@ type ProjectEnvironmentSpec struct {
 	NamespaceID string `json:"namespaceId"`
 
 	// NamespaceSlug is the human-readable slug of the owning namespace.
+	// +kubebuilder:validation:MinLength=1
 	NamespaceSlug string `json:"namespaceSlug"`
 
 	// ProjectSlug is the human-readable slug of the project.
+	// +kubebuilder:validation:MinLength=1
 	ProjectSlug string `json:"projectSlug"`
 
 	// DesiredState controls whether the project's Deployment is running or stopped.
