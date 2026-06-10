@@ -1,12 +1,37 @@
-FROM rust:latest AS builder
+FROM lukemathwalker/cargo-chef:latest-rust-slim AS chef
 WORKDIR /build
-COPY apps/agent/Cargo.toml ./
-# Create empty src/main.rs for dependency caching
-RUN mkdir src && echo 'fn main(){}' > src/main.rs
-RUN cargo build --release
-# Now copy real source
+
+FROM chef AS planner
+COPY apps/agent/Cargo.toml apps/agent/Cargo.lock ./
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+# Install sccache from a pre-built binary to avoid a slow cargo-install step
+ARG SCCACHE_VERSION=0.10.0
+RUN curl -fsSL "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+    | tar -xz --strip-components=1 -C /usr/local/bin \
+      "sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache"
+
+ENV RUSTC_WRAPPER=sccache
+
+COPY --from=planner /build/recipe.json recipe.json
+# Cook dependencies — this layer is only invalidated when Cargo.toml/Cargo.lock change
+RUN --mount=type=secret,id=actions_cache_url \
+    --mount=type=secret,id=actions_runtime_token \
+    --mount=type=cache,target=/root/.cache/sccache \
+    SCCACHE_GHA_ENABLED=${SCCACHE_GHA_ENABLED:-false} \
+    ACTIONS_CACHE_URL=$(cat /run/secrets/actions_cache_url 2>/dev/null || true) \
+    ACTIONS_RUNTIME_TOKEN=$(cat /run/secrets/actions_runtime_token 2>/dev/null || true) \
+    cargo chef cook --release --recipe-path recipe.json
+
 COPY apps/agent/src ./src
-RUN touch src/main.rs && cargo build --release
+RUN --mount=type=secret,id=actions_cache_url \
+    --mount=type=secret,id=actions_runtime_token \
+    --mount=type=cache,target=/root/.cache/sccache \
+    SCCACHE_GHA_ENABLED=${SCCACHE_GHA_ENABLED:-false} \
+    ACTIONS_CACHE_URL=$(cat /run/secrets/actions_cache_url 2>/dev/null || true) \
+    ACTIONS_RUNTIME_TOKEN=$(cat /run/secrets/actions_runtime_token 2>/dev/null || true) \
+    cargo build --release
 
 FROM debian:13.5-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
