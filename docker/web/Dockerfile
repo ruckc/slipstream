@@ -6,7 +6,8 @@ RUN corepack enable
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web/package.json ./apps/web/
 
-RUN pnpm install --frozen-lockfile --filter @slipstream/web...
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --filter @slipstream/web...
 
 # ── Stage 1b: Install production-only dependencies (for runtime) ───────────────
 FROM node:lts-alpine AS prod-deps
@@ -16,7 +17,8 @@ RUN corepack enable
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web/package.json ./apps/web/
 
-RUN pnpm install --frozen-lockfile --prod --filter @slipstream/web...
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --prod --filter @slipstream/web...
 
 # ── Stage 2: Build ────────────────────────────────────────────────────────────
 FROM node:lts-alpine AS builder
