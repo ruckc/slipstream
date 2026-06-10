@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slipstream-hubble-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hubble-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: slipstream-hubble-collector
+  template:
+    metadata:
+      labels:
+        app: slipstream-hubble-collector
+        {{- include "slipstream.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: slipstream-web
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: hubble-collector
+          image: {{ include "slipstream.hubbleCollectorImage" . }}
+          imagePullPolicy: {{ .Values.image.hubbleCollector.pullPolicy }}
+          env:
+            - name: HUBBLE_RELAY_ADDRESS
+              value: {{ .Values.hubbleCollector.hubbleRelayAddress | quote }}
+            {{- include "slipstream.databaseEnv" . | nindent 12 }}
+          {{- if .Values.database.pgopSecret.secretName }}
+          envFrom: []
+          {{- else }}
+          envFrom:
+            - secretRef:
+                name: {{ include "slipstream.secretName" . }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.hubbleCollector.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

@@ -81,6 +81,9 @@ jobs:
           - name: project-controller
             dockerfile: docker/project-controller/Dockerfile
             platforms: linux/amd64
+          - name: hubble-collector
+            dockerfile: docker/hubble-collector/Dockerfile
+            platforms: linux/amd64
     steps:
       - uses: actions/checkout@v6.0.2
 

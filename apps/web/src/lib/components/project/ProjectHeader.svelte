@@ -36,6 +36,14 @@
   </div>
   <div class="project-header-actions">
     <a
+      href="/{namespaceSlug}/{projectSlug}/network"
+      class="header-action-btn"
+      title="Network activity"
+      aria-label="Network activity"
+    >
+      <Icon name="network" size={12} />
+    </a>
+    <a
       href="/{namespaceSlug}/{projectSlug}/settings"
       class="header-action-btn"
       title="Project settings"

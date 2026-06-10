@@ -19,6 +19,20 @@ image:
     repository: ghcr.io/OWNER/slipstream-project-controller
     tag: "" # defaults to chart appVersion
     pullPolicy: IfNotPresent
+  hubbleCollector:
+    repository: ghcr.io/OWNER/slipstream-hubble-collector
+    tag: "" # defaults to chart appVersion
+    pullPolicy: IfNotPresent
+
+hubbleCollector:
+  # Address of the Hubble Relay gRPC endpoint.
+  hubbleRelayAddress: "hubble-relay.kube-system.svc.cluster.local:4245"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
 
 web:
   replicas: 1

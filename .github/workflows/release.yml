@@ -164,6 +164,14 @@ jobs:
           open('apps/project-controller/version.go', 'w').write(content)
           PYEOF
 
+          # apps/hubble-collector/version.go
+          python3 - << 'PYEOF'
+          import os
+          ver = os.environ['VERSION']
+          content = f'package main\n\n// Version is set at release time by the release workflow.\nvar Version = "{ver}"\n'
+          open('apps/hubble-collector/version.go', 'w').write(content)
+          PYEOF
+
           # apps/agent/Cargo.lock — update the slipstream-agent package entry to match Cargo.toml
           python3 - << 'PYEOF'
           import re, os
@@ -199,6 +207,7 @@ jobs:
           echo "Cargo.toml:                $(grep '^version' apps/agent/Cargo.toml | head -1)"
           echo "metrics-sidecar/version.go:$(cat apps/metrics-sidecar/version.go | grep Version)"
           echo "controller/version.go:     $(cat apps/project-controller/version.go | grep Version)"
+          echo "hubble-collector/version.go:$(cat apps/hubble-collector/version.go | grep Version)"
           echo "Chart.yaml:                $(grep '^version:' charts/slipstream/Chart.yaml)"
 
       # ── 5. Commit, tag, and push ─────────────────────────────────────────
@@ -216,6 +225,7 @@ jobs:
                   apps/agent/Cargo.lock \
                   apps/metrics-sidecar/version.go \
                   apps/project-controller/version.go \
+                  apps/hubble-collector/version.go \
                   charts/slipstream/Chart.yaml
 
           git commit -m "chore: release ${TAG}"
@@ -246,6 +256,9 @@ jobs:
             platforms: linux/amd64
           - name: project-controller
             dockerfile: docker/project-controller/Dockerfile
+            platforms: linux/amd64
+          - name: hubble-collector
+            dockerfile: docker/hubble-collector/Dockerfile
             platforms: linux/amd64
     steps:
       # Check out the exact tagged commit, not the workflow ref

@@ -266,3 +266,42 @@ export const serverErrors = pgTable('server_errors', {
 
 export type ServerError = InferSelectModel<typeof serverErrors>
 export type NewServerError = InferInsertModel<typeof serverErrors>
+
+// ---------------------------------------------------------------------------
+// network_flows — egress flow log from Hubble collector
+// ---------------------------------------------------------------------------
+export const networkFlows = pgTable(
+  'network_flows',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+    observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
+    flowType: text('flow_type').notNull(), // 'dns'|'http'|'l4'
+    verdict: text('verdict').notNull(), // 'forwarded'|'dropped'|'redirected'|'audited'|'unknown'
+    sourceIp: text('source_ip'),
+    destIp: text('dest_ip'),
+    destPort: integer('dest_port'),
+    protocol: text('protocol'), // 'TCP'|'UDP'|'ICMP'
+    // DNS fields
+    dnsQuery: text('dns_query'),
+    dnsRcode: text('dns_rcode'),
+    dnsResponseIps: text('dns_response_ips').array(),
+    // HTTP fields
+    httpMethod: text('http_method'),
+    httpUrl: text('http_url'),
+    httpStatus: integer('http_status'),
+    httpProtocol: text('http_protocol'),
+  },
+  () => [
+    check('network_flows_flow_type_check', sql`flow_type IN ('dns', 'http', 'l4')`),
+    check(
+      'network_flows_verdict_check',
+      sql`verdict IN ('forwarded', 'dropped', 'redirected', 'audited', 'unknown')`
+    ),
+  ]
+)
+
+export type NetworkFlow = InferSelectModel<typeof networkFlows>
+export type NewNetworkFlow = InferInsertModel<typeof networkFlows>

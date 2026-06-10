@@ -43,6 +43,13 @@
       "when": 1781093811150,
       "tag": "0005_empty_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781095722577,
+      "tag": "0006_supreme_lightspeed",
+      "breakpoints": true
     }
   ]
 }

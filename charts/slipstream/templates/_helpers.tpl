@@ -70,6 +70,13 @@ Written into the ConfigMap so the web app can reference it when launching projec
 {{- end }}
 
 {{/*
+Full image reference for the hubble-collector container.
+*/}}
+{{- define "slipstream.hubbleCollectorImage" -}}
+{{- printf "%s:%s" .Values.image.hubbleCollector.repository (.Values.image.hubbleCollector.tag | default .Chart.AppVersion) }}
+{{- end }}
+
+{{/*
 VictoriaMetrics remote-write URL (in-cluster).
 */}}
 {{- define "slipstream.metricsPushUrl" -}}
