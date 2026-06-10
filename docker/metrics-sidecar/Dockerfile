@@ -1,6 +1,6 @@
 # Use BUILDPLATFORM for the compiler stage so the Go toolchain always runs
 # natively; TARGETOS/TARGETARCH drive cross-compilation via GOOS/GOARCH.
-FROM --platform=$BUILDPLATFORM golang:1.26.3 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.4 AS builder
 WORKDIR /build
 COPY apps/metrics-sidecar/ ./
 

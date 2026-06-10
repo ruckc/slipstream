@@ -8,7 +8,7 @@ RUN cargo build --release
 COPY apps/agent/src ./src
 RUN touch src/main.rs && cargo build --release
 
-FROM debian:13-slim
+FROM debian:13.5-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash build-essential ca-certificates curl dnsutils htop lsof procps \
     && install -dm 755 /etc/apt/keyrings \
