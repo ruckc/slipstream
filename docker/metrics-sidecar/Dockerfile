@@ -6,10 +6,7 @@ WORKDIR /build
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 
-COPY apps/metrics-sidecar/go.mod apps/metrics-sidecar/go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod \
-    go mod download
-
+COPY apps/metrics-sidecar/go.mod ./
 COPY apps/metrics-sidecar/ ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
