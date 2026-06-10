@@ -1,7 +1,12 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import { getNewPageData, createProjectForm, createOrgForm } from '$lib/remote/new-project.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
+
+  onMount(() => {
+    history.replaceState(history.state, '', '/')
+  })
 
   const { userNamespace, orgNamespaces } = await getNewPageData()
 
