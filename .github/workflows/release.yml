@@ -304,9 +304,7 @@ jobs:
             type=gha,scope=release-${{ matrix.image.name }}
             type=gha,scope=${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=release-${{ matrix.image.name }}
-          secrets: |
-            "actions_cache_url=${{ matrix.image.name == 'agent' && env.ACTIONS_CACHE_URL || '' }}"
-            "actions_runtime_token=${{ matrix.image.name == 'agent' && env.ACTIONS_RUNTIME_TOKEN || '' }}"
+          secrets: ${{ matrix.image.name == 'agent' && format('actions_cache_url={0}{1}actions_runtime_token={2}', env.ACTIONS_CACHE_URL, '\n', env.ACTIONS_RUNTIME_TOKEN) || '' }}
 
   # ── Package and publish the Helm chart to GHCR OCI ─────────────────────────
   publish-chart:
