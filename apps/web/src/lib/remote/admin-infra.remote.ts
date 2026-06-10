@@ -1,6 +1,7 @@
 import { query, getRequestEvent } from '$app/server'
 import { error } from '@sveltejs/kit'
-import { getCoreV1Api, getAppsV1Api } from '$lib/server/k8s/client'
+import { getCoreV1Api } from '$lib/server/k8s/client'
+import { listProjectEnvironments } from '$lib/server/k8s/cr'
 import * as v from 'valibot'
 
 function assertAdmin() {
@@ -11,42 +12,25 @@ function assertAdmin() {
 export const getNamespaces = query(async () => {
   assertAdmin()
   const coreApi = getCoreV1Api()
-  const appsApi = getAppsV1Api()
 
-  const nsResult = await coreApi.listNamespace()
-  const namespaceNames = nsResult.items
-    .map((ns) => ns.metadata?.name)
-    .filter((n): n is string => !!n)
-    .filter((n) => n === 'slipstream-system' || n.startsWith('project-'))
-    .sort()
+  const envs = await listProjectEnvironments()
+  const namespaceNames = [...new Set(envs.map((e) => `project-${e.spec.projectId}`))].sort()
 
   return Promise.all(
     namespaceNames.map(async (name) => {
-      const [deployments, pods] = await Promise.all([
-        appsApi
-          .listNamespacedDeployment({ namespace: name })
-          .then((r) =>
-            r.items.map((d) => ({
-              name: d.metadata?.name ?? '',
-              replicas: d.spec?.replicas ?? 0,
-              readyReplicas: d.status?.readyReplicas ?? 0,
-            }))
-          )
-          .catch(() => []),
-        coreApi
-          .listNamespacedPod({ namespace: name })
-          .then((r) =>
-            r.items.map((p) => ({
-              name: p.metadata?.name ?? '',
-              phase: p.status?.phase ?? 'Unknown',
-              ready: p.status?.conditions?.find((c) => c.type === 'Ready')?.status === 'True',
-              restarts:
-                p.status?.containerStatuses?.reduce((sum, cs) => sum + cs.restartCount, 0) ?? 0,
-            }))
-          )
-          .catch(() => []),
-      ])
-      return { name, deployments, pods }
+      const pods = await coreApi
+        .listNamespacedPod({ namespace: name })
+        .then((r) =>
+          r.items.map((p) => ({
+            name: p.metadata?.name ?? '',
+            phase: p.status?.phase ?? 'Unknown',
+            ready: p.status?.conditions?.find((c) => c.type === 'Ready')?.status === 'True',
+            restarts:
+              p.status?.containerStatuses?.reduce((sum, cs) => sum + cs.restartCount, 0) ?? 0,
+          }))
+        )
+        .catch(() => [])
+      return { name, pods }
     })
   )
 })

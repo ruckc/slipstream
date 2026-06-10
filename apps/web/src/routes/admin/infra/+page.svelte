@@ -3,8 +3,7 @@
   import { getNamespaces, describePod, getPodLogs } from '$lib/remote/admin-infra.remote'
 
   type PodSummary = { name: string; phase: string; ready: boolean; restarts: number }
-  type DeploymentSummary = { name: string; replicas: number; readyReplicas: number }
-  type NamespaceSummary = { name: string; deployments: DeploymentSummary[]; pods: PodSummary[] }
+  type NamespaceSummary = { name: string; pods: PodSummary[] }
 
   type InspectTarget = { namespace: string; pod: string }
   type DescribeResult = {
