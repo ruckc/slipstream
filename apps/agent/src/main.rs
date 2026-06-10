@@ -79,8 +79,6 @@ async fn main() -> anyhow::Result<()> {
         config.project_id.clone(),
     ));
 
-    let (shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
-
     // Start the metric-push background task with a fresh IdleTracker that
     // shares the same sessions store. The Arc<IdleTracker> in AppState is used
     // for touch().
@@ -90,7 +88,7 @@ async fn main() -> anyhow::Result<()> {
         config.project_id.clone(),
     );
     let idle_timeout = config.idle_timeout_secs;
-    idle_bg.start(idle_timeout, shutdown_tx.clone());
+    idle_bg.start(idle_timeout);
 
     // 4. Build app state.
     let state = Arc::new(AppState {
@@ -171,9 +169,6 @@ async fn main() -> anyhow::Result<()> {
                         std::future::pending::<()>().await
                     }
                 } => {}
-                _ = shutdown_rx.changed() => {
-                    info!("Shutdown signal received");
-                }
             }
         })
         .await?;

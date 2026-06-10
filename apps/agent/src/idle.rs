@@ -4,7 +4,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tokio::sync::watch;
 use tracing::{info, warn};
 
 pub struct IdleTracker {
@@ -36,7 +35,7 @@ impl IdleTracker {
     /// Start a background task that pushes `slipstream_last_activity_at` to
     /// VictoriaMetrics every 30 seconds. The web server's reconciler queries
     /// this metric to detect idle projects and scale their deployments to zero.
-    pub fn start(self, _idle_timeout_secs: u64, _shutdown_tx: watch::Sender<bool>) {
+    pub fn start(self, _idle_timeout_secs: u64) {
         let Some(push_url) = self.metrics_push_url.clone() else {
             info!("METRICS_PUSH_URL not set; idle metric reporting disabled");
             return;
