@@ -3,6 +3,7 @@ set -euo pipefail
 
 mise run format
 mise run lint
+pnpm --filter @slipstream/web build
 
 # Auto-stage any files that format rewrote so they travel with the commit.
 git diff --quiet apps/agent/Cargo.lock || git add apps/agent/Cargo.lock
