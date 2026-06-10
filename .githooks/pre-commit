@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+mise run format
 mise run lint
 
-# cargo commands during lint may rewrite Cargo.lock (e.g. version bump not yet reflected).
-# Stage it automatically so it travels with the commit rather than being left behind.
+# Auto-stage any files that format rewrote so they travel with the commit.
 git diff --quiet apps/agent/Cargo.lock || git add apps/agent/Cargo.lock
+git diff --quiet apps/web || git -C apps/web add -u .
