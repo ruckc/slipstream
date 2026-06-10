@@ -25,7 +25,9 @@ export const SESSION_COOKIE_OPTIONS = {
 
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30 // 30 days
 
-// SESSION_SECRET must be set in production. Fallback is only for local dev.
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
+  throw new Error('SESSION_SECRET env var must be set in production')
+}
 const SESSION_SECRET = process.env.SESSION_SECRET ?? 'dev-insecure-secret-change-me'
 
 // Cookie value format: "{sessionId}.{HMAC-SHA256(sessionId, SESSION_SECRET) as hex}"

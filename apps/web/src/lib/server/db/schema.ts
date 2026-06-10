@@ -6,6 +6,7 @@ import {
   integer,
   numeric,
   unique,
+  index,
   primaryKey,
   check,
   boolean,
@@ -87,14 +88,18 @@ export type NewOidcConnection = InferInsertModel<typeof oidcConnections>
 // ---------------------------------------------------------------------------
 // sessions
 // ---------------------------------------------------------------------------
-export const sessions = pgTable('sessions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
-    .references(() => users.id)
-    .notNull(),
-  expiresAt: timestamp('expires_at').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
-})
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .references(() => users.id)
+      .notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+  },
+  (t) => [index('sessions_user_id_expires_at_idx').on(t.userId, t.expiresAt)]
+)
 
 export type Session = InferSelectModel<typeof sessions>
 export type NewSession = InferInsertModel<typeof sessions>
