@@ -124,9 +124,15 @@ The SvelteKit server never proxies pod traffic — the gateway routes it directl
 
 Slugs are globally unique across users and orgs (enforced by a DB unique index on `namespaces.slug`). Kubernetes namespaces are prefixed: user `alice` → `u-alice`, org `acme` → `o-acme`. First registrant of a slug wins permanently.
 
-### Pod lifecycle
+Each **project** gets its own dedicated Kubernetes namespace (`project-{projectId}`). All project resources (Deployment, Service, HTTPRoute, NetworkPolicy, PVC, `ProjectEnvironment` CR) live in that namespace. Deleting the namespace cascades all non-PVC resources automatically.
 
-Projects have status: `stopped → starting → running → stopping → stopped`. Pods are plain `Pod` resources (not Deployments) with `restartPolicy: Never`. When the Rust agent reaches its idle timeout (no WebSocket connections for `IDLE_TIMEOUT_SECONDS`) it exits with code 0, the pod reaches `Completed`, and the SvelteKit server detects this via a k8s watch and marks the project stopped. PVCs are never deleted when a pod stops — only when a project is explicitly deleted.
+### Project lifecycle
+
+Projects run as `Deployment` resources (replicas 0 = stopped, 1 = running). **There is no `status` field in the DB** — project status is derived on-demand from the k8s Deployment (`getDeploymentStatus` / `listDeploymentStatuses` in `src/lib/server/k8s/deployment.ts`).
+
+**Idle shutdown** is handled by a server-side reconciler (`src/lib/server/reconcile.ts`) that polls every 60 s. It reads `slipstream_last_activity_at` from VictoriaMetrics, identifies Deployments whose last activity exceeds their idle timeout, and scales them to 0. This loop only runs when `METRICS_PUSH_URL` is set. `IDLE_TIMEOUT_SECONDS` is passed to the agent as an env var but the agent does not self-exit — the web app reconciler is the sole actor that scales Deployments down.
+
+PVCs are never deleted when a project stops — only when a project is explicitly deleted.
 
 Idle timeout resolution priority: `project.idleTimeoutSeconds` → `org/user.idleTimeoutSeconds` → `DEFAULT_IDLE_TIMEOUT_SECONDS` env var (default 1800 s).
 

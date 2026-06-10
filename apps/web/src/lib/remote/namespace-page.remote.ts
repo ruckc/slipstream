@@ -2,7 +2,7 @@ import { query, getRequestEvent } from '$app/server'
 import { redirect, error } from '@sveltejs/kit'
 import { db, namespaces, projects, organizations, orgMembers } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
-import { listDeploymentStatuses } from '$lib/server/k8s/deployment'
+import { listProjectEnvironments, phaseToProjectStatus } from '$lib/server/k8s/cr'
 
 export const getNamespacePage = query(async () => {
   const { locals, params } = getRequestEvent()
@@ -53,12 +53,16 @@ export const getNamespacePage = query(async () => {
 
   const [projectRows, statuses] = await Promise.all([
     db.select().from(projects).where(eq(projects.namespaceId, namespace.id)),
-    listDeploymentStatuses(),
+    listProjectEnvironments(),
   ])
+
+  const statusMap = new Map(
+    statuses.map((cr) => [cr.spec.projectId, phaseToProjectStatus(cr.status?.phase)])
+  )
 
   return {
     namespace,
-    projects: projectRows.map((p) => ({ ...p, status: statuses.get(p.id) ?? 'stopped' })),
+    projects: projectRows.map((p) => ({ ...p, status: statusMap.get(p.id) ?? 'stopped' })),
     isOwner,
     orgData,
     user: locals.user,

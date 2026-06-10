@@ -1,8 +1,5 @@
 import type { Handle } from '@sveltejs/kit'
 import { validateSession } from '$lib/server/auth/session'
-import { startReconciler } from '$lib/server/reconcile'
-
-startReconciler()
 
 const PUBLIC_API_ROUTES = ['/api/jwks']
 

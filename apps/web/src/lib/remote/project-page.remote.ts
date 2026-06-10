@@ -3,9 +3,7 @@ import { redirect, error } from '@sveltejs/kit'
 import { getProject } from '$lib/remote/project.remote'
 import { resolvePermissions } from '$lib/server/permissions'
 import type { Permission } from '$lib/server/permissions'
-import { getDeploymentStatus } from '$lib/server/k8s/deployment'
-import type { ProjectPodStatus } from '$lib/server/k8s/deployment'
-import { projectK8sNamespace } from '$lib/server/k8s/namespace'
+import { getProjectEnvironment, phaseToProjectStatus } from '$lib/server/k8s/cr'
 import * as v from 'valibot'
 
 export const getProjectPage = query(
@@ -17,9 +15,9 @@ export const getProjectPage = query(
     const project = await getProject({ namespaceSlug: arg.namespace, projectSlug: arg.project })
     if (!project) error(404, 'Project not found')
 
-    const [permissions, podStatus] = await Promise.all([
+    const [permissions, cr] = await Promise.all([
       resolvePermissions(locals.user, project.id) as Promise<Permission[]>,
-      getDeploymentStatus(projectK8sNamespace(project.id), project.id),
+      getProjectEnvironment(project.id),
     ])
     if (permissions.length === 0) error(403, 'Access denied')
 
@@ -28,7 +26,7 @@ export const getProjectPage = query(
       namespace: project.namespace,
       permissions,
       user: locals.user,
-      podStatus: podStatus as ProjectPodStatus,
+      podStatus: phaseToProjectStatus(cr?.status?.phase),
     }
   }
 )

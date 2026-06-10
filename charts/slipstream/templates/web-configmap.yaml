@@ -8,23 +8,7 @@ metadata:
 data:
   APP_URL: {{ include "slipstream.appUrl" . | quote }}
   ORIGIN: {{ include "slipstream.appUrl" . | quote }}
-  DEFAULT_IDLE_TIMEOUT_SECONDS: {{ .Values.agent.idleTimeoutSeconds | quote }}
-  AGENT_IMAGE: {{ include "slipstream.agentImage" . | quote }}
-  AGENT_STORAGE_CLASS: {{ .Values.agent.storageClass | quote }}
   WEB_NAMESPACE: {{ .Release.Namespace | quote }}
-  GATEWAY_NAME: {{ .Values.gateway.name | quote }}
-  GATEWAY_NAMESPACE: {{ .Values.gateway.namespace | quote }}
-  GATEWAY_HOSTNAME: {{ .Values.gateway.hostname | quote }}
-  GATEWAY_LISTENER_HTTPS: {{ .Values.gateway.listeners.https | quote }}
-  {{- if .Values.gateway.proxyNamespace }}
-  GATEWAY_PROXY_NAMESPACE: {{ .Values.gateway.proxyNamespace | quote }}
-  GATEWAY_PROXY_LABEL_KEY: {{ .Values.gateway.proxyLabelKey | quote }}
-  GATEWAY_PROXY_LABEL_VALUE: {{ .Values.gateway.proxyLabelValue | default .Values.gateway.name | quote }}
-  {{- end }}
-  {{- if .Values.victoriametrics.enabled }}
-  METRICS_SIDECAR_IMAGE: {{ include "slipstream.metricsSidecarImage" . | quote }}
-  METRICS_PUSH_URL: {{ include "slipstream.metricsPushUrl" . | quote }}
-  {{- end }}
   {{- if .Values.devMode.enabled }}
   DEV_MODE: "true"
   {{- end }}

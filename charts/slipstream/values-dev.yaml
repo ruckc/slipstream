@@ -25,6 +25,9 @@ image:
   metricsSidecar:
     repository: localhost:5001/slipstream-metrics-sidecar
     tag: local
+  projectController:
+    repository: localhost:5001/slipstream-project-controller
+    tag: local
 
 web:
   replicas: 1

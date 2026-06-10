@@ -4,8 +4,7 @@ import { eq } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
 import { resolvePermissions } from '$lib/server/permissions'
 import { issueProjectToken } from '$lib/server/jwt/issue'
-import { getDeploymentStatus } from '$lib/server/k8s/deployment'
-import { projectK8sNamespace } from '$lib/server/k8s/namespace'
+import { getProjectEnvironment } from '$lib/server/k8s/cr'
 import * as v from 'valibot'
 
 export const issueToken = command(
@@ -18,8 +17,8 @@ export const issueToken = command(
     const rows = await db.select().from(projects).where(eq(projects.id, arg.projectId)).limit(1)
     if (rows.length === 0) throw error(404, 'Project not found')
 
-    const podStatus = await getDeploymentStatus(projectK8sNamespace(arg.projectId), arg.projectId)
-    if (podStatus !== 'running') {
+    const cr = await getProjectEnvironment(arg.projectId)
+    if (cr?.status?.phase !== 'Running') {
       throw error(409, 'Project is not running')
     }
 

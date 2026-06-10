@@ -1,19 +1,23 @@
 import { query, getRequestEvent } from '$app/server'
 import { redirect } from '@sveltejs/kit'
 import { listUserProjects } from '$lib/remote/namespace.remote'
-import { listDeploymentStatuses } from '$lib/server/k8s/deployment'
+import { listProjectEnvironments, phaseToProjectStatus } from '$lib/server/k8s/cr'
 
 export const getDashboard = query('unchecked', async (_: Record<string, never>) => {
   const { locals } = getRequestEvent()
   if (!locals.user) redirect(302, '/auth/login')
 
-  const [projects, statuses] = await Promise.all([
+  const [projects, crs] = await Promise.all([
     listUserProjects(locals.user.id),
-    listDeploymentStatuses(),
+    listProjectEnvironments(),
   ])
 
+  const statusMap = new Map(
+    crs.map((cr) => [cr.spec.projectId, phaseToProjectStatus(cr.status?.phase)])
+  )
+
   return {
-    projects: projects.map((p) => ({ ...p, status: statuses.get(p.id) ?? 'stopped' })),
+    projects: projects.map((p) => ({ ...p, status: statusMap.get(p.id) ?? 'stopped' })),
     user: locals.user,
   }
 })

@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slipstream-project-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+    app.kubernetes.io/component: project-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: slipstream-project-controller
+  template:
+    metadata:
+      labels:
+        app: slipstream-project-controller
+        {{- include "slipstream.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: slipstream-project-controller
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: controller
+          image: {{ include "slipstream.projectControllerImage" . }}
+          imagePullPolicy: {{ .Values.image.projectController.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: slipstream-controller-config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

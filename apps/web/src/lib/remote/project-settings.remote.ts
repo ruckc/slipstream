@@ -7,8 +7,14 @@ import { getDashboard } from '$lib/remote/dashboard.remote'
 import { getProjectPermissions, setProjectPermissions } from '$lib/remote/permissions.remote'
 import { resolvePermissions } from '$lib/server/permissions'
 import type { Permission } from '$lib/server/permissions'
-import { patchRunningPodForProject } from '$lib/server/k8s/cilium-policy'
+import { resolveEgressPolicy } from '$lib/server/k8s/egress'
+import { patchEgressPolicy, resolvedEgressToSpec } from '$lib/server/k8s/cr'
 import * as v from 'valibot'
+
+async function syncEgressPolicy(projectId: string, namespaceId: string): Promise<void> {
+  const policy = await resolveEgressPolicy(namespaceId, projectId)
+  await patchEgressPolicy(projectId, resolvedEgressToSpec(policy))
+}
 
 const DOMAIN_RE = /^(\*\*\.|\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i
 
@@ -274,7 +280,7 @@ export const updateProjectEgressFilterEnabled = command(
       .update(projects)
       .set({ egressFilterEnabled: arg.enabled, updatedAt: new Date() })
       .where(eq(projects.id, project.id))
-    await patchRunningPodForProject(project.id, project.namespaceId)
+    await syncEgressPolicy(project.id, project.namespaceId)
   }
 )
 
@@ -312,7 +318,7 @@ export const addProjectEgressRule = command(
       })
       .returning()
 
-    await patchRunningPodForProject(project.id, project.namespaceId)
+    await syncEgressPolicy(project.id, project.namespaceId)
     return rule
   }
 )
@@ -335,7 +341,7 @@ export const removeProjectEgressRule = command(
     await db
       .delete(egressRules)
       .where(and(eq(egressRules.id, arg.ruleId), eq(egressRules.ownerId, project.id)))
-    await patchRunningPodForProject(project.id, project.namespaceId)
+    await syncEgressPolicy(project.id, project.namespaceId)
   }
 )
 
@@ -366,6 +372,6 @@ export const updateProjectEgressRulePorts = command(
       .set({ ports: arg.ports })
       .where(and(eq(egressRules.id, arg.ruleId), eq(egressRules.ownerId, project.id)))
 
-    await patchRunningPodForProject(project.id, project.namespaceId)
+    await syncEgressPolicy(project.id, project.namespaceId)
   }
 )

@@ -8,7 +8,23 @@ import {
   removeMember as orgRemoveMember,
   setMemberRole as orgSetMemberRole,
 } from '$lib/remote/organization.remote'
-import { patchRunningPodsForNamespace } from '$lib/server/k8s/cilium-policy'
+import { resolveEgressPolicy } from '$lib/server/k8s/egress'
+import {
+  patchEgressPolicy,
+  resolvedEgressToSpec,
+  listProjectEnvironments,
+} from '$lib/server/k8s/cr'
+
+async function syncEgressPolicyForNamespace(namespaceId: string): Promise<void> {
+  const crs = await listProjectEnvironments()
+  const namespaceCrs = crs.filter((cr) => cr.spec.namespaceId === namespaceId)
+  await Promise.allSettled(
+    namespaceCrs.map(async (cr) => {
+      const policy = await resolveEgressPolicy(namespaceId, cr.spec.projectId)
+      await patchEgressPolicy(cr.spec.projectId, resolvedEgressToSpec(policy))
+    })
+  )
+}
 
 const DOMAIN_RE = /^(\*\*\.|\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i
 
@@ -298,7 +314,7 @@ export const updateEgressFilterEnabled = command(
       .update(namespaces)
       .set({ egressFilterEnabled: arg.enabled })
       .where(eq(namespaces.id, ns.id))
-    await patchRunningPodsForNamespace(ns.id)
+    await syncEgressPolicyForNamespace(ns.id)
   }
 )
 
@@ -309,7 +325,7 @@ export const updateEgressListMode = command(
     if (!locals.user) redirect(302, '/auth/login')
     const ns = await assertNamespaceOwner(locals.user.id, arg.namespaceSlug)
     await db.update(namespaces).set({ egressListMode: arg.mode }).where(eq(namespaces.id, ns.id))
-    await patchRunningPodsForNamespace(ns.id)
+    await syncEgressPolicyForNamespace(ns.id)
   }
 )
 
@@ -342,7 +358,7 @@ export const addNamespaceEgressRule = command(
       })
       .returning()
 
-    await patchRunningPodsForNamespace(ns.id)
+    await syncEgressPolicyForNamespace(ns.id)
     return rule
   }
 )
@@ -357,7 +373,7 @@ export const removeNamespaceEgressRule = command(
     await db
       .delete(egressRules)
       .where(and(eq(egressRules.id, arg.ruleId), eq(egressRules.ownerId, ns.id)))
-    await patchRunningPodsForNamespace(ns.id)
+    await syncEgressPolicyForNamespace(ns.id)
   }
 )
 
@@ -381,6 +397,6 @@ export const updateNamespaceEgressRulePorts = command(
         )
       )
 
-    await patchRunningPodsForNamespace(ns.id)
+    await syncEgressPolicyForNamespace(ns.id)
   }
 )

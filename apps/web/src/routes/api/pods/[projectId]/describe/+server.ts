@@ -4,7 +4,10 @@ import { db, projects } from '$lib/server/db'
 import { eq } from 'drizzle-orm'
 import { resolvePermissions } from '$lib/server/permissions'
 import { getCoreV1Api } from '$lib/server/k8s/client'
-import { projectK8sNamespace } from '$lib/server/k8s/namespace'
+
+function projectK8sNamespace(projectId: string): string {
+  return `project-${projectId}`
+}
 
 export const GET: RequestHandler = async ({ params, locals }) => {
   if (!locals.user) error(401, 'Unauthorized')
@@ -22,7 +25,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
   try {
     const pods = await api.listNamespacedPod({
       namespace: projectK8sNamespace(project.id),
-      labelSelector: `slipstream.io/project=${project.id}`,
+      labelSelector: `slipstream.io/project-id=${project.id}`,
     })
     const pod = pods.items.find((p) => p.status?.phase === 'Running') ?? pods.items[0] ?? null
     return json({ pod })

@@ -55,6 +55,13 @@ Written into the ConfigMap so the web app can reference it when launching projec
 {{- end }}
 
 {{/*
+Full image reference for the project-controller container.
+*/}}
+{{- define "slipstream.projectControllerImage" -}}
+{{- printf "%s:%s" .Values.image.projectController.repository (.Values.image.projectController.tag | default .Chart.AppVersion) }}
+{{- end }}
+
+{{/*
 Full image reference for the metrics sidecar container.
 Written into the ConfigMap so the web app can reference it when launching project pods.
 */}}

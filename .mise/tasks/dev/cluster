@@ -83,6 +83,9 @@ kubectl wait --for=condition=Established --timeout=60s \
   crd/httproutes.gateway.networking.k8s.io \
   crd/referencegrants.gateway.networking.k8s.io
 
+echo "→ Installing ProjectEnvironment CRD..."
+kubectl apply -f apps/project-controller/config/crd/projectenvironments.yaml
+
 echo "→ Creating slipstream-system namespace..."
 kubectl apply -f - <<'EOF'
 apiVersion: v1
