@@ -78,6 +78,9 @@ jobs:
           - name: metrics-sidecar
             dockerfile: docker/metrics-sidecar/Dockerfile
             platforms: linux/amd64
+          - name: project-controller
+            dockerfile: docker/project-controller/Dockerfile
+            platforms: linux/amd64
     steps:
       - uses: actions/checkout@v6.0.2
 

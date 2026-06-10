@@ -156,6 +156,14 @@ jobs:
           open('apps/metrics-sidecar/version.go', 'w').write(content)
           PYEOF
 
+          # apps/project-controller/version.go
+          python3 - << 'PYEOF'
+          import os
+          ver = os.environ['VERSION']
+          content = f'package main\n\n// Version is set at release time by the release workflow.\nconst Version = "{ver}"\n'
+          open('apps/project-controller/version.go', 'w').write(content)
+          PYEOF
+
           # apps/agent/Cargo.lock — update the slipstream-agent package entry to match Cargo.toml
           python3 - << 'PYEOF'
           import re, os
@@ -186,11 +194,12 @@ jobs:
           PYEOF
 
           echo ""
-          echo "VERSION file:         $(cat VERSION)"
-          echo "package.json:         $(node -p "require('./apps/web/package.json').version")"
-          echo "Cargo.toml:           $(grep '^version' apps/agent/Cargo.toml | head -1)"
-          echo "version.go:           $(cat apps/metrics-sidecar/version.go)"
-          echo "Chart.yaml:           $(grep '^version:' charts/slipstream/Chart.yaml)"
+          echo "VERSION file:              $(cat VERSION)"
+          echo "package.json:              $(node -p "require('./apps/web/package.json').version")"
+          echo "Cargo.toml:                $(grep '^version' apps/agent/Cargo.toml | head -1)"
+          echo "metrics-sidecar/version.go:$(cat apps/metrics-sidecar/version.go | grep Version)"
+          echo "controller/version.go:     $(cat apps/project-controller/version.go | grep Version)"
+          echo "Chart.yaml:                $(grep '^version:' charts/slipstream/Chart.yaml)"
 
       # ── 5. Commit, tag, and push ─────────────────────────────────────────
       - name: Commit, tag, and push
@@ -206,6 +215,7 @@ jobs:
                   apps/agent/Cargo.toml \
                   apps/agent/Cargo.lock \
                   apps/metrics-sidecar/version.go \
+                  apps/project-controller/version.go \
                   charts/slipstream/Chart.yaml
 
           git commit -m "chore: release ${TAG}"
@@ -233,6 +243,9 @@ jobs:
             platforms: linux/amd64
           - name: metrics-sidecar
             dockerfile: docker/metrics-sidecar/Dockerfile
+            platforms: linux/amd64
+          - name: project-controller
+            dockerfile: docker/project-controller/Dockerfile
             platforms: linux/amd64
     steps:
       # Check out the exact tagged commit, not the workflow ref
@@ -370,4 +383,5 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/slipstream-web:${{ needs.version-and-tag.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/slipstream-agent:${{ needs.version-and-tag.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/slipstream-metrics-sidecar:${{ needs.version-and-tag.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/slipstream-project-controller:${{ needs.version-and-tag.outputs.version }}
             ```
