@@ -18,7 +18,7 @@ use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
 use parking_lot::Mutex;
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::VecDeque,
@@ -71,7 +71,11 @@ impl SessionStore {
         }
     }
 
-    pub fn create(&self) -> anyhow::Result<String> {
+    pub fn create(
+        &self,
+        command: Option<Vec<String>>,
+        working_dir: Option<String>,
+    ) -> anyhow::Result<String> {
         let pty_system = NativePtySystem::default();
 
         let pair = pty_system
@@ -83,18 +87,37 @@ impl SessionStore {
             })
             .map_err(|e| anyhow::anyhow!("Failed to open PTY: {}", e))?;
 
+        let cwd = working_dir.unwrap_or_else(|| "/workspace".to_string());
+
+        // Build the shell invocation. If a command is provided, use
+        // `bash -c "exec <cmd>"` so $PATH resolution happens inside the shell
+        // and the target process replaces bash as the PTY child.
         let mut cmd = CommandBuilder::new("/bin/bash");
-        cmd.cwd("/workspace");
         cmd.env("TERM", "xterm-256color");
         cmd.env("HOME", "/home/agent");
         cmd.env("SHELL", "/bin/bash");
+        cmd.cwd(&cwd);
+        if let Some(ref args) = command {
+            if !args.is_empty() {
+                // Shell-quote each argument conservatively by wrapping in single
+                // quotes and escaping any embedded single quotes.
+                let escaped: Vec<String> = args
+                    .iter()
+                    .map(|a| format!("'{}'", a.replace('\'', "'\\''")))
+                    .collect();
+                cmd.args(["-c", &format!("exec {}", escaped.join(" "))]);
+            }
+        }
 
-        // Try bash first, fall back to sh.
+        // Try bash first, fall back to sh (only for the default shell case).
         let child = match pair.slave.spawn_command(cmd) {
             Ok(c) => c,
-            Err(_) => {
+            Err(e) => {
+                if command.is_some() {
+                    return Err(anyhow::anyhow!("Failed to spawn command: {}", e));
+                }
                 let mut fallback = CommandBuilder::new("/bin/sh");
-                fallback.cwd("/workspace");
+                fallback.cwd(&cwd);
                 fallback.env("TERM", "xterm-256color");
                 pair.slave
                     .spawn_command(fallback)
@@ -182,14 +205,27 @@ impl SessionStore {
 // HTTP handlers
 // ---------------------------------------------------------------------------
 
+#[derive(Deserialize, Default)]
+pub struct CreateSessionRequest {
+    pub command: Option<Vec<String>>,
+    pub working_dir: Option<String>,
+    #[allow(dead_code)]
+    pub label: Option<String>,
+}
+
 pub async fn create_session(
     State(state): State<Arc<AppState>>,
     AuthUser(claims): AuthUser,
+    body: Option<Json<CreateSessionRequest>>,
 ) -> Result<impl IntoResponse, AppError> {
     require_permission(&claims, "shell")?;
     state.idle.touch();
 
-    let session_id = state.sessions.create().map_err(AppError::Internal)?;
+    let req = body.map(|b| b.0).unwrap_or_default();
+    let session_id = state
+        .sessions
+        .create(req.command, req.working_dir)
+        .map_err(AppError::Internal)?;
 
     Ok((
         axum::http::StatusCode::CREATED,

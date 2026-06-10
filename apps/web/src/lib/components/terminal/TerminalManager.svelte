@@ -2,8 +2,11 @@
   import { onMount } from 'svelte'
   import TerminalTabBar from './TerminalTabBar.svelte'
   import TerminalPane from './TerminalPane.svelte'
+  import NewSessionDialog from './NewSessionDialog.svelte'
   import type { TerminalSession } from './TerminalTabBar.svelte'
   import { podFetch } from '$lib/pod-fetch'
+  import { getProjectCommands, saveProjectCommand } from '$lib/remote/project-commands.remote'
+  import type { ProjectCommand } from '$lib/server/db'
 
   let {
     projectId,
@@ -18,6 +21,16 @@
   let sessions = $state<TerminalSession[]>([])
   let activeSessionId = $state<string | null>(null)
   let loadError = $state<string | null>(null)
+  let showNewSessionDialog = $state(false)
+  let savedCommands = $state<ProjectCommand[]>([])
+
+  async function loadSavedCommands() {
+    try {
+      savedCommands = await getProjectCommands({ projectId })
+    } catch {
+      savedCommands = []
+    }
+  }
 
   async function fetchSessions() {
     try {
@@ -36,31 +49,56 @@
           activeSessionId = loaded[0].id
         }
       } else {
-        await createSession()
+        await createSession(null, null)
       }
     } catch {
-      await createSession()
+      await createSession(null, null)
     }
   }
 
-  async function createSession() {
+  async function createSession(command: string | null, workingDir: string | null) {
     try {
+      const body: Record<string, unknown> = {
+        label: `Terminal ${sessions.length + 1}`,
+      }
+      if (command) body.command = command.trim().split(/\s+/)
+      if (workingDir) body.working_dir = workingDir
+
       const res = await podFetch(projectId, namespaceSlug, projectSlug, '/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: `Terminal ${sessions.length + 1}` }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error('Failed to create session: ' + res.status)
       const data = (await res.json()) as { session_id: string; label?: string }
       const newSession: TerminalSession = {
         id: data.session_id,
-        label: data.label ?? `Terminal ${sessions.length + 1}`,
+        label: command ?? data.label ?? `Terminal ${sessions.length + 1}`,
       }
       sessions = [...sessions, newSession]
       activeSessionId = newSession.id
+
+      if (command) {
+        try {
+          const saved = await saveProjectCommand({ projectId, command })
+          if (!savedCommands.some((c) => c.id === saved.id)) {
+            savedCommands = [saved, ...savedCommands]
+          }
+        } catch {
+          // best-effort
+        }
+      }
     } catch (err) {
       loadError = err instanceof Error ? err.message : 'Failed to create terminal session'
     }
+  }
+
+  function handleNewSession() {
+    showNewSessionDialog = true
+  }
+
+  function handleDialogConfirm(command: string | null, workingDir: string | null) {
+    createSession(command, workingDir)
   }
 
   async function closeSession(id: string) {
@@ -74,7 +112,7 @@
       activeSessionId = sessions.length > 0 ? sessions[sessions.length - 1].id : null
     }
     if (sessions.length === 0) {
-      await createSession()
+      await createSession(null, null)
     }
   }
 
@@ -88,6 +126,7 @@
   }
 
   onMount(() => {
+    loadSavedCommands()
     fetchSessions()
   })
 </script>
@@ -107,10 +146,15 @@
       </button>
     </div>
   {:else}
+    <NewSessionDialog
+      bind:open={showNewSessionDialog}
+      {savedCommands}
+      onconfirm={handleDialogConfirm}
+    />
     <TerminalTabBar
       {sessions}
       bind:activeSessionId
-      onNewSession={createSession}
+      onNewSession={handleNewSession}
       onCloseSession={closeSession}
     />
     <div class="terminal-panes">

@@ -241,6 +241,19 @@ export type NewEgressRule = InferInsertModel<typeof egressRules>
 // ---------------------------------------------------------------------------
 // server_errors — admin-visible exception log
 // ---------------------------------------------------------------------------
+export const projectCommands = pgTable('project_commands', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .references(() => projects.id, { onDelete: 'cascade' })
+    .notNull(),
+  label: text('label'),
+  command: text('command').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export type ProjectCommand = InferSelectModel<typeof projectCommands>
+export type NewProjectCommand = InferInsertModel<typeof projectCommands>
+
 export const serverErrors = pgTable('server_errors', {
   id: uuid('id').primaryKey().defaultRandom(),
   occurredAt: timestamp('occurred_at').defaultNow().notNull(),
