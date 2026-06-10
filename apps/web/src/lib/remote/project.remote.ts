@@ -169,15 +169,27 @@ export const startProject = command(
   async (arg: { projectId: string }): Promise<void> => {
     const { locals } = getRequestEvent()
     if (!locals.user) throw error(401, 'Unauthorized')
-    await getProjectById(arg.projectId)
     await assertProjectManage(locals.user.id, arg.projectId)
+
+    const rows = await db
+      .select()
+      .from(projects)
+      .innerJoin(namespaces, eq(projects.namespaceId, namespaces.id))
+      .where(eq(projects.id, arg.projectId))
+      .limit(1)
+    if (rows.length === 0) throw error(404, 'Project not found')
+    const { projects: project, namespaces: namespace } = rows[0]
 
     const cr = await getProjectEnvironment(arg.projectId)
     if (!cr) throw error(404, 'Project environment not found')
     if (cr.spec.desiredState === 'running') return
 
+    const patch: Partial<(typeof cr)['spec']> = { desiredState: 'running' }
+    if (!cr.spec.namespaceSlug) patch.namespaceSlug = namespace.slug
+    if (!cr.spec.projectSlug) patch.projectSlug = project.slug
+
     try {
-      await patchProjectEnvironmentSpec(arg.projectId, { desiredState: 'running' })
+      await patchProjectEnvironmentSpec(arg.projectId, patch)
     } catch (e) {
       const msg = (e as Error).message
       await logServerError(msg, {

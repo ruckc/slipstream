@@ -55,6 +55,10 @@ function crName(projectId: string): string {
 }
 
 export async function createProjectEnvironment(spec: ProjectEnvironmentSpec): Promise<void> {
+  if (!spec.projectId) throw new Error('createProjectEnvironment: projectId is required')
+  if (!spec.namespaceId) throw new Error('createProjectEnvironment: namespaceId is required')
+  if (!spec.namespaceSlug) throw new Error('createProjectEnvironment: namespaceSlug is required')
+  if (!spec.projectSlug) throw new Error('createProjectEnvironment: projectSlug is required')
   const api = getCustomObjectsApi()
   await api.createClusterCustomObject({
     group: GROUP,
