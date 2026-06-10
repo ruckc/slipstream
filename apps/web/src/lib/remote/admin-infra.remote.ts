@@ -64,7 +64,7 @@ export const describePod = query(
       }),
     ])
     return {
-      pod: podSpec,
+      pod: JSON.parse(JSON.stringify(podSpec)),
       events: events.items.map((e) => ({
         type: e.type,
         reason: e.reason,

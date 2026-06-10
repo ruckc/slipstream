@@ -92,14 +92,12 @@ export async function patchProjectEnvironmentSpec(
   const kc = getKubeConfig()
   const cluster = kc.getCurrentCluster()!
   const url = `${cluster.server}/apis/${GROUP}/${VERSION}/${PLURAL}/${crName(projectId)}`
-  const opts = await kc.applyToFetchOptions({ headers: {} })
+  const baseHeaders: Record<string, string> = {}
+  const opts = await kc.applyToFetchOptions({ headers: baseHeaders })
   const res = await fetch(url, {
     ...opts,
     method: 'PATCH',
-    headers: {
-      ...(opts.headers as Record<string, string>),
-      'Content-Type': 'application/merge-patch+json',
-    },
+    headers: { ...baseHeaders, 'Content-Type': 'application/merge-patch+json' },
     body: JSON.stringify({ spec: patch }),
   })
   if (!res.ok) {
