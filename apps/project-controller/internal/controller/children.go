@@ -221,14 +221,12 @@ func buildNetworkPolicy(pe *v1alpha1.ProjectEnvironment) *networkingv1.NetworkPo
 				networkingv1.PolicyTypeEgress,
 			},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				// Allow ingress from the gateway namespace only.
+				// Allow all ingress on 8080. The Envoy Gateway proxy runs with hostNetwork
+				// so its source is the node IP (10.244.0.1), not a pod namespace IP.
+				// Security is enforced by JWT validation in the agent, not by NetworkPolicy.
 				{
-					From: []networkingv1.NetworkPolicyPeer{
-						{
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{"kubernetes.io/metadata.name": "slipstream-system"},
-							},
-						},
+					Ports: []networkingv1.NetworkPolicyPort{
+						{Port: intstrPtr(8080), Protocol: protocolPtr(corev1.ProtocolTCP)},
 					},
 				},
 			},

@@ -121,9 +121,12 @@ func (c *Controller) processNext(ctx context.Context) bool {
 	}
 	defer c.queue.Done(key)
 
-	err := c.reconcile(ctx, key.(string))
+	requeue, err := c.reconcile(ctx, key.(string))
 	if err == nil {
 		c.queue.Forget(key)
+		if requeue > 0 {
+			c.queue.AddAfter(key, requeue)
+		}
 		return true
 	}
 
@@ -132,37 +135,45 @@ func (c *Controller) processNext(ctx context.Context) bool {
 	return true
 }
 
-func (c *Controller) reconcile(ctx context.Context, key string) error {
+func (c *Controller) reconcile(ctx context.Context, key string) (time.Duration, error) {
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	raw, err := c.peClient.Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		// Already deleted; GC handles namespace via ownerReference on the Namespace.
-		return nil
+		return 0, nil
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	pe, err := unstructuredToPE(raw)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Handle deletion via finalizer.
 	if !pe.DeletionTimestamp.IsZero() {
-		return c.handleDelete(ctx, pe)
+		return 0, c.handleDelete(ctx, pe)
 	}
 
 	// Ensure finalizer is present.
 	if err := c.ensureFinalizer(ctx, pe); err != nil {
-		return err
+		return 0, err
 	}
 
-	return c.ensureResources(ctx, pe)
+	phase, err := c.ensureResources(ctx, pe)
+	if err != nil {
+		return 0, err
+	}
+	// Re-poll until the deployment becomes ready.
+	if phase == v1alpha1.PhaseProvisioning || phase == v1alpha1.PhaseStopping {
+		return 5 * time.Second, nil
+	}
+	return 0, nil
 }
 
 func (c *Controller) handleDelete(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
@@ -185,27 +196,27 @@ func (c *Controller) handleDelete(ctx context.Context, pe *v1alpha1.ProjectEnvir
 	return c.removeFinalizer(ctx, pe)
 }
 
-func (c *Controller) ensureResources(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
+func (c *Controller) ensureResources(ctx context.Context, pe *v1alpha1.ProjectEnvironment) (v1alpha1.ProjectEnvironmentPhase, error) {
 	if err := c.ensureNamespace(ctx, pe); err != nil {
-		return fmt.Errorf("ensure namespace: %w", err)
+		return "", fmt.Errorf("ensure namespace: %w", err)
 	}
 	if err := c.ensurePVC(ctx, pe); err != nil {
-		return fmt.Errorf("ensure PVC: %w", err)
+		return "", fmt.Errorf("ensure PVC: %w", err)
 	}
 	if err := c.ensureDeployment(ctx, pe); err != nil {
-		return fmt.Errorf("ensure deployment: %w", err)
+		return "", fmt.Errorf("ensure deployment: %w", err)
 	}
 	if err := c.ensureService(ctx, pe); err != nil {
-		return fmt.Errorf("ensure service: %w", err)
+		return "", fmt.Errorf("ensure service: %w", err)
 	}
 	if err := c.ensureNetworkPolicy(ctx, pe); err != nil {
-		return fmt.Errorf("ensure network policy: %w", err)
+		return "", fmt.Errorf("ensure network policy: %w", err)
 	}
 	if err := c.ensureHTTPRoute(ctx, pe); err != nil {
-		return fmt.Errorf("ensure HTTPRoute: %w", err)
+		return "", fmt.Errorf("ensure HTTPRoute: %w", err)
 	}
 	if err := c.ensureCiliumPolicy(ctx, pe); err != nil {
-		return fmt.Errorf("ensure CiliumNetworkPolicy: %w", err)
+		return "", fmt.Errorf("ensure CiliumNetworkPolicy: %w", err)
 	}
 	return c.updateStatus(ctx, pe)
 }
@@ -274,10 +285,17 @@ func (c *Controller) ensureService(ctx context.Context, pe *v1alpha1.ProjectEnvi
 func (c *Controller) ensureNetworkPolicy(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
 	ns := projectNamespace(pe)
 	desired := buildNetworkPolicy(pe)
-	_, err := c.kubeclient.NetworkingV1().NetworkPolicies(ns).Get(ctx, desired.Name, metav1.GetOptions{})
+	existing, err := c.kubeclient.NetworkingV1().NetworkPolicies(ns).Get(ctx, desired.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		_, err = c.kubeclient.NetworkingV1().NetworkPolicies(ns).Create(ctx, desired, metav1.CreateOptions{})
+		return err
 	}
+	if err != nil {
+		return err
+	}
+	updated := existing.DeepCopy()
+	updated.Spec = desired.Spec
+	_, err = c.kubeclient.NetworkingV1().NetworkPolicies(ns).Update(ctx, updated, metav1.UpdateOptions{})
 	return err
 }
 
@@ -346,13 +364,13 @@ func (c *Controller) ensureCiliumPolicy(ctx context.Context, pe *v1alpha1.Projec
 
 // --- Status ---
 
-func (c *Controller) updateStatus(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
+func (c *Controller) updateStatus(ctx context.Context, pe *v1alpha1.ProjectEnvironment) (v1alpha1.ProjectEnvironmentPhase, error) {
 	ns := projectNamespace(pe)
 	phase := v1alpha1.PhaseStopped
 
 	dep, err := c.kubeclient.AppsV1().Deployments(ns).Get(ctx, deploymentName(pe), metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
-		return err
+		return "", err
 	}
 
 	podIP := ""
@@ -382,14 +400,14 @@ func (c *Controller) updateStatus(ctx context.Context, pe *v1alpha1.ProjectEnvir
 
 	statusMap, err := toMap(status)
 	if err != nil {
-		return err
+		return "", err
 	}
 	patchBytes, err := json.Marshal(map[string]interface{}{"status": statusMap})
 	if err != nil {
-		return err
+		return "", err
 	}
 	_, err = c.peClient.Patch(ctx, pe.Name, "application/merge-patch+json", patchBytes, metav1.PatchOptions{}, "status")
-	return err
+	return phase, err
 }
 
 func deploymentPhase(dep *appsv1.Deployment) (v1alpha1.ProjectEnvironmentPhase, string) {

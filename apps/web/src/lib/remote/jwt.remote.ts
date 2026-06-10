@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { error } from '@sveltejs/kit'
 import { resolvePermissions } from '$lib/server/permissions'
 import { issueProjectToken } from '$lib/server/jwt/issue'
-import { getProjectEnvironment } from '$lib/server/k8s/cr'
+import { getProjectEnvironment, isDeploymentReady } from '$lib/server/k8s/cr'
 import * as v from 'valibot'
 
 export const issueToken = command(
@@ -18,8 +18,12 @@ export const issueToken = command(
     if (rows.length === 0) throw error(404, 'Project not found')
 
     const cr = await getProjectEnvironment(arg.projectId)
-    if (cr?.status?.phase !== 'Running') {
-      throw error(409, 'Project is not running')
+    const phase = cr?.status?.phase
+    if (phase !== 'Running') {
+      // The controller may not have updated the CR yet — accept if the deployment is ready.
+      if (phase !== 'Provisioning' || !(await isDeploymentReady(arg.projectId))) {
+        throw error(409, 'Project is not running')
+      }
     }
 
     const userRows = await db.select().from(users).where(eq(users.id, userId)).limit(1)

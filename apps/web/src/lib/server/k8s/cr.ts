@@ -1,4 +1,4 @@
-import { getCustomObjectsApi, isApiError } from './client'
+import { getCustomObjectsApi, getCoreV1Api, isApiError } from './client'
 import type { ResolvedEgressPolicy } from '$lib/server/k8s/egress'
 
 const GROUP = 'slipstream.io'
@@ -106,6 +106,19 @@ export async function patchProjectEnvironmentSpec(
     name: crName(projectId),
     body: ops,
   })
+}
+
+export async function isDeploymentReady(projectId: string): Promise<boolean> {
+  try {
+    const ns = `project-${projectId}`
+    const api = getCoreV1Api()
+    const pods = await api.listNamespacedPod({ namespace: ns })
+    return pods.items.some((pod) =>
+      pod.status?.conditions?.some((c) => c.type === 'Ready' && c.status === 'True')
+    )
+  } catch {
+    return false
+  }
 }
 
 export async function deleteProjectEnvironment(projectId: string): Promise<void> {

@@ -28,6 +28,7 @@ image:
   projectController:
     repository: localhost:5001/slipstream-project-controller
     tag: local
+    pullPolicy: Always
 
 web:
   replicas: 1

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from '$app/navigation'
   import { getDevAccounts, loginAsDev } from '$lib/remote/auth-dev.remote'
 
   const { accounts } = await getDevAccounts()
@@ -9,6 +10,7 @@
     loginError = null
     try {
       await loginAsDev(uuid)
+      await goto('/')
     } catch (e) {
       loginError = e instanceof Error ? e.message : 'Login failed'
     }

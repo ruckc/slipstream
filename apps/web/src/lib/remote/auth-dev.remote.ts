@@ -34,5 +34,5 @@ export const loginAsDev = command(v.string(), async (uuid: string) => {
   const { cookies } = getRequestEvent()
   cookies.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS)
 
-  redirect(302, '/')
+  return { ok: true }
 })
