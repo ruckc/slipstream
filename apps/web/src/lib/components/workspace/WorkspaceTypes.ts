@@ -69,4 +69,7 @@ export interface WorkspaceCtx {
   registerTerminalActions(paneId: string, actions: TerminalActions): void
   unregisterTerminalActions(paneId: string): void
   getTerminalActions(paneId: string): TerminalActions | undefined
+  getAllPanes(): PaneData[]
+  getActivePane(): PaneData | null
+  setActivePaneById(paneId: string): void
 }

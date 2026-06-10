@@ -17,6 +17,11 @@
   } = $props()
 
   let sidebarWidth = $state(240)
+  let sidebarOpen = $state(true)
+
+  export function toggleSidebar() {
+    sidebarOpen = !sidebarOpen
+  }
 </script>
 
 <div class="app-shell">
@@ -24,7 +29,7 @@
   <div class="app-shell-main">
     <!-- Sidebar -->
     {#if sidebarContent}
-      <Sidebar bind:width={sidebarWidth}>
+      <Sidebar bind:width={sidebarWidth} open={sidebarOpen}>
         {@render sidebarContent()}
       </Sidebar>
       <ResizableDivider
@@ -45,8 +50,10 @@
     </div>
   </div>
 
-  <!-- Status bar -->
-  <StatusBar leftContent={statusLeftContent} rightContent={statusRightContent} />
+  <!-- Status bar (hidden on mobile) -->
+  <div class="status-bar-wrapper">
+    <StatusBar leftContent={statusLeftContent} rightContent={statusRightContent} />
+  </div>
 </div>
 
 <style>
@@ -83,5 +90,11 @@
     justify-content: center;
     color: var(--color-text-disabled);
     font-size: var(--font-size-md);
+  }
+
+  @media (max-width: 639px) {
+    .status-bar-wrapper {
+      display: none;
+    }
   }
 </style>

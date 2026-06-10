@@ -5,15 +5,18 @@
     width = $bindable(240),
     children,
     title,
+    open = true,
   }: {
     width?: number
     children: Snippet
     title?: string
+    open?: boolean
   } = $props()
 </script>
 
 <aside
   class="sidebar"
+  class:sidebar--open={open}
   style="width: {width}px; min-width: {width}px;"
   aria-label={title ?? 'Sidebar'}
 >
@@ -50,6 +53,11 @@
       height: 100dvh;
       z-index: 100;
       border-right: 1px solid var(--color-border);
+      transform: translateX(-100%);
+      transition: transform var(--transition-base);
+    }
+    .sidebar.sidebar--open {
+      transform: translateX(0);
     }
   }
 

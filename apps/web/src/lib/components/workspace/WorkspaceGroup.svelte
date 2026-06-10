@@ -273,6 +273,12 @@
     overflow: hidden;
   }
 
+  @media (max-width: 639px) {
+    .tab-bar {
+      display: none;
+    }
+  }
+
   .tab-list {
     display: flex;
     flex-direction: row;

@@ -8,6 +8,8 @@
   import ProjectHeader from '$lib/components/project/ProjectHeader.svelte'
   import Icon from '$lib/components/common/Icon.svelte'
 
+  let appShell: AppShell = $state(null!)
+
   const {
     project,
     namespace,
@@ -80,7 +82,7 @@
   </div>
 {/if}
 
-<AppShell>
+<AppShell bind:this={appShell}>
   {#snippet sidebarContent()}
     {#if canReadFiles}
       {#if projectStatus === 'running'}
@@ -114,6 +116,7 @@
         {projectStatus}
         {canShell}
         {canReadFiles}
+        onToggleSidebar={() => appShell?.toggleSidebar()}
       />
     {:else}
       <div class="workspace-idle">

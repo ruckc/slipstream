@@ -12,6 +12,8 @@
   import { WORKSPACE_CTX } from './WorkspaceTypes.js'
   import { podFetch } from '$lib/pod-fetch'
   import WorkspaceNode from './WorkspaceNode.svelte'
+  import WorkspaceGroup from './WorkspaceGroup.svelte'
+  import MobileNavbar from '$lib/components/layout/MobileNavbar.svelte'
 
   let {
     projectId,
@@ -20,6 +22,7 @@
     projectStatus,
     canShell,
     canReadFiles,
+    onToggleSidebar,
   }: {
     projectId: string
     namespaceSlug: string
@@ -27,7 +30,19 @@
     projectStatus: string
     canShell: boolean
     canReadFiles: boolean
+    onToggleSidebar?: () => void
   } = $props()
+
+  let isMobile = $state(false)
+  $effect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    isMobile = mq.matches
+    const handler = (e: MediaQueryListEvent) => {
+      isMobile = e.matches
+    }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  })
 
   // ── State ─────────────────────────────────────────────────────────────────
 
@@ -333,6 +348,18 @@
 
   const terminalActionsMap = new SvelteMap<string, TerminalActions>()
 
+  // ── Mobile flat group ──────────────────────────────────────────────────────
+
+  const mobileGroup: Group = $derived.by(() => {
+    const allPanes = groups.flatMap((g) => g.panes)
+    const activeGroup = findGroup(activeGroupId) ?? groups[0]
+    return {
+      id: activeGroup?.id ?? rootId,
+      panes: allPanes,
+      activeId: activeGroup?.activeId ?? allPanes[0]?.id ?? null,
+    }
+  })
+
   // ── Context ────────────────────────────────────────────────────────────────
 
   const ctx: WorkspaceCtx = {
@@ -362,6 +389,20 @@
     registerTerminalActions: (paneId, actions) => terminalActionsMap.set(paneId, actions),
     unregisterTerminalActions: (paneId) => terminalActionsMap.delete(paneId),
     getTerminalActions: (paneId) => terminalActionsMap.get(paneId),
+    getAllPanes: () => groups.flatMap((g) => g.panes),
+    getActivePane: () => {
+      const g = findGroup(activeGroupId) ?? groups[0]
+      return g?.panes.find((p) => p.id === g.activeId) ?? null
+    },
+    setActivePaneById: (paneId) => {
+      for (const g of groups) {
+        if (g.panes.some((p) => p.id === paneId)) {
+          g.activeId = paneId
+          activeGroupId = g.id
+          return
+        }
+      }
+    },
   }
   setContext(WORKSPACE_CTX, ctx)
 
@@ -404,7 +445,12 @@
 </script>
 
 <div class="workspace-root">
-  <WorkspaceNode node={layout} {groups} />
+  {#if isMobile}
+    <MobileNavbar {onToggleSidebar} />
+    <WorkspaceGroup group={mobileGroup} />
+  {:else}
+    <WorkspaceNode node={layout} {groups} />
+  {/if}
 </div>
 
 <style>
