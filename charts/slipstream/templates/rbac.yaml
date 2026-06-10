@@ -43,6 +43,9 @@ rules:
   - apiGroups: [cilium.io]
     resources: [ciliumnetworkpolicies]
     verbs: [create, get, list, patch, update, delete]
+  - apiGroups: [slipstream.io]
+    resources: [projectenvironments]
+    verbs: [create, get, list, watch, patch, update, delete]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
