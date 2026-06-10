@@ -8,6 +8,8 @@
     { href: '/admin/errors', label: 'Errors' },
     { href: '/admin/users', label: 'Users' },
     { href: '/admin/infra', label: 'Infra' },
+    { href: '/admin/metrics', label: 'Metrics' },
+    { href: '/admin/billing', label: 'Billing' },
   ]
 </script>
 
