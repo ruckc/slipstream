@@ -25,14 +25,20 @@ export const SESSION_COOKIE_OPTIONS = {
 
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30 // 30 days
 
-if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
-  throw new Error('SESSION_SECRET env var must be set in production')
+function getSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('SESSION_SECRET env var must be set in production')
+    }
+    return 'dev-insecure-secret-change-me'
+  }
+  return secret
 }
-const SESSION_SECRET = process.env.SESSION_SECRET ?? 'dev-insecure-secret-change-me'
 
 // Cookie value format: "{sessionId}.{HMAC-SHA256(sessionId, SESSION_SECRET) as hex}"
 function signSessionId(sessionId: string): string {
-  const sig = createHmac('sha256', SESSION_SECRET).update(sessionId).digest('hex')
+  const sig = createHmac('sha256', getSessionSecret()).update(sessionId).digest('hex')
   return `${sessionId}.${sig}`
 }
 
@@ -41,7 +47,7 @@ function verifySessionToken(token: string): string | null {
   if (dot === -1) return null
   const sessionId = token.slice(0, dot)
   const sig = token.slice(dot + 1)
-  const expected = createHmac('sha256', SESSION_SECRET).update(sessionId).digest('hex')
+  const expected = createHmac('sha256', getSessionSecret()).update(sessionId).digest('hex')
   try {
     if (!timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) return null
   } catch {
