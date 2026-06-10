@@ -37,7 +37,6 @@
     const p = menuProject
     deleteModalOpen = false
     await deleteProject({ actorUserId: user.id, projectId: p.id })
-    await getDashboard().refresh()
   }
 
   let menuItems = $derived(

@@ -1,4 +1,5 @@
 import { query, command, getRequestEvent } from '$app/server'
+import { getDashboard } from '$lib/remote/dashboard.remote'
 import { db, projects, namespaces, organizations, orgMembers, users } from '$lib/server/db'
 import type { Project, Namespace } from '$lib/server/db'
 import { eq, and } from 'drizzle-orm'
@@ -232,5 +233,6 @@ export const deleteProject = command(
 
     await deleteProjectEnvironment(arg.projectId)
     await db.delete(projects).where(eq(projects.id, arg.projectId))
+    void getDashboard().refresh()
   }
 )
