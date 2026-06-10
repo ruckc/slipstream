@@ -24,6 +24,7 @@ func main() {
 		AgentImage:           requireEnv("AGENT_IMAGE"),
 		MetricsSidecarImage:  os.Getenv("METRICS_SIDECAR_IMAGE"),
 		MetricsPushURL:       os.Getenv("METRICS_PUSH_URL"),
+		UsageReportURL:       os.Getenv("USAGE_REPORT_URL"),
 		GatewayName:          requireEnv("GATEWAY_NAME"),
 		GatewayNamespace:     requireEnv("GATEWAY_NAMESPACE"),
 		GatewayHostname:      requireEnv("GATEWAY_HOSTNAME"),

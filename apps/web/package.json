@@ -12,7 +12,8 @@
     "openid-client": "^6.0.0",
     "postgres": "^3.4.0",
     "shiki": "^4.1.0",
-    "svelte": "^5.0.0"
+    "svelte": "^5.0.0",
+    "uplot": "^1.6.32"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

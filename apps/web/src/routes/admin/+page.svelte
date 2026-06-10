@@ -31,6 +31,14 @@
         <span class="card__value">{s.activePodCount}</span>
         <span class="card__label">Active pods</span>
       </a>
+      <a href="/admin/metrics" class="card">
+        <span class="card__value card__value--sm">View</span>
+        <span class="card__label">Resource metrics</span>
+      </a>
+      <a href="/admin/billing" class="card">
+        <span class="card__value card__value--sm">View</span>
+        <span class="card__label">Billing report</span>
+      </a>
     </div>
   {:catch}
     <p class="error">Failed to load stats.</p>
@@ -94,6 +102,10 @@
   .card__label {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
+  }
+
+  .card__value--sm {
+    font-size: var(--font-size-lg);
   }
 
   .error {

@@ -5,7 +5,8 @@ package controller
 type Config struct {
 	AgentImage           string
 	MetricsSidecarImage  string // empty = no sidecar
-	MetricsPushURL       string // empty = no idle detection
+	MetricsPushURL       string // empty = no idle detection or usage sampling
+	UsageReportURL       string // web app internal endpoint; empty = no usage sampling
 	GatewayName          string
 	GatewayNamespace     string
 	GatewayHostname      string

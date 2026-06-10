@@ -39,6 +39,10 @@
     </div>
 
     <div class="ns-header__actions">
+      <a href="/{data.namespace.slug}/metrics" class="action-link">
+        <Icon name="metrics" size={14} />
+        Metrics
+      </a>
       {#if data.isOwner}
         <a href="/{data.namespace.slug}/settings" class="action-link">
           <Icon name="settings" size={14} />

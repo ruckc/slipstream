@@ -129,10 +129,16 @@
 
 <div class="settings-page">
   <div class="settings-header">
-    <a href="/{data.namespace.slug}/{data.project.slug}" class="back-link">
-      <Icon name="chevron-right" size={12} />
-      {data.namespace.slug}/{data.project.slug}
-    </a>
+    <div class="settings-header__nav">
+      <a href="/{data.namespace.slug}/{data.project.slug}" class="back-link">
+        <Icon name="chevron-right" size={12} />
+        {data.namespace.slug}/{data.project.slug}
+      </a>
+      <a href="/{data.namespace.slug}/{data.project.slug}/metrics" class="back-link">
+        <Icon name="metrics" size={12} />
+        Metrics
+      </a>
+    </div>
     <h1 class="settings-title">Project Settings</h1>
   </div>
 
@@ -386,6 +392,17 @@
 
   .settings-header {
     margin-bottom: var(--space-8);
+  }
+
+  .settings-header__nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+
+  .settings-header__nav .back-link {
+    margin-bottom: 0;
   }
 
   .back-link {
