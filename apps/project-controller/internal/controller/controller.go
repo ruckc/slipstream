@@ -223,10 +223,20 @@ func (c *Controller) ensureResources(ctx context.Context, pe *v1alpha1.ProjectEn
 
 func (c *Controller) ensureNamespace(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
 	desired := buildNamespace(pe)
-	_, err := c.kubeclient.CoreV1().Namespaces().Get(ctx, desired.Name, metav1.GetOptions{})
+	existing, err := c.kubeclient.CoreV1().Namespaces().Get(ctx, desired.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		_, err = c.kubeclient.CoreV1().Namespaces().Create(ctx, desired, metav1.CreateOptions{})
+		return err
 	}
+	if err != nil {
+		return err
+	}
+	// Sync labels so security/discovery labels added after creation are applied.
+	updated := existing.DeepCopy()
+	for k, v := range desired.Labels {
+		updated.Labels[k] = v
+	}
+	_, err = c.kubeclient.CoreV1().Namespaces().Update(ctx, updated, metav1.UpdateOptions{})
 	return err
 }
 
