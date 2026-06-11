@@ -103,7 +103,7 @@ jobs:
 
       - name: Build
         working-directory: ${{ matrix.service.path }}
-        run: go build ${{ matrix.service.build_pkg }}
+        run: go build -o /tmp/go-build-out ${{ matrix.service.build_pkg }}
 
   check-helm:
     name: Helm — Lint · Template
