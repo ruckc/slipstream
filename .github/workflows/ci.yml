@@ -14,6 +14,13 @@ on:
         type: choice
         options: ['', 'patch', 'minor', 'major']
 
+# Serialize runs so a new push to main queues behind an in-progress release
+# rather than racing it. cancel-in-progress: false ensures the running build
+# is never interrupted by a newer push.
+concurrency:
+  group: ci-main
+  cancel-in-progress: false
+
 permissions:
   contents: write   # commit version bump, push tag, create GitHub Release
   packages: write   # push versioned images and Helm chart to GHCR
