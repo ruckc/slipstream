@@ -4,23 +4,23 @@ fullnameOverride: ""
 image:
   web:
     # Replace OWNER with your GitHub username or org.
-    repository: ghcr.io/OWNER/slipstream-web
+    repository: ghcr.io/ruckc/slipstream-web
     tag: "" # defaults to chart appVersion
     pullPolicy: IfNotPresent
   agent:
-    repository: ghcr.io/OWNER/slipstream-agent
+    repository: ghcr.io/ruckc/slipstream-agent
     tag: ""
     pullPolicy: IfNotPresent
   metricsCollector:
-    repository: ghcr.io/OWNER/slipstream-metrics-collector
+    repository: ghcr.io/ruckc/slipstream-metrics-collector
     tag: ""
     pullPolicy: IfNotPresent
   projectController:
-    repository: ghcr.io/OWNER/slipstream-project-controller
+    repository: ghcr.io/ruckc/slipstream-project-controller
     tag: "" # defaults to chart appVersion
     pullPolicy: IfNotPresent
   hubbleCollector:
-    repository: ghcr.io/OWNER/slipstream-hubble-collector
+    repository: ghcr.io/ruckc/slipstream-hubble-collector
     tag: "" # defaults to chart appVersion
     pullPolicy: IfNotPresent
 
