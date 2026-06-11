@@ -208,7 +208,7 @@ func buildService(pe *v1alpha1.ProjectEnvironment) *corev1.Service {
 	}
 }
 
-func buildNetworkPolicy(pe *v1alpha1.ProjectEnvironment) *networkingv1.NetworkPolicy {
+func buildNetworkPolicy(pe *v1alpha1.ProjectEnvironment, cfg *Config) *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkPolicyName(pe),
@@ -246,7 +246,7 @@ func buildNetworkPolicy(pe *v1alpha1.ProjectEnvironment) *networkingv1.NetworkPo
 					To: []networkingv1.NetworkPolicyPeer{
 						{
 							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{"kubernetes.io/metadata.name": "slipstream-system"},
+								MatchLabels: map[string]string{"kubernetes.io/metadata.name": cfg.Namespace},
 							},
 						},
 					},

@@ -11,15 +11,11 @@ type Config struct {
 	GatewayNamespace     string
 	GatewayHostname      string
 	GatewayListenerHTTPS string // listener name, default "https"
-	WebNamespace         string // namespace of the web app, for JWKS URL
+	Namespace            string // controller's own namespace, resolved at startup
 }
 
 func (c *Config) JWKSUrl() string {
-	ns := c.WebNamespace
-	if ns == "" {
-		ns = "slipstream-system"
-	}
-	return "http://slipstream-web." + ns + ".svc.cluster.local/api/jwks"
+	return "http://slipstream-web." + c.Namespace + ".svc.cluster.local/api/jwks"
 }
 
 func (c *Config) gatewayListenerHTTPS() string {

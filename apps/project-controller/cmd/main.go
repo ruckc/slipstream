@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"slipstream/project-controller/internal/controller"
@@ -29,7 +30,7 @@ func main() {
 		GatewayNamespace:     requireEnv("GATEWAY_NAMESPACE"),
 		GatewayHostname:      requireEnv("GATEWAY_HOSTNAME"),
 		GatewayListenerHTTPS: getEnvOrDefault("GATEWAY_LISTENER_HTTPS", "https"),
-		WebNamespace:         getEnvOrDefault("WEB_NAMESPACE", "slipstream-system"),
+		Namespace:            resolveNamespace(),
 	}
 
 	restCfg, err := loadRestConfig()
@@ -76,4 +77,16 @@ func getEnvOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// resolveNamespace returns the namespace the controller is running in by reading
+// the downward-API-injected file. Falls back to "default" outside the cluster.
+func resolveNamespace() string {
+	const nsFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	if data, err := os.ReadFile(nsFile); err == nil {
+		if ns := strings.TrimSpace(string(data)); ns != "" {
+			return ns
+		}
+	}
+	return "default"
 }

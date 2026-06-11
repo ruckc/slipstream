@@ -284,7 +284,7 @@ func (c *Controller) ensureService(ctx context.Context, pe *v1alpha1.ProjectEnvi
 
 func (c *Controller) ensureNetworkPolicy(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
 	ns := projectNamespace(pe)
-	desired := buildNetworkPolicy(pe)
+	desired := buildNetworkPolicy(pe, c.cfg)
 	existing, err := c.kubeclient.NetworkingV1().NetworkPolicies(ns).Get(ctx, desired.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		_, err = c.kubeclient.NetworkingV1().NetworkPolicies(ns).Create(ctx, desired, metav1.CreateOptions{})
