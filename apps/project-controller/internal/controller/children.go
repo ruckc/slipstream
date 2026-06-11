@@ -155,6 +155,9 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RecreateDeploymentStrategyType,
+			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{LabelProjectID: pe.Spec.ProjectID},
 			},
