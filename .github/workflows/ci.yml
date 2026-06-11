@@ -5,66 +5,240 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Force bump type (leave empty to auto-detect from conventional commits)'
+        required: false
+        default: ''
+        type: choice
+        options: ['', 'patch', 'minor', 'major']
 
 permissions:
-  contents: read
-  packages: write   # push main/SHA-tagged images on branch push
+  contents: write   # commit version bump, push tag, create GitHub Release
+  packages: write   # push versioned images and Helm chart to GHCR
 
 jobs:
   # ── Checks (format, lint, type-check, test) ────────────────────────────────
+  # Always run on PRs and workflow_dispatch; skip on the version-bump commit
+  # that this workflow pushes (message starts with "chore: release") to avoid
+  # re-running the full pipeline on that commit.
   checks:
     name: Checks
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      !startsWith(github.event.head_commit.message, 'chore: release')
     uses: ./.github/workflows/checks.yml
 
-  # ── Kind integration test: schema validation against live API server ────────
-  # Only runs on push to main (same gate as build-edge) to keep PR CI fast.
-  kind-test:
-    name: Kind — Schema Validation
+  # ── Determine next version, update files, commit, push commit (not tag yet) ─
+  # Runs on main-branch pushes (non-release commits) and workflow_dispatch.
+  # The tag is intentionally withheld until builds and validation pass.
+  version:
+    name: Version & Commit
     runs-on: ubuntu-latest
     needs: checks
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: |
+      always() &&
+      (needs.checks.result == 'success' || needs.checks.result == 'skipped') &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          !startsWith(github.event.head_commit.message, 'chore: release')
+        )
+      )
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      tag:     ${{ steps.next.outputs.tag }}
+      sha:     ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v6.0.3
-
-      - uses: azure/setup-helm@v5
         with:
-          version: v3.17.0
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: helm/kind-action@v1.14.0
-        with:
-          cluster_name: slipstream-test
-          version: v0.24.0
-
-      - name: Install Gateway API CRDs
+      # ── 1. Find current version from last semver tag ──────────────────────
+      - name: Resolve current version
+        id: current
         run: |
-          kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
-          # Brief pause: status.conditions is nil immediately after creation and
-          # kubectl wait returns an accessor error if it runs before the API server
-          # has had a chance to populate it.
-          sleep 5
-          kubectl wait --for condition=established --timeout=60s \
-            crd/gatewayclasses.gateway.networking.k8s.io \
-            crd/gateways.gateway.networking.k8s.io \
-            crd/grpcroutes.gateway.networking.k8s.io \
-            crd/httproutes.gateway.networking.k8s.io \
-            crd/referencegrants.gateway.networking.k8s.io
+          tag=$(git describe --tags --match 'v[0-9]*.[0-9]*.[0-9]*' --abbrev=0 2>/dev/null \
+                || echo "v0.0.0")
+          echo "tag=$tag"             >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}"     >> "$GITHUB_OUTPUT"
+          echo "Current version: $tag"
 
-      - name: Pre-create slipstream-system namespace
-        run: kubectl create namespace slipstream-system
-
-      - name: Server-side dry-run
+      # ── 2. Analyse commits since last tag using conventional commit rules ──
+      #   BREAKING CHANGE or type! → major
+      #   feat                     → minor
+      #   anything else            → patch
+      - name: Detect bump type
+        id: detect
         run: |
-          helm template slipstream charts/slipstream \
-            -f charts/slipstream/ci/values.yaml \
-            --namespace slipstream-system \
-            | kubectl apply --dry-run=server -f -
+          LAST="${{ steps.current.outputs.tag }}"
+          OVERRIDE="${{ inputs.bump }}"
 
-  # ── Build and push edge images (main branch only, not PRs) ─────────────────
-  build-edge:
-    name: Build Edge — ${{ matrix.image.name }}
+          if [ -n "$OVERRIDE" ]; then
+            echo "type=$OVERRIDE" >> "$GITHUB_OUTPUT"
+            echo "Bump overridden to: $OVERRIDE"
+            exit 0
+          fi
+
+          if [ "$LAST" = "v0.0.0" ]; then
+            LOG=$(git log --pretty=format:"%s" HEAD)
+          else
+            LOG=$(git log --pretty=format:"%s" "${LAST}..HEAD")
+          fi
+
+          if [ -z "$LOG" ]; then
+            echo "::error::No commits found since $LAST — nothing to release."
+            exit 1
+          fi
+
+          BUMP="patch"
+          while IFS= read -r msg; do
+            if printf '%s' "$msg" | grep -qE '^[a-z]+(\([^)]+\))?!:' || \
+               printf '%s' "$msg" | grep -q 'BREAKING CHANGE:'; then
+              BUMP="major"
+              break
+            fi
+            if printf '%s' "$msg" | grep -qE '^feat(\([^)]+\))?:'; then
+              BUMP="minor"
+            fi
+          done <<< "$LOG"
+
+          echo "type=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "Detected bump: $BUMP"
+          echo ""
+          echo "Commits since $LAST:"
+          echo "$LOG"
+
+      # ── 3. Compute the next version string ───────────────────────────────
+      - name: Calculate next version
+        id: next
+        run: |
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ steps.current.outputs.version }}"
+          case "${{ steps.detect.outputs.type }}" in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
+          esac
+          V="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=$V"  >> "$GITHUB_OUTPUT"
+          echo "tag=v${V}"   >> "$GITHUB_OUTPUT"
+          echo "Next version: v${V}  (bump: ${{ steps.detect.outputs.type }})"
+
+      # ── 4. Write the new version into every component ────────────────────
+      - name: Update version files
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          echo "$VERSION" > VERSION
+
+          node -e "
+            const fs  = require('fs')
+            const pkg = JSON.parse(fs.readFileSync('apps/web/package.json', 'utf8'))
+            pkg.version = process.env.VERSION
+            fs.writeFileSync('apps/web/package.json', JSON.stringify(pkg, null, 2) + '\n')
+          "
+
+          pip install --quiet tomlkit
+          python3 - << 'PYEOF'
+          import tomlkit, os
+          path = 'apps/agent/Cargo.toml'
+          ver  = os.environ['VERSION']
+          with open(path) as f:
+              doc = tomlkit.load(f)
+          doc['package']['version'] = ver
+          with open(path, 'w') as f:
+              f.write(tomlkit.dumps(doc))
+          PYEOF
+
+          python3 - << 'PYEOF'
+          import os
+          ver = os.environ['VERSION']
+          content = f'package main\n\n// Version is set at release time by the CI pipeline.\nconst Version = "{ver}"\n'
+          open('apps/metrics-sidecar/version.go', 'w').write(content)
+          PYEOF
+
+          python3 - << 'PYEOF'
+          import os
+          ver = os.environ['VERSION']
+          content = f'package main\n\n// Version is set at release time by the CI pipeline.\nconst Version = "{ver}"\n'
+          open('apps/project-controller/version.go', 'w').write(content)
+          PYEOF
+
+          python3 - << 'PYEOF'
+          import os
+          ver = os.environ['VERSION']
+          content = f'package main\n\n// Version is set at release time by the CI pipeline.\nvar Version = "{ver}"\n'
+          open('apps/hubble-collector/version.go', 'w').write(content)
+          PYEOF
+
+          python3 - << 'PYEOF'
+          import re, os
+          ver  = os.environ['VERSION']
+          path = 'apps/agent/Cargo.lock'
+          with open(path) as f:
+              content = f.read()
+          content = re.sub(
+              r'(name = "slipstream-agent"\nversion = )"[^"]+"',
+              rf'\1"{ver}"',
+              content
+          )
+          with open(path, 'w') as f:
+              f.write(content)
+          PYEOF
+
+          python3 - << 'PYEOF'
+          import re, os
+          ver  = os.environ['VERSION']
+          path = 'charts/slipstream/Chart.yaml'
+          with open(path) as f:
+              content = f.read()
+          content = re.sub(r'^version:.*$',    f'version: {ver}',      content, flags=re.MULTILINE)
+          content = re.sub(r'^appVersion:.*$', f'appVersion: "{ver}"', content, flags=re.MULTILINE)
+          with open(path, 'w') as f:
+              f.write(content)
+          PYEOF
+
+          echo "VERSION:                    $(cat VERSION)"
+          echo "package.json:               $(node -p "require('./apps/web/package.json').version")"
+          echo "Cargo.toml:                 $(grep '^version' apps/agent/Cargo.toml | head -1)"
+          echo "metrics-sidecar/version.go: $(grep Version apps/metrics-sidecar/version.go)"
+          echo "controller/version.go:      $(grep Version apps/project-controller/version.go)"
+          echo "hubble-collector/version.go:$(grep Version apps/hubble-collector/version.go)"
+          echo "Chart.yaml:                 $(grep '^version:' charts/slipstream/Chart.yaml)"
+
+      # ── 5. Commit and push to main — tag is pushed only after builds pass ─
+      - name: Commit and push
+        id: commit
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+          TAG:     ${{ steps.next.outputs.tag }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add VERSION \
+                  apps/web/package.json \
+                  apps/agent/Cargo.toml \
+                  apps/agent/Cargo.lock \
+                  apps/metrics-sidecar/version.go \
+                  apps/project-controller/version.go \
+                  apps/hubble-collector/version.go \
+                  charts/slipstream/Chart.yaml
+
+          git commit -m "chore: release ${TAG}"
+          git push origin main
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  # ── Build and push versioned images from the version commit ────────────────
+  build:
+    name: Build & Push — ${{ matrix.image.name }}
     runs-on: ubuntu-latest
-    needs: checks
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -86,6 +260,8 @@ jobs:
             platforms: linux/amd64
     steps:
       - uses: actions/checkout@v6.0.3
+        with:
+          ref: ${{ needs.version.outputs.sha }}
 
       - uses: docker/setup-buildx-action@v4.1.0
 
@@ -106,8 +282,10 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/slipstream-${{ matrix.image.name }}
           tags: |
-            type=raw,value=main
-            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}},value=${{ needs.version.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.version.outputs.tag }}
+            type=semver,pattern={{major}},value=${{ needs.version.outputs.tag }}
+            type=raw,value=latest
 
       - name: Build and push
         uses: docker/build-push-action@v7.2.0
@@ -118,25 +296,136 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.image.platforms }}
-          cache-from: type=gha,scope=${{ matrix.image.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
+          cache-from: |
+            type=gha,scope=release-${{ matrix.image.name }}
+            type=gha,scope=${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.image.name }}
           secrets: ${{ matrix.image.name == 'agent' && format('actions_cache_url={0}{1}actions_runtime_token={2}', env.ACTIONS_CACHE_URL, '\n', env.ACTIONS_RUNTIME_TOKEN) || '' }}
 
-  # ── Auto-trigger release once all main-branch checks and builds pass ────────
-  # Skipped on PRs and on commits made by the release workflow itself (version
-  # bump commits start with "chore: release") to prevent an infinite loop.
-  trigger-release:
-    name: Trigger Release
+  # ── Kind integration test: schema validation against live API server ────────
+  # Runs in parallel with build against the version commit so it doesn't add
+  # to the critical path. Both must pass before the tag is pushed.
+  kind-test:
+    name: Kind — Schema Validation
     runs-on: ubuntu-latest
-    needs: [checks, kind-test, build-edge]
-    if: |
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      !startsWith(github.event.head_commit.message, 'chore: release')
-    permissions:
-      actions: write
+    needs: version
     steps:
-      - name: Dispatch release workflow
-        run: gh workflow run release.yml --repo ${{ github.repository }} --field skip_checks=true
+      - uses: actions/checkout@v6.0.3
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - uses: azure/setup-helm@v5
+        with:
+          version: v3.17.0
+
+      - uses: helm/kind-action@v1.14.0
+        with:
+          cluster_name: slipstream-test
+          version: v0.24.0
+
+      - name: Install Gateway API CRDs
+        run: |
+          kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml
+          sleep 5
+          kubectl wait --for condition=established --timeout=60s \
+            crd/gatewayclasses.gateway.networking.k8s.io \
+            crd/gateways.gateway.networking.k8s.io \
+            crd/grpcroutes.gateway.networking.k8s.io \
+            crd/httproutes.gateway.networking.k8s.io \
+            crd/referencegrants.gateway.networking.k8s.io
+
+      - name: Pre-create slipstream-system namespace
+        run: kubectl create namespace slipstream-system
+
+      - name: Server-side dry-run
+        run: |
+          helm template slipstream charts/slipstream \
+            -f charts/slipstream/ci/values.yaml \
+            --namespace slipstream-system \
+            | kubectl apply --dry-run=server -f -
+
+  # ── Publish tag, Helm chart, and GitHub Release once everything passes ──────
+  finalize:
+    name: Finalize Release
+    runs-on: ubuntu-latest
+    needs: [version, build, kind-test]
+    if: always() && needs.version.result == 'success' && needs.build.result == 'success' && needs.kind-test.result == 'success'
+    steps:
+      - uses: actions/checkout@v6.0.3
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push tag
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
+
+      - uses: azure/setup-helm@v5
+        with:
+          version: v3.17.0
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Package and push Helm chart
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          mkdir -p /tmp/charts
+          helm package charts/slipstream \
+            --version "$VERSION" \
+            --app-version "$VERSION" \
+            --destination /tmp/charts
+          helm push /tmp/charts/slipstream-${VERSION}.tgz \
+            oci://ghcr.io/${{ github.repository_owner }}/charts
+
+      - name: Upload chart artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: helm-chart
+          path: /tmp/charts/slipstream-*.tgz
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3.0.0
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
+          generate_release_notes: true
+          make_latest: true
+          files: /tmp/charts/slipstream-*.tgz
+          append_body: true
+          body: |
+
+            ---
+
+            ## Helm Chart
+
+            ```bash
+            helm install slipstream \
+              oci://ghcr.io/${{ github.repository_owner }}/charts/slipstream \
+              --version ${{ needs.version.outputs.version }} \
+              --namespace slipstream-system \
+              --create-namespace \
+              --set database.url=postgresql://... \
+              --set auth.sessionSecret=... \
+              --set gateway.name=... \
+              --set gateway.namespace=... \
+              --set gateway.hostname=...
+            ```
+
+            ## Container Images
+
+            ```
+            ghcr.io/${{ github.repository_owner }}/slipstream-web:${{ needs.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/slipstream-agent:${{ needs.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/slipstream-metrics-sidecar:${{ needs.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/slipstream-project-controller:${{ needs.version.outputs.version }}
+            ```
