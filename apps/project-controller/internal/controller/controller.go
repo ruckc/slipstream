@@ -175,10 +175,12 @@ func (c *Controller) handleDelete(ctx context.Context, pe *v1alpha1.ProjectEnvir
 	ns := projectNamespace(pe)
 
 	if !pe.Spec.RetainStorage {
-		// Delete PVC explicitly before the namespace deletion.
-		err := c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Delete(ctx, pvcName(pe), metav1.DeleteOptions{})
-		if err != nil && !errors.IsNotFound(err) {
-			return fmt.Errorf("delete PVC: %w", err)
+		// Delete both PVCs explicitly before the namespace deletion.
+		for _, name := range []string{pvcName(pe), homePvcName(pe)} {
+			err := c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Delete(ctx, name, metav1.DeleteOptions{})
+			if err != nil && !errors.IsNotFound(err) {
+				return fmt.Errorf("delete PVC %s: %w", name, err)
+			}
 		}
 	}
 
@@ -197,6 +199,9 @@ func (c *Controller) ensureResources(ctx context.Context, pe *v1alpha1.ProjectEn
 	}
 	if err := c.ensurePVC(ctx, pe); err != nil {
 		return "", fmt.Errorf("ensure PVC: %w", err)
+	}
+	if err := c.ensureHomePVC(ctx, pe); err != nil {
+		return "", fmt.Errorf("ensure home PVC: %w", err)
 	}
 	if err := c.ensureDeployment(ctx, pe); err != nil {
 		return "", fmt.Errorf("ensure deployment: %w", err)
@@ -253,6 +258,17 @@ func (c *Controller) ensurePVC(ctx context.Context, pe *v1alpha1.ProjectEnvironm
 	return err
 }
 
+func (c *Controller) ensureHomePVC(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
+	ns := projectNamespace(pe)
+	name := homePvcName(pe)
+	_, err := c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Get(ctx, name, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		desired := buildHomePVC(pe, "")
+		_, err = c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Create(ctx, desired, metav1.CreateOptions{})
+	}
+	return err
+}
+
 // --- Deployment ---
 
 func (c *Controller) ensureDeployment(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
@@ -267,10 +283,11 @@ func (c *Controller) ensureDeployment(ctx context.Context, pe *v1alpha1.ProjectE
 		return err
 	}
 
-	// Update replicas, containers, and SA — SA changes trigger a rolling restart.
+	// Update replicas, containers, volumes, and SA — SA changes trigger a rolling restart.
 	updated := existing.DeepCopy()
 	updated.Spec.Replicas = desired.Spec.Replicas
 	updated.Spec.Template.Spec.Containers = desired.Spec.Template.Spec.Containers
+	updated.Spec.Template.Spec.Volumes = desired.Spec.Template.Spec.Volumes
 	updated.Spec.Template.Spec.ServiceAccountName = desired.Spec.Template.Spec.ServiceAccountName
 	updated.Spec.Template.Spec.AutomountServiceAccountToken = desired.Spec.Template.Spec.AutomountServiceAccountToken
 	updated.Labels = desired.Labels

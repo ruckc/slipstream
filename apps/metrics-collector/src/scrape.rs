@@ -12,6 +12,7 @@ static METRIC_MAP: &[(&str, &str)] = &[
     ("slipstream_cpu_seconds_total", "cpu_seconds"),
     ("slipstream_memory_bytes", "memory_byte_seconds"),
     ("slipstream_disk_bytes", "disk_bytes"),
+    ("slipstream_home_disk_bytes", "home_disk_bytes"),
     ("slipstream_network_ingress_bytes_total", "ingress_bytes"),
     ("slipstream_network_egress_bytes_total", "egress_bytes"),
     ("slipstream_last_activity_at", "last_activity_at"),

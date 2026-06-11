@@ -16,8 +16,8 @@ image:
   agent:
     repository: ghcr.io/slipstream/slipstream-agent
     tag: "main"
-  metricsSidecar:
-    repository: ghcr.io/slipstream/slipstream-metrics-sidecar
+  metricsCollector:
+    repository: ghcr.io/slipstream/slipstream-metrics-collector
     tag: "main"
 
 web:

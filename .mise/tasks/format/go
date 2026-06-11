@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-#MISE description="Format the Go metrics-sidecar with gofmt"
-#MISE dir="apps/metrics-sidecar"
+#MISE description="Format all Go apps with gofmt"
 
-gofmt -w .
+set -euo pipefail
+
+for dir in apps/project-controller apps/hubble-collector; do
+  echo "→ gofmt $dir"
+  gofmt -w "$dir"
+done

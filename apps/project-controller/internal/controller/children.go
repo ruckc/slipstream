@@ -22,6 +22,10 @@ func pvcName(pe *v1alpha1.ProjectEnvironment) string {
 	return "pvc-" + pe.Spec.ProjectID
 }
 
+func homePvcName(pe *v1alpha1.ProjectEnvironment) string {
+	return "home-" + pe.Spec.ProjectID
+}
+
 func deploymentName(pe *v1alpha1.ProjectEnvironment) string {
 	name := "agent-" + pe.Spec.ProjectID
 	if len(name) > 63 {
@@ -94,6 +98,31 @@ func buildPVC(pe *v1alpha1.ProjectEnvironment, storageClass string) *corev1.Pers
 	}
 }
 
+func buildHomePVC(pe *v1alpha1.ProjectEnvironment, storageClass string) *corev1.PersistentVolumeClaim {
+	sc := storageClass
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      homePvcName(pe),
+			Namespace: projectNamespace(pe),
+			Labels:    projectLabels(pe),
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			StorageClassName: func() *string {
+				if sc == "" {
+					return nil
+				}
+				return &sc
+			}(),
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("1Gi"),
+				},
+			},
+		},
+	}
+}
+
 func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deployment {
 	ns := projectNamespace(pe)
 	name := deploymentName(pe)
@@ -111,6 +140,7 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 				{Name: "PROJECT_ID", Value: pe.Spec.ProjectID},
 				{Name: "IDLE_TIMEOUT_SECONDS", Value: fmt.Sprintf("%d", pe.Spec.IdleTimeoutSeconds)},
 				{Name: "WORKSPACE_PATH", Value: "/workspace"},
+				{Name: "HOME_PATH", Value: "/home/agent"},
 				{Name: "CORS_ORIGIN", Value: "https://" + cfg.GatewayHostname},
 			},
 			VolumeMounts: []corev1.VolumeMount{
@@ -183,7 +213,14 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 							},
 						},
 						{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-						{Name: "home", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+						{
+							Name: "home",
+							VolumeSource: corev1.VolumeSource{
+								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+									ClaimName: homePvcName(pe),
+								},
+							},
+						},
 					},
 				},
 			},

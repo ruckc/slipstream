@@ -24,9 +24,7 @@
       {page.params.namespace!}/{page.params.project!}
     </a>
     <h1 class="metrics-title">Resource Usage</h1>
-    <p class="metrics-desc">
-      Current resource metrics for this project, sourced from the metrics sidecar.
-    </p>
+    <p class="metrics-desc">Current resource metrics for this project.</p>
   </div>
 
   <div class="metrics-section">

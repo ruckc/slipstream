@@ -6,6 +6,7 @@ pub struct Config {
     pub jwks_url: String,
     pub project_id: String,
     pub workspace_path: PathBuf,
+    pub home_path: PathBuf,
     pub idle_timeout_secs: u64,
     pub cors_origin: Option<String>,
 }
@@ -27,6 +28,10 @@ impl Config {
             .unwrap_or_else(|_| "/workspace".to_string())
             .into();
 
+        let home_path = env::var("HOME_PATH")
+            .unwrap_or_else(|_| "/home/agent".to_string())
+            .into();
+
         let idle_timeout_secs = env::var("IDLE_TIMEOUT_SECONDS")
             .unwrap_or_else(|_| "1800".to_string())
             .parse::<u64>()
@@ -41,6 +46,7 @@ impl Config {
             jwks_url,
             project_id,
             workspace_path,
+            home_path,
             idle_timeout_secs,
             cors_origin,
         })

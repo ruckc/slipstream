@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
-#MISE description="Format check and vet for the Go metrics-sidecar"
-#MISE dir="apps/metrics-sidecar"
+#MISE description="Format check and vet all Go apps"
 
-unformatted=$(gofmt -l .)
-if [ -n "$unformatted" ]; then
-  echo "Unformatted Go files:"
-  echo "$unformatted"
-  exit 1
-fi
-go vet ./...
+set -euo pipefail
+
+failed=0
+for dir in apps/project-controller apps/hubble-collector; do
+  echo "→ gofmt check $dir"
+  unformatted=$(gofmt -l "$dir")
+  if [ -n "$unformatted" ]; then
+    echo "Unformatted Go files in $dir:"
+    echo "$unformatted"
+    failed=1
+  fi
+  echo "→ go vet $dir"
+  (cd "$dir" && go vet ./...) || failed=1
+done
+
+exit $failed

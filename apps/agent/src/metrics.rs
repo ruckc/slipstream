@@ -30,6 +30,11 @@ pub async fn metrics_handler(State(state): State<Arc<AppState>>) -> Response<Str
         Err(e) => warn!("metrics: disk read error: {e}"),
     }
 
+    match read_disk_bytes(&state.config.home_path).await {
+        Ok(bytes) => out.push_str(&format!("slipstream_home_disk_bytes{label} {bytes}\n")),
+        Err(e) => warn!("metrics: home disk read error: {e}"),
+    }
+
     match read_network_bytes("eth0") {
         Ok((rx, tx)) => {
             out.push_str(&format!(

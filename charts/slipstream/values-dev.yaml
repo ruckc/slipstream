@@ -22,8 +22,8 @@ image:
   agent:
     repository: localhost:5001/slipstream-agent
     tag: local
-  metricsSidecar:
-    repository: localhost:5001/slipstream-metrics-sidecar
+  metricsCollector:
+    repository: localhost:5001/slipstream-metrics-collector
     tag: local
   projectController:
     repository: localhost:5001/slipstream-project-controller

@@ -8,7 +8,7 @@
 
 ---
 
-Slipstream provisions on-demand, isolated development environments as Kubernetes pods. Each project gets a persistent volume, a terminal, a file browser, and a pod that starts on demand and idles itself down automatically when not in use.
+Slipstream provisions on-demand, isolated development environments as Kubernetes pods. Each project gets persistent workspace and home volumes, a terminal, a file browser, and a pod that starts on demand and idles itself down automatically when not in use.
 
 ## How it works
 
@@ -19,18 +19,22 @@ The browser communicates exclusively with the Kubernetes Gateway API. Two sets o
 
 The web app never proxies pod traffic — the gateway routes it directly. Every request to a pod carries a short-lived RS256 JWT issued by `/api/token` and validated by the in-pod Rust agent via the JWKS endpoint.
 
-Pods are plain `Pod` resources with `restartPolicy: Never`. When the Rust agent detects no active connections for the configured idle timeout it exits with code 0, the pod reaches `Completed`, and the web app marks the project stopped via a Kubernetes watch. PVCs are preserved across stop/start cycles and only deleted when a project is explicitly removed.
+Projects are managed via a `ProjectEnvironment` custom resource. The **project-controller** operator watches these CRs and reconciles a Deployment, Service, HTTPRoute, NetworkPolicy, and two PVCs (workspace at `/workspace`, home at `/home/agent`) per project. Setting `spec.desiredState` to `stopped` scales the Deployment to zero; PVCs are preserved across stop/start cycles and only deleted when a project is explicitly removed.
+
+The **metrics-collector** scrapes each running agent pod's `/metrics` endpoint and stores usage samples in Postgres, powering the resource usage view and idle-shutdown detection.
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
 | Web app | SvelteKit 5 + Svelte 5 (runes) |
-| In-pod agent | Rust (HTTP + WebSocket, PTY, file ops) |
-| Metrics sidecar | Go (cgroup/proc → VictoriaMetrics) |
+| In-pod agent | Rust (HTTP + WebSocket, PTY, file ops, metrics) |
+| Metrics collector | Rust (scrapes agent `/metrics` → Postgres) |
+| Kubernetes operator | Go (reconciles `ProjectEnvironment` CRs) |
+| Network flows | Go (Cilium/Hubble Relay → Postgres) |
 | Database | PostgreSQL via Drizzle ORM |
 | Auth | OpenID Connect (Google, Microsoft) + GitHub OAuth2 |
-| Infrastructure | Kubernetes Gateway API, PVCs, NetworkPolicy |
+| Infrastructure | Kubernetes Gateway API, PVCs, NetworkPolicy, Cilium |
 
 ## Getting started
 
@@ -42,23 +46,21 @@ Pods are plain `Pod` resources with `restartPolicy: Never`. When the Rust agent 
 
 ### Configuration
 
-The web app is configured via environment variables:
-
 | Variable | Required | Description |
 |---|---|---|
 | `DATABASE_URL` | yes | PostgreSQL connection string |
 | `APP_URL` | yes | Public base URL (used for OIDC redirect URIs) |
-| `AGENT_IMAGE` | yes | Docker image for project pods |
+| `AGENT_IMAGE` | yes | Docker image for project pods — read by project-controller |
 | `GATEWAY_NAME` | yes | Name of the Gateway API `Gateway` resource |
 | `GATEWAY_NAMESPACE` | yes | Namespace containing the gateway |
 | `GATEWAY_HOSTNAME` | yes | Hostname the gateway serves |
+| `SESSION_SECRET` | yes (prod) | HMAC-SHA256 key for signing session cookies |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | no | Enables Google OIDC login |
 | `MICROSOFT_CLIENT_ID` / `_SECRET` | no | Enables Microsoft OIDC login |
 | `GITHUB_CLIENT_ID` / `_SECRET` | no | Enables GitHub OAuth2 login |
 | `DEFAULT_IDLE_TIMEOUT_SECONDS` | no | Pod idle timeout (default: 1800) |
 | `AGENT_STORAGE_CLASS` | no | PVC storage class (default: `standard`) |
-| `METRICS_SIDECAR_IMAGE` | no | Enables the Go metrics sidecar in pods |
-| `METRICS_PUSH_URL` | no | VictoriaMetrics remote write endpoint |
+| `METRICS_PUSH_URL` | no | VictoriaMetrics endpoint — enables idle shutdown in controller |
 | `K8S_JWT_PRIVATE_KEY` | no | Base64 PKCS8 PEM for multi-replica deployments |
 
 ### Helm install
@@ -80,33 +82,41 @@ helm install slipstream oci://ghcr.io/ruckc/charts/slipstream \
 Requires [mise](https://mise.jdx.dev/) for tool version management.
 
 ```bash
-# Install Node/pnpm/Rust/Go toolchains
+# Install toolchains and JS dependencies
 mise install
-
-# Install JS dependencies
 pnpm install
 
-# Start the web dev server
-pnpm --filter @slipstream/web dev
+# Formatting
+mise run format          # all projects
+mise run format:web      # Prettier (apps/web)
+mise run format:rust     # rustfmt (apps/agent, apps/metrics-collector)
+mise run format:go       # gofmt (apps/project-controller, apps/hubble-collector)
 
-# Run checks (also run in CI)
-pnpm --filter @slipstream/web format:check
-pnpm --filter @slipstream/web lint
-pnpm --filter @slipstream/web check
+# Linting / type-checking
+mise run lint            # all linters
+mise run lint:web        # Prettier check + ESLint
+mise run typecheck:web   # svelte-check
+mise run lint:rust       # cargo fmt --check + clippy
+mise run lint:go         # gofmt check + go vet
+mise run lint:helm       # helm lint
 
-# Database
-pnpm --filter @slipstream/web db:generate   # generate migration from schema changes
-pnpm --filter @slipstream/web db:migrate    # apply migrations
-pnpm --filter @slipstream/web db:seed:dev   # seed dev accounts (requires DATABASE_URL)
+# Local dev cluster (kind + local registry on localhost:5001)
+mise run dev:cluster     # create kind cluster + registry (idempotent)
+mise run dev:build       # build all images and push to localhost:5001
+mise run dev:build web   # build a single image (web | agent | metrics-collector | project-controller | hubble-collector)
+mise run install         # helm upgrade --install → wait for rollout → db migrate
 
-# Rust agent
-cd apps/agent
+# Web app
+pnpm --filter @slipstream/web dev          # dev server
+pnpm --filter @slipstream/web db:generate  # generate migration from schema changes
+pnpm --filter @slipstream/web db:migrate   # apply migrations
+pnpm --filter @slipstream/web db:seed:dev  # seed dev accounts (requires DATABASE_URL)
+
+# Rust (run from apps/agent/ or apps/metrics-collector/)
 cargo build
 cargo test
-cargo clippy --all-targets --all-features -- -D warnings
 
-# Go metrics sidecar
-cd apps/metrics-sidecar
+# Go (run from apps/project-controller/ or apps/hubble-collector/)
 go build ./...
 go test ./...
 ```
@@ -130,13 +140,15 @@ Four permission bits: `files:read`, `files:write`, `shell`, `project:manage`. Re
 
 ## Releases
 
-Releases are created by triggering the `release` workflow manually from `main`. It analyses conventional commits since the last tag to determine the version bump (`feat!`/`BREAKING CHANGE` → major, `feat` → minor, else patch), updates all version files, tags, builds all three Docker images, and publishes a GitHub Release.
+Releases are created by triggering the `release` workflow manually from `main`. It analyses conventional commits since the last tag to determine the version bump (`feat!`/`BREAKING CHANGE` → major, `feat` → minor, else patch), updates all version files, tags, builds all Docker images, and publishes a GitHub Release.
 
 Images are published to `ghcr.io/ruckc/`:
 
 - `slipstream-web`
 - `slipstream-agent`
-- `slipstream-metrics-sidecar`
+- `slipstream-metrics-collector`
+- `slipstream-project-controller`
+- `slipstream-hubble-collector`
 
 ## License
 

@@ -10,7 +10,7 @@ Monorepo managed with pnpm workspaces (`pnpm-workspace.yaml`).
 apps/
   web/                  # SvelteKit 5 + Svelte 5 — the main web application
   agent/                # Rust — HTTP service that runs inside each project pod
-  metrics-sidecar/      # Go — reads cgroup/proc metrics, pushes to VictoriaMetrics
+  metrics-collector/    # Rust — scrapes /metrics from each agent pod, stores usage samples in Postgres
   project-controller/   # Go — Kubernetes operator that reconciles ProjectEnvironment CRs
   hubble-collector/     # Go — reads Cilium/Hubble network flows, writes to Postgres
 charts/
@@ -18,7 +18,7 @@ charts/
 docker/
   web/                  # Dockerfile for the SvelteKit app
   agent/                # Dockerfile for the Rust agent
-  metrics-sidecar/      # Dockerfile for the Go sidecar
+  metrics-collector/    # Dockerfile for the Rust metrics collector
   project-controller/   # Dockerfile for the k8s operator
   hubble-collector/     # Dockerfile for the Hubble collector
 tests/
@@ -40,14 +40,14 @@ pnpm install
 mise run format          # all projects
 mise run format:web      # Prettier (apps/web)
 mise run format:rust     # rustfmt (apps/agent)
-mise run format:go       # gofmt (apps/metrics-sidecar)
+mise run format:go       # gofmt (apps/project-controller, apps/hubble-collector)
 
 # Linting / type-checking
 mise run lint            # all linters
 mise run lint:web        # Prettier check + ESLint (apps/web)
 mise run typecheck:web   # svelte-check (apps/web)
 mise run lint:rust       # cargo fmt --check + clippy (apps/agent)
-mise run lint:go         # gofmt check + go vet (apps/metrics-sidecar)
+mise run lint:go         # gofmt check + go vet (apps/project-controller, apps/hubble-collector)
 mise run lint:helm       # helm lint
 
 # Testing
@@ -56,7 +56,7 @@ mise run test:e2e        # Playwright e2e tests against dev cluster (BASE_URL de
 # Local dev cluster (kind + registry)
 mise run dev:cluster     # idempotent: kind cluster + registry + Gateway API CRDs + any cluster config
 mise run dev:build       # build all images and push to localhost:5001 (tag: local)
-mise run dev:build web   # build a single image (web | agent | metrics-sidecar | project-controller | hubble-collector)
+mise run dev:build web   # build a single image (web | agent | metrics-collector | project-controller | hubble-collector)
 
 # Kubernetes install (assumes cluster is already configured via dev:cluster or equivalent)
 mise run install         # helm upgrade --install → wait for rollout → db migrate
@@ -79,7 +79,7 @@ cargo build --release
 cargo test
 
 # Go services — build/test only (formatting/linting via mise)
-go build ./...           # run from apps/metrics-sidecar/, apps/project-controller/, or apps/hubble-collector/
+go build ./...           # run from apps/project-controller/ or apps/hubble-collector/
 go test ./...
 ```
 
@@ -105,8 +105,8 @@ image:
   agent:
     repository: localhost:5001/slipstream-agent
     tag: local
-  metricsSidecar:
-    repository: localhost:5001/slipstream-metrics-sidecar
+  metricsCollector:
+    repository: localhost:5001/slipstream-metrics-collector
     tag: local
   projectController:
     repository: localhost:5001/slipstream-project-controller
@@ -227,10 +227,9 @@ Key variables the web app reads at runtime:
 | `K8S_JWT_PRIVATE_KEY` | no | Base64 PKCS8 PEM; generate ephemeral key if absent |
 | `DEFAULT_IDLE_TIMEOUT_SECONDS` | no | Default 1800 |
 | `AGENT_STORAGE_CLASS` | no | PVC storage class (default: `standard`) |
-| `METRICS_SIDECAR_IMAGE` | no | Enables metrics sidecar in pods — read by project-controller |
 | `METRICS_PUSH_URL` | no | VictoriaMetrics push endpoint — enables idle shutdown in controller |
 
-The Rust agent reads: `PORT`, `JWKS_URL`, `PROJECT_ID`, `WORKSPACE_PATH`, `IDLE_TIMEOUT_SECONDS`, `CORS_ORIGIN` (passed automatically from `APP_URL`).
+The Rust agent reads: `PORT`, `JWKS_URL`, `PROJECT_ID`, `WORKSPACE_PATH`, `HOME_PATH`, `IDLE_TIMEOUT_SECONDS`, `CORS_ORIGIN` (passed automatically from `APP_URL`).
 
 The project-controller additionally reads: `USAGE_REPORT_URL` (optional, for usage telemetry), `KUBECONFIG` (optional, falls back to in-cluster config).
 
@@ -239,7 +238,7 @@ The project-controller additionally reads: `USAGE_REPORT_URL` (optional, for usa
 The canonical version lives in the root `VERSION` file. Releases are created by triggering the `release` workflow manually (`workflow_dispatch`) from the `main` branch. It:
 1. Runs all three check jobs
 2. Analyses conventional commits since the last `v*.*.*` tag to determine the bump (`feat!`/`BREAKING CHANGE` → major, `feat` → minor, else patch)
-3. Updates `VERSION`, `apps/web/package.json`, `apps/agent/Cargo.toml` (via `tomlkit`), and `version.go` in all Go services (`metrics-sidecar`, `project-controller`, `hubble-collector`)
+3. Updates `VERSION`, `apps/web/package.json`, `apps/agent/Cargo.toml` and `apps/metrics-collector/Cargo.toml` (via `tomlkit`), and `version.go` in all Go services (`project-controller`, `hubble-collector`)
 4. Commits, tags, and pushes — then builds all Docker images from the tag and creates a GitHub Release
 
 The `bump` input can override auto-detection.
