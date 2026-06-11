@@ -1,4 +1,4 @@
 package main
 
 // Version is set at release time by the CI pipeline.
-var Version = "0.29.9"
+var Version = "0.29.10"
