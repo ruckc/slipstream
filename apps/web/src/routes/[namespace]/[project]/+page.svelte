@@ -147,7 +147,7 @@
   .starting-overlay {
     position: fixed;
     inset: 0;
-    z-index: 100;
+    z-index: 300;
     background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;

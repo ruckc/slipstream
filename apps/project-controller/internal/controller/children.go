@@ -138,6 +138,9 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 				{Name: "PROJECT_ID", Value: pe.Spec.ProjectID},
 				{Name: "PUSH_URL", Value: cfg.MetricsPushURL},
 			},
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "workspace", MountPath: "/workspace", ReadOnly: true},
+			},
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: boolPtr(false),
 				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
