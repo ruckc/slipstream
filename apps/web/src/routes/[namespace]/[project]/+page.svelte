@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state'
   import { getProjectPage } from '$lib/remote/project-page.remote'
-  import { startProject, getPodStartStatus } from '$lib/remote/project.remote'
+  import { startProject } from '$lib/remote/project.remote'
   import AppShell from '$lib/components/layout/AppShell.svelte'
   import FileBrowser from '$lib/components/file-browser/FileBrowser.svelte'
   import WorkspaceManager from '$lib/components/workspace/WorkspaceManager.svelte'
@@ -48,38 +48,25 @@
       })
   })
 
-  // Poll the agent health endpoint directly while starting.
+  // Stream pod start status via SSE while starting. Transitions to running or
+  // shows a failure reason; closes automatically when either terminal state
+  // is reached or when the component is destroyed (navigation away).
   $effect(() => {
     if (projectStatus !== 'starting') return
-    const healthUrl = `/env/${encodeURIComponent(namespace.slug)}/${encodeURIComponent(project.slug)}/health`
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(healthUrl)
-        if (res.ok) {
-          projectStatus = 'running'
-          showStartingOverlay = false
-        }
-      } catch {
-        // ignore transient errors
+    const es = new EventSource(`/api/pods/${project.id}/start-status`)
+    es.onmessage = (e: MessageEvent) => {
+      const data = JSON.parse(e.data) as { phase: string; failureReason?: string }
+      if (data.phase === 'running') {
+        projectStatus = 'running'
+        showStartingOverlay = false
+        es.close()
+      } else if (data.phase === 'failed' && data.failureReason) {
+        podFailureReason = data.failureReason
+        es.close()
       }
-    }, 2000)
-    return () => clearInterval(interval)
-  })
-
-  // Poll pod status for failure reasons while starting.
-  $effect(() => {
-    if (projectStatus !== 'starting') return
-    const interval = setInterval(async () => {
-      try {
-        const { failureReason } = await getPodStartStatus({ projectId: project.id })
-        if (failureReason) {
-          podFailureReason = failureReason
-        }
-      } catch {
-        // ignore transient errors
-      }
-    }, 5000)
-    return () => clearInterval(interval)
+    }
+    es.onerror = () => es.close()
+    return () => es.close()
   })
 
   let workspaceManager: WorkspaceManager = $state(null!)
