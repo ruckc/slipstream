@@ -31,11 +31,13 @@ jobs:
       !startsWith(github.event.head_commit.message, 'chore: release')
     uses: ./.github/workflows/checks.yml
 
-  # ── Determine next version, update files, commit, push commit (not tag yet) ─
-  # Runs on main-branch pushes (non-release commits) and workflow_dispatch.
-  # The tag is intentionally withheld until builds and validation pass.
+  # ── Compute version, update files, and push to a staging branch ────────────
+  # Creates the version-bump commit and pushes it to release-staging (not main)
+  # so that build jobs check out the exact commit that will be tagged, embedding
+  # the right git hash in binaries. main is only updated in finalize if all
+  # builds and validation pass.
   version:
-    name: Version & Commit
+    name: Version
     runs-on: ubuntu-latest
     needs: checks
     if: |
@@ -211,8 +213,8 @@ jobs:
           echo "hubble-collector/version.go:$(grep Version apps/hubble-collector/version.go)"
           echo "Chart.yaml:                 $(grep '^version:' charts/slipstream/Chart.yaml)"
 
-      # ── 5. Commit and push to main — tag is pushed only after builds pass ─
-      - name: Commit and push
+      # ── 5. Commit to a staging branch — main is untouched until finalize ─
+      - name: Commit and push to staging branch
         id: commit
         env:
           VERSION: ${{ steps.next.outputs.version }}
@@ -231,10 +233,14 @@ jobs:
                   charts/slipstream/Chart.yaml
 
           git commit -m "chore: release ${TAG}"
-          git push origin main
+
+          # Push to a staging branch so build jobs can check out this exact
+          # commit by SHA. main is not touched until finalize confirms success.
+          git push origin HEAD:refs/heads/release-staging --force
+
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-  # ── Build and push versioned images from the version commit ────────────────
+  # ── Build and push versioned images from the staging commit ────────────────
   build:
     name: Build & Push — ${{ matrix.image.name }}
     runs-on: ubuntu-latest
@@ -303,8 +309,8 @@ jobs:
           secrets: ${{ matrix.image.name == 'agent' && format('actions_cache_url={0}{1}actions_runtime_token={2}', env.ACTIONS_CACHE_URL, '\n', env.ACTIONS_RUNTIME_TOKEN) || '' }}
 
   # ── Kind integration test: schema validation against live API server ────────
-  # Runs in parallel with build against the version commit so it doesn't add
-  # to the critical path. Both must pass before the tag is pushed.
+  # Runs in parallel with build against the staging commit. Both must pass
+  # before the staging commit is promoted to main.
   kind-test:
     name: Kind — Schema Validation
     runs-on: ubuntu-latest
@@ -344,7 +350,10 @@ jobs:
             --namespace slipstream-system \
             | kubectl apply --dry-run=server -f -
 
-  # ── Publish tag, Helm chart, and GitHub Release once everything passes ──────
+  # ── Promote staging commit to main, tag, publish chart, create release ──────
+  # Fast-forward merges the staging commit onto main, pushes the tag, publishes
+  # the Helm chart, and creates the GitHub Release. On failure the staging
+  # branch is deleted and main is left untouched.
   finalize:
     name: Finalize Release
     runs-on: ubuntu-latest
@@ -357,14 +366,21 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push tag
+      - name: Promote staging commit to main and push tag
         env:
           TAG: ${{ needs.version.outputs.tag }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fast-forward main to the staging commit. Fails loudly if main has
+          # diverged (concurrent push during builds), which is the safe default.
+          git push origin HEAD:refs/heads/main
+
           git tag -a "${TAG}" -m "Release ${TAG}"
           git push origin "${TAG}"
+
+          git push origin --delete release-staging
 
       - uses: azure/setup-helm@v5
         with:
@@ -429,3 +445,17 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/slipstream-metrics-sidecar:${{ needs.version.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/slipstream-project-controller:${{ needs.version.outputs.version }}
             ```
+
+  # ── Clean up staging branch on build/test failure ──────────────────────────
+  cleanup-on-failure:
+    name: Cleanup Staging Branch
+    runs-on: ubuntu-latest
+    needs: [version, build, kind-test]
+    if: always() && needs.version.result == 'success' && (needs.build.result == 'failure' || needs.kind-test.result == 'failure')
+    steps:
+      - uses: actions/checkout@v6.0.3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete staging branch
+        run: git push origin --delete release-staging || true
