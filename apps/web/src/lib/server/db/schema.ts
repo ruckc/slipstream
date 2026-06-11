@@ -159,6 +159,7 @@ export const projects = pgTable(
     displayName: text('display_name').notNull(),
     idleTimeoutSeconds: integer('idle_timeout_seconds'), // null = inherit
     egressFilterEnabled: boolean('egress_filter_enabled'), // null = inherit from namespace
+    kubeDeployAccess: boolean('kube_deploy_access').notNull().default(false),
     k8sPvcName: text('k8s_pvc_name').notNull(), // always set at creation
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),

@@ -7,8 +7,12 @@ const (
 	LabelOwnerNamespaceSlug = "slipstream.io/owner-namespace-slug"
 	LabelProjectID          = "slipstream.io/project-id"
 	LabelProjectSlug        = "slipstream.io/project-slug"
+	LabelProject            = "slipstream.io/project" // "true" on project namespaces
 
 	FinalizerName = "slipstream.io/project-environment"
+
+	projectSAName   = "project-agent"
+	projectRoleName = "project-agent"
 )
 
 func projectLabels(pe *v1alpha1.ProjectEnvironment) map[string]string {

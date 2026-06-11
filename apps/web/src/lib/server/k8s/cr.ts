@@ -31,6 +31,7 @@ export interface ProjectEnvironmentSpec {
   idleTimeoutSeconds: number
   retainStorage: boolean
   egressPolicy: EgressPolicySpec
+  kubeDeployAccess: boolean
 }
 
 export interface ProjectEnvironmentStatus {
@@ -157,6 +158,10 @@ export async function listProjectEnvironments(): Promise<ProjectEnvironment[]> {
   })
   const list = result as { items?: ProjectEnvironment[] }
   return list.items ?? []
+}
+
+export async function patchKubeDeployAccess(projectId: string, enabled: boolean): Promise<void> {
+  await patchProjectEnvironmentSpec(projectId, { kubeDeployAccess: enabled })
 }
 
 export async function patchEgressPolicy(

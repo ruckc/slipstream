@@ -1,0 +1,34 @@
+{{- if semverCompare ">=1.26-0" .Capabilities.KubeVersion.GitVersion }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: slipstream-no-external-ips
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE]
+        resources: [services]
+  validations:
+    - expression: "size(object.spec.externalIPs) == 0"
+      message: "Services in project namespaces may not use externalIPs"
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: slipstream-no-external-ips
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+spec:
+  policyName: slipstream-no-external-ips
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        slipstream.io/project: "true"
+{{- end }}

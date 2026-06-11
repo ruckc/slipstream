@@ -204,6 +204,9 @@ func (c *Controller) ensureResources(ctx context.Context, pe *v1alpha1.ProjectEn
 	if err := c.ensureService(ctx, pe); err != nil {
 		return "", fmt.Errorf("ensure service: %w", err)
 	}
+	if err := c.ensureKubeDeployAccess(ctx, pe); err != nil {
+		return "", fmt.Errorf("ensure kube deploy access: %w", err)
+	}
 	if err := c.ensureNetworkPolicy(ctx, pe); err != nil {
 		return "", fmt.Errorf("ensure network policy: %w", err)
 	}
@@ -254,10 +257,12 @@ func (c *Controller) ensureDeployment(ctx context.Context, pe *v1alpha1.ProjectE
 		return err
 	}
 
-	// Update replicas and container spec; preserve resourceVersion.
+	// Update replicas, containers, and SA — SA changes trigger a rolling restart.
 	updated := existing.DeepCopy()
 	updated.Spec.Replicas = desired.Spec.Replicas
 	updated.Spec.Template.Spec.Containers = desired.Spec.Template.Spec.Containers
+	updated.Spec.Template.Spec.ServiceAccountName = desired.Spec.Template.Spec.ServiceAccountName
+	updated.Spec.Template.Spec.AutomountServiceAccountToken = desired.Spec.Template.Spec.AutomountServiceAccountToken
 	updated.Labels = desired.Labels
 	_, err = c.kubeclient.AppsV1().Deployments(ns).Update(ctx, updated, metav1.UpdateOptions{})
 	return err
@@ -271,6 +276,68 @@ func (c *Controller) ensureService(ctx context.Context, pe *v1alpha1.ProjectEnvi
 	_, err := c.kubeclient.CoreV1().Services(ns).Get(ctx, desired.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		_, err = c.kubeclient.CoreV1().Services(ns).Create(ctx, desired, metav1.CreateOptions{})
+	}
+	return err
+}
+
+// --- KubeDeployAccess (SA + Role + RoleBinding) ---
+
+func (c *Controller) ensureKubeDeployAccess(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
+	ns := projectNamespace(pe)
+
+	if !pe.Spec.KubeDeployAccess {
+		// Delete all three resources if they exist; ignore not-found.
+		errs := []error{
+			ignoreNotFound(c.kubeclient.CoreV1().ServiceAccounts(ns).Delete(ctx, projectSAName, metav1.DeleteOptions{})),
+			ignoreNotFound(c.kubeclient.RbacV1().Roles(ns).Delete(ctx, projectRoleName, metav1.DeleteOptions{})),
+			ignoreNotFound(c.kubeclient.RbacV1().RoleBindings(ns).Delete(ctx, projectRoleName, metav1.DeleteOptions{})),
+		}
+		for _, err := range errs {
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// ServiceAccount
+	_, err := c.kubeclient.CoreV1().ServiceAccounts(ns).Get(ctx, projectSAName, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		_, err = c.kubeclient.CoreV1().ServiceAccounts(ns).Create(ctx, buildProjectServiceAccount(pe), metav1.CreateOptions{})
+	}
+	if err != nil {
+		return fmt.Errorf("service account: %w", err)
+	}
+
+	// Role
+	desiredRole := buildProjectRole(pe)
+	existingRole, err := c.kubeclient.RbacV1().Roles(ns).Get(ctx, projectRoleName, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		_, err = c.kubeclient.RbacV1().Roles(ns).Create(ctx, desiredRole, metav1.CreateOptions{})
+	} else if err == nil {
+		updated := existingRole.DeepCopy()
+		updated.Rules = desiredRole.Rules
+		_, err = c.kubeclient.RbacV1().Roles(ns).Update(ctx, updated, metav1.UpdateOptions{})
+	}
+	if err != nil {
+		return fmt.Errorf("role: %w", err)
+	}
+
+	// RoleBinding
+	_, err = c.kubeclient.RbacV1().RoleBindings(ns).Get(ctx, projectRoleName, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		_, err = c.kubeclient.RbacV1().RoleBindings(ns).Create(ctx, buildProjectRoleBinding(pe), metav1.CreateOptions{})
+	}
+	if err != nil {
+		return fmt.Errorf("role binding: %w", err)
+	}
+
+	return nil
+}
+
+func ignoreNotFound(err error) error {
+	if errors.IsNotFound(err) {
+		return nil
 	}
 	return err
 }

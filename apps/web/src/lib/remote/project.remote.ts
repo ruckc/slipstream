@@ -116,6 +116,7 @@ export const createProject = command(
         idleTimeoutSeconds: idleTimeout,
         retainStorage: true,
         egressPolicy: resolvedEgressToSpec(egressPolicy),
+        kubeDeployAccess: false,
       })
     } catch (e) {
       await db.delete(projects).where(eq(projects.id, project.id))

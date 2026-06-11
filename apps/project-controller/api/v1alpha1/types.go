@@ -53,6 +53,12 @@ type ProjectEnvironmentSpec struct {
 
 	// EgressPolicy describes the desired network egress configuration.
 	EgressPolicy EgressPolicySpec `json:"egressPolicy"`
+
+	// KubeDeployAccess controls whether the agent pod is granted a ServiceAccount
+	// with permission to manage Deployments, StatefulSets, and Services within its
+	// own project namespace.
+	// +kubebuilder:default=false
+	KubeDeployAccess bool `json:"kubeDeployAccess"`
 }
 
 type EgressPolicySpec struct {

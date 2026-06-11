@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -55,6 +56,11 @@ func desiredReplicas(pe *v1alpha1.ProjectEnvironment) int32 {
 func buildNamespace(pe *v1alpha1.ProjectEnvironment) *corev1.Namespace {
 	labels := projectLabels(pe)
 	labels["slipstream.io/managed"] = "true"
+	labels[LabelProject] = "true"
+	// Enforce Pod Security Standards baseline profile: blocks privileged containers,
+	// hostNetwork, hostPID, hostIPC, and other cluster-impacting capabilities.
+	labels["pod-security.kubernetes.io/enforce"] = "baseline"
+	labels["pod-security.kubernetes.io/enforce-version"] = "latest"
 	return &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   projectNamespace(pe),
@@ -133,6 +139,14 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 	podLabels := projectLabels(pe)
 	podLabels["app"] = name
 
+	// Mount the project SA when kube deploy access is enabled; otherwise block
+	// all SA token automounting so the agent has no cluster API access by default.
+	automount := boolPtr(pe.Spec.KubeDeployAccess)
+	serviceAccountName := ""
+	if pe.Spec.KubeDeployAccess {
+		serviceAccountName = projectSAName
+	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -148,7 +162,8 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 				ObjectMeta: metav1.ObjectMeta{Labels: podLabels},
 				Spec: corev1.PodSpec{
 					Hostname:                     pe.Spec.ProjectSlug,
-					AutomountServiceAccountToken: boolPtr(false),
+					ServiceAccountName:           serviceAccountName,
+					AutomountServiceAccountToken: automount,
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: boolPtr(true),
 						RunAsUser:    int64Ptr(1000),
@@ -352,6 +367,60 @@ func labelsToInterface(m map[string]string) map[string]interface{} {
 		out[k] = v
 	}
 	return out
+}
+
+func buildProjectServiceAccount(pe *v1alpha1.ProjectEnvironment) *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      projectSAName,
+			Namespace: projectNamespace(pe),
+			Labels:    projectLabels(pe),
+		},
+	}
+}
+
+func buildProjectRole(pe *v1alpha1.ProjectEnvironment) *rbacv1.Role {
+	return &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      projectRoleName,
+			Namespace: projectNamespace(pe),
+			Labels:    projectLabels(pe),
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{"apps"},
+				Resources: []string{"deployments", "statefulsets"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"services"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+		},
+	}
+}
+
+func buildProjectRoleBinding(pe *v1alpha1.ProjectEnvironment) *rbacv1.RoleBinding {
+	return &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      projectRoleName,
+			Namespace: projectNamespace(pe),
+			Labels:    projectLabels(pe),
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     projectRoleName,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      projectSAName,
+				Namespace: projectNamespace(pe),
+			},
+		},
+	}
 }
 
 func boolPtr(b bool) *bool         { return &b }

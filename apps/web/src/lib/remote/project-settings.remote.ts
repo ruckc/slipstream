@@ -8,7 +8,12 @@ import { getProjectPermissions, setProjectPermissions } from '$lib/remote/permis
 import { resolvePermissions } from '$lib/server/permissions'
 import type { Permission } from '$lib/server/permissions'
 import { resolveEgressPolicy } from '$lib/server/k8s/egress'
-import { patchEgressPolicy, resolvedEgressToSpec } from '$lib/server/k8s/cr'
+import {
+  getProjectEnvironment,
+  patchEgressPolicy,
+  patchKubeDeployAccess,
+  resolvedEgressToSpec,
+} from '$lib/server/k8s/cr'
 import * as v from 'valibot'
 
 async function syncEgressPolicy(projectId: string, namespaceId: string): Promise<void> {
@@ -51,6 +56,7 @@ export const getProjectSettings = query(
     ])
 
     const ns = nsRows[0]
+    const cr = await getProjectEnvironment(project.id)
 
     return {
       project,
@@ -59,6 +65,7 @@ export const getProjectSettings = query(
       projectEgressAllowRules,
       namespaceEgressFilterEnabled: ns?.egressFilterEnabled ?? false,
       namespaceEgressListMode: ns?.egressListMode ?? 'merge',
+      projectPhase: cr?.status?.phase ?? null,
     }
   }
 )
@@ -373,5 +380,28 @@ export const updateProjectEgressRulePorts = command(
       .where(and(eq(egressRules.id, arg.ruleId), eq(egressRules.ownerId, project.id)))
 
     await syncEgressPolicy(project.id, project.namespaceId)
+  }
+)
+
+export const toggleKubeDeployAccess = command(
+  'unchecked',
+  async (arg: { namespaceSlug: string; projectSlug: string; enabled: boolean }) => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) redirect(302, '/auth/login')
+
+    const project = await getProject({
+      namespaceSlug: arg.namespaceSlug,
+      projectSlug: arg.projectSlug,
+    })
+    if (!project) error(404)
+
+    const perms = await resolvePermissions(locals.user, project.id)
+    if (!perms.includes('project:manage')) error(403)
+
+    await db
+      .update(projects)
+      .set({ kubeDeployAccess: arg.enabled })
+      .where(eq(projects.id, project.id))
+    await patchKubeDeployAccess(project.id, arg.enabled)
   }
 )

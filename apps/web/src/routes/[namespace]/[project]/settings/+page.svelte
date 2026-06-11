@@ -11,6 +11,7 @@
     updateProjectEgressFilterEnabled,
     addProjectEgressRule,
     removeProjectEgressRule,
+    toggleKubeDeployAccess,
   } from '$lib/remote/project-settings.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
@@ -120,6 +121,33 @@
       projectSlug: page.params.project!,
     })
     goto(result.redirectTo)
+  }
+
+  let kubeDeployAccess = $state(data.project.kubeDeployAccess)
+  let kubeDeployConfirmPending = $state<boolean | null>(null)
+
+  async function handleKubeDeployToggle() {
+    const next = !kubeDeployAccess
+    if (data.projectPhase === 'Running') {
+      kubeDeployConfirmPending = next
+      return
+    }
+    await applyKubeDeployToggle(next)
+  }
+
+  async function confirmKubeDeployToggle() {
+    if (kubeDeployConfirmPending === null) return
+    await applyKubeDeployToggle(kubeDeployConfirmPending)
+    kubeDeployConfirmPending = null
+  }
+
+  async function applyKubeDeployToggle(next: boolean) {
+    await toggleKubeDeployAccess({
+      namespaceSlug: page.params.namespace!,
+      projectSlug: page.params.project!,
+      enabled: next,
+    })
+    kubeDeployAccess = next
   }
 </script>
 
@@ -357,6 +385,58 @@
             </div>
           </div>
         {/if}
+      {/if}
+    </section>
+
+    <!-- Kubernetes deploy access -->
+    <section class="settings-section">
+      <div class="section-header-row">
+        <div>
+          <h2 class="section-title">Kubernetes deploy access</h2>
+          <p class="section-desc">
+            Grant the agent pod a ServiceAccount that can manage Deployments, StatefulSets, and
+            Services in its own project namespace. Services are restricted from using
+            <code>externalIPs</code>. Privileged pods are blocked via namespace Pod Security
+            Standards.
+            {#if kubeDeployAccess && data.projectPhase === 'Running'}
+              <br /><strong>Active</strong> — the pod has deploy access.
+            {/if}
+          </p>
+        </div>
+        <button
+          class="toggle"
+          class:toggle--on={kubeDeployAccess}
+          onclick={handleKubeDeployToggle}
+          title={kubeDeployAccess
+            ? 'Deploy access on — click to disable'
+            : 'Deploy access off — click to enable'}
+        >
+          <span class="toggle-thumb"></span>
+        </button>
+      </div>
+
+      {#if kubeDeployConfirmPending !== null}
+        <div class="kube-confirm-dialog">
+          <p class="kube-confirm-msg">
+            {kubeDeployConfirmPending
+              ? 'Enabling deploy access requires restarting the pod.'
+              : 'Disabling deploy access requires restarting the pod.'}
+            The project is currently running — continue?
+          </p>
+          <div class="kube-confirm-actions">
+            <Button
+              variant="primary"
+              size="sm"
+              loading={toggleKubeDeployAccess.pending > 0}
+              onclick={confirmKubeDeployToggle}
+            >
+              Restart and {kubeDeployConfirmPending ? 'enable' : 'disable'}
+            </Button>
+            <Button variant="ghost" size="sm" onclick={() => (kubeDeployConfirmPending = null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
       {/if}
     </section>
 
@@ -778,5 +858,25 @@
   .rule-ports-input:focus {
     outline: none;
     border-color: var(--color-accent);
+  }
+
+  .kube-confirm-dialog {
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 40%, transparent);
+    border-radius: var(--radius-md);
+  }
+
+  .kube-confirm-msg {
+    margin: 0 0 var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+  }
+
+  .kube-confirm-actions {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
   }
 </style>
