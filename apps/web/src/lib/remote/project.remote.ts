@@ -13,6 +13,7 @@ import {
   phaseToProjectStatus,
   resolvedEgressToSpec,
 } from '$lib/server/k8s/cr'
+import { getCoreV1Api } from '$lib/server/k8s/client'
 import { resolveEgressPolicy } from '$lib/server/k8s/egress'
 import { resolvePermissions, resolveIdleTimeout } from '$lib/server/permissions'
 import { logServerError } from '$lib/server/error-log'
@@ -162,6 +163,54 @@ export const getProjectPodIP = query(
   async (arg: { projectId: string }): Promise<string | null> => {
     const cr = await getProjectEnvironment(arg.projectId)
     return cr?.status?.podIP ?? null
+  }
+)
+
+const FAILURE_REASONS = new Set([
+  'CrashLoopBackOff',
+  'ImagePullBackOff',
+  'ErrImagePull',
+  'InvalidImageName',
+  'CreateContainerConfigError',
+  'CreateContainerError',
+  'OOMKilled',
+  'Error',
+])
+
+export const getPodStartStatus = query(
+  v.object({ projectId: v.string() }),
+  async (arg: {
+    projectId: string
+  }): Promise<{ phase: 'stopped' | 'starting' | 'running'; failureReason: string | null }> => {
+    const cr = await getProjectEnvironment(arg.projectId)
+    const phase = phaseToProjectStatus(cr?.status?.phase)
+    let failureReason: string | null = null
+
+    if (phase === 'starting' || cr?.status?.phase === 'Error') {
+      try {
+        const api = getCoreV1Api()
+        const pods = await api.listNamespacedPod({ namespace: `project-${arg.projectId}` })
+        outer: for (const pod of pods.items) {
+          for (const cs of [
+            ...(pod.status?.containerStatuses ?? []),
+            ...(pod.status?.initContainerStatuses ?? []),
+          ]) {
+            const reason = cs.state?.waiting?.reason ?? cs.state?.terminated?.reason ?? null
+            if (reason && FAILURE_REASONS.has(reason)) {
+              failureReason = reason
+              break outer
+            }
+          }
+        }
+        if (cr?.status?.phase === 'Error') {
+          failureReason ??= 'Pod failed to start'
+        }
+      } catch {
+        // k8s unavailable — caller will keep polling
+      }
+    }
+
+    return { phase, failureReason }
   }
 )
 

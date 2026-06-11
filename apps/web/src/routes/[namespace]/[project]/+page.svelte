@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state'
   import { getProjectPage } from '$lib/remote/project-page.remote'
-  import { startProject } from '$lib/remote/project.remote'
+  import { startProject, getPodStartStatus } from '$lib/remote/project.remote'
   import AppShell from '$lib/components/layout/AppShell.svelte'
   import FileBrowser from '$lib/components/file-browser/FileBrowser.svelte'
   import WorkspaceManager from '$lib/components/workspace/WorkspaceManager.svelte'
@@ -27,6 +27,7 @@
   let projectStatus = $state(initialPodStatus)
   let startError = $state<string | null>(null)
   let startAttempted = $state(false)
+  let podFailureReason = $state<string | null>(null)
 
   // Show overlay eagerly: already starting, or stopped-and-will-auto-start
   let showStartingOverlay = $state(
@@ -65,6 +66,22 @@
     return () => clearInterval(interval)
   })
 
+  // Poll pod status for failure reasons while starting.
+  $effect(() => {
+    if (projectStatus !== 'starting') return
+    const interval = setInterval(async () => {
+      try {
+        const { failureReason } = await getPodStartStatus({ projectId: project.id })
+        if (failureReason) {
+          podFailureReason = failureReason
+        }
+      } catch {
+        // ignore transient errors
+      }
+    }, 5000)
+    return () => clearInterval(interval)
+  })
+
   let workspaceManager: WorkspaceManager = $state(null!)
 </script>
 
@@ -75,9 +92,24 @@
 {#if showStartingOverlay}
   <div class="starting-overlay" aria-live="polite" aria-label="Starting environment">
     <div class="starting-overlay__card">
-      <span class="starting-overlay__spinner" aria-hidden="true"></span>
-      <p class="starting-overlay__title">Starting environment…</p>
-      <p class="starting-overlay__sub">{project.displayName}</p>
+      {#if podFailureReason}
+        <span class="starting-overlay__error-icon" aria-hidden="true">✕</span>
+        <p class="starting-overlay__title">Failed to start</p>
+        <p class="starting-overlay__sub">{project.displayName}</p>
+        <p class="starting-overlay__reason">{podFailureReason}</p>
+        <button
+          class="starting-overlay__retry"
+          onclick={() => {
+            podFailureReason = null
+            projectStatus = 'stopped'
+            startAttempted = false
+          }}>Retry</button
+        >
+      {:else}
+        <span class="starting-overlay__spinner" aria-hidden="true"></span>
+        <p class="starting-overlay__title">Starting environment…</p>
+        <p class="starting-overlay__sub">{project.displayName}</p>
+      {/if}
     </div>
   </div>
 {/if}
@@ -192,6 +224,42 @@
     margin: 0;
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
+  }
+
+  .starting-overlay__error-icon {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--color-danger, #e53e3e);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .starting-overlay__reason {
+    margin: 0;
+    font-size: var(--font-size-xs, 0.75rem);
+    font-family: monospace;
+    color: var(--color-danger, #e53e3e);
+  }
+
+  .starting-overlay__retry {
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-5);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-elevated);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+  }
+
+  .starting-overlay__retry:hover {
+    background: var(--color-bg-hover);
   }
 
   .sidebar-empty {
