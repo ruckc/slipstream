@@ -331,9 +331,64 @@ jobs:
           platforms: ${{ matrix.image.platforms }}
           cache-from: |
             type=gha,scope=release-${{ matrix.image.name }}
+            type=gha,scope=main-${{ matrix.image.name }}
             type=gha,scope=${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=release-${{ matrix.image.name }}
-          secrets: ${{ matrix.image.name == 'agent' && format('actions_cache_url={0}{1}actions_runtime_token={2}', env.ACTIONS_CACHE_URL, '\n', env.ACTIONS_RUNTIME_TOKEN) || '' }}
+          secrets: |
+            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector') && format('actions_cache_url={0}', env.ACTIONS_CACHE_URL) || '' }}
+            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector') && format('actions_runtime_token={0}', env.ACTIONS_RUNTIME_TOKEN) || '' }}
+
+  # ── Warm cache build on every push to main (no push, cache-to only) ──────────
+  # Runs after checks on direct pushes to main that aren't a release bump.
+  # Builds each image and writes to the main-* cache scope so the next release
+  # build starts warm instead of cold.
+  warm-cache:
+    name: Warm Cache — ${{ matrix.image.name }}
+    runs-on: ubuntu-latest
+    needs: checks
+    if: |
+      always() &&
+      needs.checks.result == 'success' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      !startsWith(github.event.head_commit.message, 'chore: release')
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - name: web
+            dockerfile: docker/web/Dockerfile
+          - name: agent
+            dockerfile: docker/agent/Dockerfile
+          - name: metrics-collector
+            dockerfile: docker/metrics-collector/Dockerfile
+          - name: project-controller
+            dockerfile: docker/project-controller/Dockerfile
+          - name: hubble-collector
+            dockerfile: docker/hubble-collector/Dockerfile
+    steps:
+      - uses: actions/checkout@v6.0.3
+
+      - uses: docker/setup-buildx-action@v4.1.0
+
+      - name: Set up sccache
+        if: matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector'
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Build (no push)
+        uses: docker/build-push-action@v7.2.0
+        with:
+          context: .
+          file: ${{ matrix.image.dockerfile }}
+          push: false
+          platforms: linux/amd64
+          cache-from: |
+            type=gha,scope=main-${{ matrix.image.name }}
+            type=gha,scope=release-${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=main-${{ matrix.image.name }}
+          secrets: |
+            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector') && format('actions_cache_url={0}', env.ACTIONS_CACHE_URL) || '' }}
+            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector') && format('actions_runtime_token={0}', env.ACTIONS_RUNTIME_TOKEN) || '' }}
 
   # ── Kind integration test: schema validation against live API server ────────
   # Runs in parallel with build against the staging commit. Both must pass
