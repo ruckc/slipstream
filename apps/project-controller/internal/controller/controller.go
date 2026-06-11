@@ -377,11 +377,11 @@ func (c *Controller) ensureHTTPRoute(ctx context.Context, pe *v1alpha1.ProjectEn
 	name := routeName(pe)
 	desired := buildHTTPRoute(pe, c.cfg)
 
-	_, err := c.dynClient.Resource(httpRouteGVR).Namespace(ns).Get(ctx, name, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		obj := &unstructured.Unstructured{Object: desired}
-		_, err = c.dynClient.Resource(httpRouteGVR).Namespace(ns).Create(ctx, obj, metav1.CreateOptions{})
-	}
+	obj := &unstructured.Unstructured{Object: desired}
+	_, err := c.dynClient.Resource(httpRouteGVR).Namespace(ns).Apply(
+		ctx, name, obj,
+		metav1.ApplyOptions{FieldManager: "slipstream-project-controller", Force: true},
+	)
 	return err
 }
 
