@@ -90,7 +90,7 @@
 
   onMount(() => {
     createChart()
-    if (ro) ro.observe(container)
+    if (ro && container) ro.observe(container)
   })
 
   onDestroy(() => {
