@@ -12,7 +12,7 @@ use axum::{extract::State, http::StatusCode, response::Response, routing::get, R
 use chrono::Utc;
 use kube::Client;
 use sqlx::PgPool;
-use tokio::{net::TcpListener, signal, time};
+use tokio::{net::TcpListener, time};
 use tracing::{info, warn};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use uuid::Uuid;
@@ -107,12 +107,22 @@ async fn main() -> Result<()> {
     info!("Listening on {addr}");
 
     axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = signal::ctrl_c().await;
-        })
+        .with_graceful_shutdown(shutdown_signal())
         .await?;
 
     Ok(())
+}
+
+async fn shutdown_signal() {
+    use tokio::signal::unix::{signal, SignalKind};
+
+    let mut sigterm = signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
+    let mut sigint = signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
+
+    tokio::select! {
+        _ = sigterm.recv() => { info!("received SIGTERM, shutting down"); }
+        _ = sigint.recv() => { info!("received SIGINT, shutting down"); }
+    }
 }
 
 // ---------------------------------------------------------------------------
