@@ -63,10 +63,7 @@ async fn main() -> Result<()> {
 
     info!(
         sts_name,
-        my_ordinal,
-        my_namespace,
-        scrape_interval_secs,
-        "metrics-collector starting"
+        my_ordinal, my_namespace, scrape_interval_secs, "metrics-collector starting"
     );
 
     let pool = PgPool::connect(&database_url)
@@ -140,8 +137,7 @@ async fn scrape_loop(
         ticker.tick().await;
         let start = Instant::now();
 
-        let replica_count =
-            k8s::get_replica_count(&k8s_client, &namespace, &sts_name).await;
+        let replica_count = k8s::get_replica_count(&k8s_client, &namespace, &sts_name).await;
 
         let all_projects = match k8s::list_running_projects(&k8s_client).await {
             Ok(p) => p,
@@ -259,14 +255,15 @@ async fn metrics_handler(State(state): State<Arc<CollectorState>>) -> Response<S
 fn fnv1a_hash(s: &str) -> u32 {
     const OFFSET: u32 = 2166136261;
     const PRIME: u32 = 16777619;
-    s.bytes().fold(OFFSET, |h, b| (h ^ b as u32).wrapping_mul(PRIME))
+    s.bytes()
+        .fold(OFFSET, |h, b| (h ^ b as u32).wrapping_mul(PRIME))
 }
 
 /// Parse `<name>-<ordinal>` from the pod hostname. Falls back to ordinal 0.
 fn parse_ordinal_from_hostname() -> (String, u32) {
     let hostname = env::var("HOSTNAME").unwrap_or_default();
-    let sts_name = env::var("STATEFULSET_NAME")
-        .unwrap_or_else(|_| "slipstream-metrics-collector".to_string());
+    let sts_name =
+        env::var("STATEFULSET_NAME").unwrap_or_else(|_| "slipstream-metrics-collector".to_string());
 
     if let Some(ordinal_str) = hostname.rsplit('-').next() {
         if let Ok(ordinal) = ordinal_str.parse::<u32>() {

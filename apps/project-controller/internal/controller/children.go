@@ -426,7 +426,7 @@ func buildProjectRoleBinding(pe *v1alpha1.ProjectEnvironment) *rbacv1.RoleBindin
 	}
 }
 
-func boolPtr(b bool) *bool         { return &b }
-func int64Ptr(i int64) *int64      { return &i }
-func intstrPtr(i int) *intstr.IntOrString { v := intstr.FromInt(i); return &v }
+func boolPtr(b bool) *bool                           { return &b }
+func int64Ptr(i int64) *int64                        { return &i }
+func intstrPtr(i int) *intstr.IntOrString            { v := intstr.FromInt(i); return &v }
 func protocolPtr(p corev1.Protocol) *corev1.Protocol { return &p }
