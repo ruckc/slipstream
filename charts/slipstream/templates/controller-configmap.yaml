@@ -13,8 +13,3 @@ data:
   GATEWAY_HOSTNAME: {{ .Values.gateway.hostname | quote }}
   GATEWAY_LISTENER_HTTPS: {{ .Values.gateway.listeners.https | quote }}
   DEFAULT_IDLE_TIMEOUT_SECONDS: {{ .Values.agent.idleTimeoutSeconds | quote }}
-  {{- if .Values.victoriametrics.enabled }}
-  METRICS_SIDECAR_IMAGE: {{ include "slipstream.metricsSidecarImage" . | quote }}
-  METRICS_PUSH_URL: {{ include "slipstream.metricsPushUrl" . | quote }}
-  USAGE_REPORT_URL: {{ printf "http://slipstream-web.%s.svc.cluster.local/api/internal/usage" .Release.Namespace | quote }}
-  {{- end }}

@@ -130,24 +130,6 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 		},
 	}
 
-	if cfg.MetricsSidecarImage != "" {
-		containers = append(containers, corev1.Container{
-			Name:  "metrics-sidecar",
-			Image: cfg.MetricsSidecarImage,
-			Env: []corev1.EnvVar{
-				{Name: "PROJECT_ID", Value: pe.Spec.ProjectID},
-				{Name: "PUSH_URL", Value: cfg.MetricsPushURL},
-			},
-			VolumeMounts: []corev1.VolumeMount{
-				{Name: "workspace", MountPath: "/workspace", ReadOnly: true},
-			},
-			SecurityContext: &corev1.SecurityContext{
-				AllowPrivilegeEscalation: boolPtr(false),
-				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
-			},
-		})
-	}
-
 	podLabels := projectLabels(pe)
 	podLabels["app"] = name
 
@@ -225,8 +207,10 @@ func buildNetworkPolicy(pe *v1alpha1.ProjectEnvironment, cfg *Config) *networkin
 			},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
 				// Allow all ingress on 8080. The Envoy Gateway proxy runs with hostNetwork
-				// so its source is the node IP (10.244.0.1), not a pod namespace IP.
-				// Security is enforced by JWT validation in the agent, not by NetworkPolicy.
+				// so its source is the node IP (10.244.0.1), not a pod namespace IP —
+				// namespaceSelector cannot restrict it. /api/* routes are JWT-gated by the
+				// agent; /metrics and /health are unreachable via the gateway because the
+				// HTTPRoute only rewrites and forwards /api/* paths.
 				{
 					Ports: []networkingv1.NetworkPolicyPort{
 						{Port: intstrPtr(8080), Protocol: protocolPtr(corev1.ProtocolTCP)},
@@ -295,7 +279,7 @@ func buildHTTPRoute(pe *v1alpha1.ProjectEnvironment, cfg *Config) map[string]int
 							"urlRewrite": map[string]interface{}{
 								"path": map[string]interface{}{
 									"type":               "ReplacePrefixMatch",
-									"replacePrefixMatch": "/",
+									"replacePrefixMatch": "/api",
 								},
 							},
 						},

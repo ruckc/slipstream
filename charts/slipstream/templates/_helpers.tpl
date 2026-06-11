@@ -62,11 +62,10 @@ Full image reference for the project-controller container.
 {{- end }}
 
 {{/*
-Full image reference for the metrics sidecar container.
-Written into the ConfigMap so the web app can reference it when launching project pods.
+Full image reference for the metrics-collector StatefulSet.
 */}}
-{{- define "slipstream.metricsSidecarImage" -}}
-{{- printf "%s:%s" .Values.image.metricsSidecar.repository (.Values.image.metricsSidecar.tag | default .Chart.AppVersion) }}
+{{- define "slipstream.metricsCollectorImage" -}}
+{{- printf "%s:%s" .Values.image.metricsCollector.repository (.Values.image.metricsCollector.tag | default .Chart.AppVersion) }}
 {{- end }}
 
 {{/*
@@ -74,13 +73,6 @@ Full image reference for the hubble-collector container.
 */}}
 {{- define "slipstream.hubbleCollectorImage" -}}
 {{- printf "%s:%s" .Values.image.hubbleCollector.repository (.Values.image.hubbleCollector.tag | default .Chart.AppVersion) }}
-{{- end }}
-
-{{/*
-VictoriaMetrics remote-write URL (in-cluster).
-*/}}
-{{- define "slipstream.metricsPushUrl" -}}
-{{- printf "http://victoriametrics.%s.svc.cluster.local:8428/api/v1/import/prometheus" .Values.victoriametrics.namespace }}
 {{- end }}
 
 {{/*

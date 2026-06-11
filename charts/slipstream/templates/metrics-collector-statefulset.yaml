@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: slipstream-metrics-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+    app: slipstream-metrics-collector
+spec:
+  replicas: {{ .Values.metricsCollector.replicas }}
+  serviceName: slipstream-metrics-collector
+  selector:
+    matchLabels:
+      app: slipstream-metrics-collector
+  template:
+    metadata:
+      labels:
+        {{- include "slipstream.labels" . | nindent 8 }}
+        app: slipstream-metrics-collector
+    spec:
+      serviceAccountName: slipstream-metrics-collector
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: metrics-collector
+          image: {{ include "slipstream.metricsCollectorImage" . }}
+          imagePullPolicy: {{ .Values.image.metricsCollector.pullPolicy }}
+          ports:
+            - containerPort: 8080
+              name: metrics
+          env:
+            {{- include "slipstream.databaseEnv" . | nindent 12 }}
+            - name: SCRAPE_INTERVAL_SECONDS
+              value: {{ .Values.metricsCollector.scrapeIntervalSeconds | quote }}
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.metricsCollector.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: slipstream-metrics-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app: slipstream-metrics-collector
+  ports:
+    - port: 8080
+      name: metrics

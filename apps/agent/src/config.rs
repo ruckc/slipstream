@@ -7,7 +7,6 @@ pub struct Config {
     pub project_id: String,
     pub workspace_path: PathBuf,
     pub idle_timeout_secs: u64,
-    pub metrics_push_url: Option<String>,
     pub cors_origin: Option<String>,
 }
 
@@ -33,8 +32,6 @@ impl Config {
             .parse::<u64>()
             .map_err(|e| anyhow::anyhow!("Invalid IDLE_TIMEOUT_SECONDS: {}", e))?;
 
-        let metrics_push_url = env::var("METRICS_PUSH_URL").ok();
-
         // CORS_ORIGIN restricts cross-origin requests to the app's public URL.
         // If unset, falls back to allow-any (dev/testing only).
         let cors_origin = env::var("CORS_ORIGIN").ok().filter(|s| !s.is_empty());
@@ -45,7 +42,6 @@ impl Config {
             project_id,
             workspace_path,
             idle_timeout_secs,
-            metrics_push_url,
             cors_origin,
         })
     }

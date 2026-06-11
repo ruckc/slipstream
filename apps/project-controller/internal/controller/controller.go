@@ -91,11 +91,6 @@ func (c *Controller) Run(ctx context.Context) {
 		c.checkIdleProjects(ctx)
 	}, idleCheckFreq)
 
-	// Usage sampling loop — same cadence as idle check.
-	go wait.UntilWithContext(ctx, func(ctx context.Context) {
-		c.recordUsageSamples(ctx)
-	}, idleCheckFreq)
-
 	<-ctx.Done()
 	klog.Info("Shutting down project-controller")
 }

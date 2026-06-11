@@ -18,6 +18,7 @@ mod config;
 mod error;
 mod fs;
 mod idle;
+mod metrics;
 mod shell;
 
 use auth::{JwksCache, JwksCacheExt};
@@ -73,22 +74,7 @@ async fn main() -> anyhow::Result<()> {
 
     // 3. Session store + idle tracker.
     let sessions = Arc::new(SessionStore::new());
-    let idle = Arc::new(IdleTracker::new(
-        sessions.clone(),
-        config.metrics_push_url.clone(),
-        config.project_id.clone(),
-    ));
-
-    // Start the metric-push background task with a fresh IdleTracker that
-    // shares the same sessions store. The Arc<IdleTracker> in AppState is used
-    // for touch().
-    let idle_bg = IdleTracker::new(
-        sessions.clone(),
-        config.metrics_push_url.clone(),
-        config.project_id.clone(),
-    );
-    let idle_timeout = config.idle_timeout_secs;
-    idle_bg.start(idle_timeout);
+    let idle = Arc::new(IdleTracker::new(sessions.clone()));
 
     // 4. Build app state.
     let state = Arc::new(AppState {
@@ -126,20 +112,21 @@ async fn main() -> anyhow::Result<()> {
     // JwksCache is injected as an axum Extension so the AuthUser extractor
     // can pull it from request extensions without needing FromRef on Arc<AppState>.
     let app = Router::new()
-        // Health (no auth)
+        // Unauthenticated — not reachable via the gateway (HTTPRoute only forwards /api/*)
         .route("/health", get(health))
+        .route("/metrics", get(metrics::metrics_handler))
         // Session management (requires 'shell' permission)
-        .route("/sessions", post(shell::create_session))
-        .route("/sessions", get(shell::list_sessions))
-        .route("/sessions/{id}", delete(shell::kill_session))
-        .route("/sessions/{id}/attach", get(shell::ws_attach))
+        .route("/api/sessions", post(shell::create_session))
+        .route("/api/sessions", get(shell::list_sessions))
+        .route("/api/sessions/{id}", delete(shell::kill_session))
+        .route("/api/sessions/{id}/attach", get(shell::ws_attach))
         // Filesystem (requires 'files:read' or 'files:write')
-        .route("/fs", get(fs::list_dir))
-        .route("/fs/download", get(fs::download_file))
-        .route("/fs", delete(fs::delete_path))
-        .route("/fs/mkdir", post(fs::create_dir))
-        .route("/fs/move", post(fs::move_path))
-        .route("/fs/write", put(fs::write_file))
+        .route("/api/fs", get(fs::list_dir))
+        .route("/api/fs/download", get(fs::download_file))
+        .route("/api/fs", delete(fs::delete_path))
+        .route("/api/fs/mkdir", post(fs::create_dir))
+        .route("/api/fs/move", post(fs::move_path))
+        .route("/api/fs/write", put(fs::write_file))
         // Attach state and layers
         .with_state(state.clone())
         .layer(Extension(JwksCacheExt(jwks)))

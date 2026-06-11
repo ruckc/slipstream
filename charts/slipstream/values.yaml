@@ -11,8 +11,8 @@ image:
     repository: ghcr.io/OWNER/slipstream-agent
     tag: ""
     pullPolicy: IfNotPresent
-  metricsSidecar:
-    repository: ghcr.io/OWNER/slipstream-metrics-sidecar
+  metricsCollector:
+    repository: ghcr.io/OWNER/slipstream-metrics-collector
     tag: ""
     pullPolicy: IfNotPresent
   projectController:
@@ -157,3 +157,20 @@ postgresql:
 agent:
   storageClass: standard
   idleTimeoutSeconds: 1800
+
+metricsCollector:
+  replicas: 1
+  scrapeIntervalSeconds: 30
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  hpa:
+    # Requires prometheus-adapter configured to surface
+    # slipstream_collector_saturation_ratio as a custom metric.
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetSaturation: "800m" # 0.8 expressed as milli-units
