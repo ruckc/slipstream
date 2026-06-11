@@ -359,27 +359,50 @@ func buildHTTPRoute(pe *v1alpha1.ProjectEnvironment, cfg *Config) map[string]int
 }
 
 // buildCiliumNetworkPolicy returns the unstructured map for a CiliumNetworkPolicy.
-// Only called when pe.Spec.EgressPolicy.Enabled is true.
+// When egress filtering is disabled, allows all non-RFC1918 egress (internet access).
+// When egress filtering is enabled, restricts egress to the declared FQDN allow-rules.
 func buildCiliumNetworkPolicy(pe *v1alpha1.ProjectEnvironment) map[string]interface{} {
 	labels := projectLabels(pe)
 
-	egressRules := []interface{}{}
-	for _, rule := range pe.Spec.EgressPolicy.Rules {
-		if rule.RuleType != "allow" {
-			continue
-		}
-		ports := []interface{}{}
-		for _, p := range rule.Ports {
-			ports = append(ports, map[string]interface{}{"port": fmt.Sprintf("%d", p)})
-		}
-		egressRules = append(egressRules, map[string]interface{}{
-			"toFQDNs": []interface{}{
-				map[string]interface{}{"matchName": rule.Domain},
+	var egressRules []interface{}
+
+	if !pe.Spec.EgressPolicy.Enabled {
+		// Allow internet (non-RFC1918) egress while blocking private address space.
+		egressRules = []interface{}{
+			map[string]interface{}{
+				"toCIDRSet": []interface{}{
+					map[string]interface{}{
+						"cidr": "0.0.0.0/0",
+						"except": []interface{}{
+							"10.0.0.0/8",
+							"172.16.0.0/12",
+							"192.168.0.0/16",
+							"127.0.0.0/8",
+							"169.254.0.0/16",
+						},
+					},
+				},
 			},
-			"toPorts": []interface{}{
-				map[string]interface{}{"ports": ports},
-			},
-		})
+		}
+	} else {
+		egressRules = []interface{}{}
+		for _, rule := range pe.Spec.EgressPolicy.Rules {
+			if rule.RuleType != "allow" {
+				continue
+			}
+			ports := []interface{}{}
+			for _, p := range rule.Ports {
+				ports = append(ports, map[string]interface{}{"port": fmt.Sprintf("%d", p)})
+			}
+			egressRules = append(egressRules, map[string]interface{}{
+				"toFQDNs": []interface{}{
+					map[string]interface{}{"matchName": rule.Domain},
+				},
+				"toPorts": []interface{}{
+					map[string]interface{}{"ports": ports},
+				},
+			})
+		}
 	}
 
 	return map[string]interface{}{

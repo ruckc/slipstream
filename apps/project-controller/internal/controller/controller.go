@@ -424,15 +424,6 @@ func (c *Controller) ensureCiliumPolicy(ctx context.Context, pe *v1alpha1.Projec
 	ns := projectNamespace(pe)
 	name := ciliumPolicyName(pe)
 
-	if !pe.Spec.EgressPolicy.Enabled {
-		// Delete if it exists and egress is now disabled.
-		err := c.dynClient.Resource(ciliumPolicyGVR).Namespace(ns).Delete(ctx, name, metav1.DeleteOptions{})
-		if err != nil && !errors.IsNotFound(err) {
-			return err
-		}
-		return nil
-	}
-
 	desired := buildCiliumNetworkPolicy(pe)
 	existing, err := c.dynClient.Resource(ciliumPolicyGVR).Namespace(ns).Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
