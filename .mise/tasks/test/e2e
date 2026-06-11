@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Run Playwright e2e tests against the dev cluster (BASE_URL defaults to http://localhost)
+set -euo pipefail
+exec pnpm --filter @slipstream/e2e test "$@"

@@ -8,19 +8,24 @@ Monorepo managed with pnpm workspaces (`pnpm-workspace.yaml`).
 
 ```
 apps/
-  web/              # SvelteKit 5 + Svelte 5 — the main web application
-  agent/            # Rust — HTTP service that runs inside each project pod
-  metrics-sidecar/  # Go — reads cgroup/proc metrics, pushes to VictoriaMetrics
-deploy/
-  templates/        # Kubernetes resource templates (Pod, PVC, Service, HTTPRoute, NetworkPolicy)
-  manifests/        # Cluster-level resources (web deployment, VictoriaMetrics, RBAC)
+  web/                  # SvelteKit 5 + Svelte 5 — the main web application
+  agent/                # Rust — HTTP service that runs inside each project pod
+  metrics-sidecar/      # Go — reads cgroup/proc metrics, pushes to VictoriaMetrics
+  project-controller/   # Go — Kubernetes operator that reconciles ProjectEnvironment CRs
+  hubble-collector/     # Go — reads Cilium/Hubble network flows, writes to Postgres
+charts/
+  slipstream/           # Helm chart for the full stack
 docker/
-  web/              # Dockerfile for the SvelteKit app
-  agent/            # Dockerfile for the Rust agent
-  metrics-sidecar/  # Dockerfile for the Go sidecar
+  web/                  # Dockerfile for the SvelteKit app
+  agent/                # Dockerfile for the Rust agent
+  metrics-sidecar/      # Dockerfile for the Go sidecar
+  project-controller/   # Dockerfile for the k8s operator
+  hubble-collector/     # Dockerfile for the Hubble collector
+tests/
+  e2e/                  # Playwright end-to-end tests against the dev cluster
 .github/workflows/
-  ci.yml            # checks + edge image push on every push to main / PR
-  release.yml       # manual workflow_dispatch — bumps version, tags, builds, publishes
+  ci.yml                # checks + edge image push on every push to main / PR
+  release.yml           # manual workflow_dispatch — bumps version, tags, builds, publishes
 ```
 
 ## Commands
@@ -45,10 +50,13 @@ mise run lint:rust       # cargo fmt --check + clippy (apps/agent)
 mise run lint:go         # gofmt check + go vet (apps/metrics-sidecar)
 mise run lint:helm       # helm lint
 
+# Testing
+mise run test:e2e        # Playwright e2e tests against dev cluster (BASE_URL defaults to http://localhost)
+
 # Local dev cluster (kind + registry)
 mise run dev:cluster     # idempotent: kind cluster + registry + Gateway API CRDs + any cluster config
 mise run dev:build       # build all images and push to localhost:5001 (tag: local)
-mise run dev:build web   # build a single image (web | agent | metrics-sidecar)
+mise run dev:build web   # build a single image (web | agent | metrics-sidecar | project-controller | hubble-collector)
 
 # Kubernetes install (assumes cluster is already configured via dev:cluster or equivalent)
 mise run install         # helm upgrade --install → wait for rollout → db migrate
@@ -70,8 +78,8 @@ cargo build              # run from apps/agent/
 cargo build --release
 cargo test
 
-# Go metrics sidecar — build/test only (formatting/linting via mise)
-go build ./...           # run from apps/metrics-sidecar/
+# Go services — build/test only (formatting/linting via mise)
+go build ./...           # run from apps/metrics-sidecar/, apps/project-controller/, or apps/hubble-collector/
 go test ./...
 ```
 
@@ -100,6 +108,9 @@ image:
   metricsSidecar:
     repository: localhost:5001/slipstream-metrics-sidecar
     tag: local
+  projectController:
+    repository: localhost:5001/slipstream-project-controller
+    tag: local
 ```
 
 The local dev workflow is:
@@ -124,17 +135,27 @@ The SvelteKit server never proxies pod traffic — the gateway routes it directl
 
 Slugs are globally unique across users and orgs (enforced by a DB unique index on `namespaces.slug`). Kubernetes namespaces are prefixed: user `alice` → `u-alice`, org `acme` → `o-acme`. First registrant of a slug wins permanently.
 
-Each **project** gets its own dedicated Kubernetes namespace (`project-{projectId}`). All project resources (Deployment, Service, HTTPRoute, NetworkPolicy, PVC, `ProjectEnvironment` CR) live in that namespace. Deleting the namespace cascades all non-PVC resources automatically.
+Each **project** gets its own dedicated Kubernetes namespace (`project-{projectId}`). All project resources (Pod, Service, HTTPRoute, NetworkPolicy, PVC, `ProjectEnvironment` CR) live in that namespace. Deleting the namespace cascades all non-PVC resources automatically.
 
 ### Project lifecycle
 
-Projects run as `Deployment` resources (replicas 0 = stopped, 1 = running). **There is no `status` field in the DB** — project status is derived on-demand from the k8s Deployment (`getDeploymentStatus` / `listDeploymentStatuses` in `src/lib/server/k8s/deployment.ts`).
+Projects are managed via a `ProjectEnvironment` custom resource (CRD group `slipstream.io/v1alpha1`). **There is no `status` field in the DB** — project status is derived on-demand from the CR's `.status.phase` field: `Pending`, `Provisioning`, `Running`, `Stopping`, `Stopped`, or `Error`.
 
-**Idle shutdown** is handled by a server-side reconciler (`src/lib/server/reconcile.ts`) that polls every 60 s. It reads `slipstream_last_activity_at` from VictoriaMetrics, identifies Deployments whose last activity exceeds their idle timeout, and scales them to 0. This loop only runs when `METRICS_PUSH_URL` is set. `IDLE_TIMEOUT_SECONDS` is passed to the agent as an env var but the agent does not self-exit — the web app reconciler is the sole actor that scales Deployments down.
+The **project-controller** (`apps/project-controller/`) is a Kubernetes operator that watches `ProjectEnvironment` CRs and reconciles the actual pod, service, HTTPRoute, and NetworkPolicy resources. The web app sets `spec.desiredState` (`running` | `stopped`) on the CR; the controller drives the cluster toward that state.
+
+**Idle shutdown** is handled by the project-controller's idle loop (`apps/project-controller/internal/controller/idle.go`), which polls VictoriaMetrics for `slipstream_last_activity_at`, identifies projects whose last activity exceeds their idle timeout, and patches `spec.desiredState = stopped`. This only runs when `METRICS_PUSH_URL` is set.
 
 PVCs are never deleted when a project stops — only when a project is explicitly deleted.
 
 Idle timeout resolution priority: `project.idleTimeoutSeconds` → `org/user.idleTimeoutSeconds` → `DEFAULT_IDLE_TIMEOUT_SECONDS` env var (default 1800 s).
+
+The web app interacts with `ProjectEnvironment` CRs via `src/lib/server/k8s/cr.ts` (`createProjectEnvironment`, `getProjectEnvironment`, `patchProjectEnvironmentSpec`, `patchEgressPolicy`, `deleteProjectEnvironment`, `phaseToProjectStatus`).
+
+### Egress policy
+
+Each project has an egress policy embedded in its `ProjectEnvironment` CR spec (`spec.egressPolicy`). The policy is resolved from DB rules (namespace-level allow/deny rules + project-level allow rules) by `src/lib/server/k8s/egress.ts` and written to the CR when the project is created or its policy is updated. The project-controller enforces the policy via Cilium `NetworkPolicy` resources in the project namespace.
+
+The **hubble-collector** (`apps/hubble-collector/`) connects to Cilium's Hubble Relay gRPC API and writes observed DNS, HTTP, and L4 flows to Postgres. This powers the network activity view in the project UI.
 
 ### JWT issuance
 
@@ -194,10 +215,10 @@ Key variables the web app reads at runtime:
 |---|---|---|
 | `DATABASE_URL` | yes | Postgres connection string |
 | `APP_URL` | yes | Public base URL (for OIDC redirect URIs) |
-| `AGENT_IMAGE` | yes | Docker image for project pods |
-| `GATEWAY_NAME` | yes | Name of the Gateway API Gateway resource |
-| `GATEWAY_NAMESPACE` | yes | Namespace of the gateway |
-| `GATEWAY_HOSTNAME` | yes | Hostname the gateway serves |
+| `AGENT_IMAGE` | yes (controller) | Docker image for project pods — read by project-controller, not web |
+| `GATEWAY_NAME` | yes (controller) | Name of the Gateway API Gateway resource — read by project-controller |
+| `GATEWAY_NAMESPACE` | yes (controller) | Namespace of the gateway — read by project-controller |
+| `GATEWAY_HOSTNAME` | yes (controller) | Hostname the gateway serves — read by project-controller |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | no | Enables Google OIDC |
 | `MICROSOFT_CLIENT_ID` / `_SECRET` | no | Enables Microsoft OIDC |
 | `GITHUB_CLIENT_ID` / `_SECRET` | no | Enables GitHub OAuth2 |
@@ -206,17 +227,19 @@ Key variables the web app reads at runtime:
 | `K8S_JWT_PRIVATE_KEY` | no | Base64 PKCS8 PEM; generate ephemeral key if absent |
 | `DEFAULT_IDLE_TIMEOUT_SECONDS` | no | Default 1800 |
 | `AGENT_STORAGE_CLASS` | no | PVC storage class (default: `standard`) |
-| `METRICS_SIDECAR_IMAGE` | no | Enables metrics sidecar in pods |
-| `METRICS_PUSH_URL` | no | VictoriaMetrics push endpoint |
+| `METRICS_SIDECAR_IMAGE` | no | Enables metrics sidecar in pods — read by project-controller |
+| `METRICS_PUSH_URL` | no | VictoriaMetrics push endpoint — enables idle shutdown in controller |
 
 The Rust agent reads: `PORT`, `JWKS_URL`, `PROJECT_ID`, `WORKSPACE_PATH`, `IDLE_TIMEOUT_SECONDS`, `CORS_ORIGIN` (passed automatically from `APP_URL`).
+
+The project-controller additionally reads: `USAGE_REPORT_URL` (optional, for usage telemetry), `KUBECONFIG` (optional, falls back to in-cluster config).
 
 ## Versioning and releases
 
 The canonical version lives in the root `VERSION` file. Releases are created by triggering the `release` workflow manually (`workflow_dispatch`) from the `main` branch. It:
 1. Runs all three check jobs
 2. Analyses conventional commits since the last `v*.*.*` tag to determine the bump (`feat!`/`BREAKING CHANGE` → major, `feat` → minor, else patch)
-3. Updates `VERSION`, `apps/web/package.json`, `apps/agent/Cargo.toml` (via `tomlkit`), and `apps/metrics-sidecar/version.go`
-4. Commits, tags, and pushes — then builds all three Docker images from the tag and creates a GitHub Release
+3. Updates `VERSION`, `apps/web/package.json`, `apps/agent/Cargo.toml` (via `tomlkit`), and `version.go` in all Go services (`metrics-sidecar`, `project-controller`, `hubble-collector`)
+4. Commits, tags, and pushes — then builds all Docker images from the tag and creates a GitHub Release
 
 The `bump` input can override auto-detection.

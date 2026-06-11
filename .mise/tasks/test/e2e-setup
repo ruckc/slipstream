@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# One-time setup: install Playwright browser and system dependencies.
+# Run once after cloning or after upgrading @playwright/test.
+set -euo pipefail
+
+echo "Installing Playwright browser binaries..."
+pnpm --filter @slipstream/e2e exec playwright install chromium firefox
+
+echo ""
+echo "Installing system dependencies (requires sudo)..."
+sudo apt-get install -y --no-install-recommends libnspr4 libnss3 libasound2t64
+
+echo ""
+echo "Done. Run 'mise run test:e2e' to execute the test suite."
