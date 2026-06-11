@@ -168,13 +168,6 @@ jobs:
           import os
           ver = os.environ['VERSION']
           content = f'package main\n\n// Version is set at release time by the CI pipeline.\nconst Version = "{ver}"\n'
-          open('apps/metrics-sidecar/version.go', 'w').write(content)
-          PYEOF
-
-          python3 - << 'PYEOF'
-          import os
-          ver = os.environ['VERSION']
-          content = f'package main\n\n// Version is set at release time by the CI pipeline.\nconst Version = "{ver}"\n'
           open('apps/project-controller/version.go', 'w').write(content)
           PYEOF
 
@@ -201,6 +194,32 @@ jobs:
           PYEOF
 
           python3 - << 'PYEOF'
+          import tomlkit, os
+          path = 'apps/metrics-collector/Cargo.toml'
+          ver  = os.environ['VERSION']
+          with open(path) as f:
+              doc = tomlkit.load(f)
+          doc['package']['version'] = ver
+          with open(path, 'w') as f:
+              f.write(tomlkit.dumps(doc))
+          PYEOF
+
+          python3 - << 'PYEOF'
+          import re, os
+          ver  = os.environ['VERSION']
+          path = 'apps/metrics-collector/Cargo.lock'
+          with open(path) as f:
+              content = f.read()
+          content = re.sub(
+              r'(name = "slipstream-metrics-collector"\nversion = )"[^"]+"',
+              rf'\1"{ver}"',
+              content
+          )
+          with open(path, 'w') as f:
+              f.write(content)
+          PYEOF
+
+          python3 - << 'PYEOF'
           import re, os
           ver  = os.environ['VERSION']
           path = 'charts/slipstream/Chart.yaml'
@@ -212,13 +231,13 @@ jobs:
               f.write(content)
           PYEOF
 
-          echo "VERSION:                    $(cat VERSION)"
-          echo "package.json:               $(node -p "require('./apps/web/package.json').version")"
-          echo "Cargo.toml:                 $(grep '^version' apps/agent/Cargo.toml | head -1)"
-          echo "metrics-sidecar/version.go: $(grep Version apps/metrics-sidecar/version.go)"
-          echo "controller/version.go:      $(grep Version apps/project-controller/version.go)"
-          echo "hubble-collector/version.go:$(grep Version apps/hubble-collector/version.go)"
-          echo "Chart.yaml:                 $(grep '^version:' charts/slipstream/Chart.yaml)"
+          echo "VERSION:                          $(cat VERSION)"
+          echo "package.json:                     $(node -p "require('./apps/web/package.json').version")"
+          echo "agent/Cargo.toml:                 $(grep '^version' apps/agent/Cargo.toml | head -1)"
+          echo "metrics-collector/Cargo.toml:     $(grep '^version' apps/metrics-collector/Cargo.toml | head -1)"
+          echo "controller/version.go:            $(grep Version apps/project-controller/version.go)"
+          echo "hubble-collector/version.go:      $(grep Version apps/hubble-collector/version.go)"
+          echo "Chart.yaml:                       $(grep '^version:' charts/slipstream/Chart.yaml)"
 
       # ── 5. Commit to a staging branch — main is untouched until finalize ─
       - name: Commit and push to staging branch
@@ -234,7 +253,8 @@ jobs:
                   apps/web/package.json \
                   apps/agent/Cargo.toml \
                   apps/agent/Cargo.lock \
-                  apps/metrics-sidecar/version.go \
+                  apps/metrics-collector/Cargo.toml \
+                  apps/metrics-collector/Cargo.lock \
                   apps/project-controller/version.go \
                   apps/hubble-collector/version.go \
                   charts/slipstream/Chart.yaml
@@ -262,8 +282,8 @@ jobs:
           - name: agent
             dockerfile: docker/agent/Dockerfile
             platforms: linux/amd64
-          - name: metrics-sidecar
-            dockerfile: docker/metrics-sidecar/Dockerfile
+          - name: metrics-collector
+            dockerfile: docker/metrics-collector/Dockerfile
             platforms: linux/amd64
           - name: project-controller
             dockerfile: docker/project-controller/Dockerfile
@@ -279,7 +299,7 @@ jobs:
       - uses: docker/setup-buildx-action@v4.1.0
 
       - name: Set up sccache
-        if: matrix.image.name == 'agent'
+        if: matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector'
         uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Log in to GHCR
@@ -449,8 +469,9 @@ jobs:
             ```
             ghcr.io/${{ github.repository_owner }}/slipstream-web:${{ needs.version.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/slipstream-agent:${{ needs.version.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/slipstream-metrics-sidecar:${{ needs.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/slipstream-metrics-collector:${{ needs.version.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/slipstream-project-controller:${{ needs.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/slipstream-hubble-collector:${{ needs.version.outputs.version }}
             ```
 
   # ── Clean up staging branch on build/test failure ──────────────────────────

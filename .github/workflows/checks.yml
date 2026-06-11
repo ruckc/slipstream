@@ -32,8 +32,16 @@ jobs:
         run: pnpm --filter @slipstream/web check
 
   check-rust:
-    name: Rust — Format · Clippy · Test
+    name: Rust — Format · Clippy · Test (${{ matrix.crate.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        crate:
+          - name: agent
+            path: apps/agent
+          - name: metrics-collector
+            path: apps/metrics-collector
     steps:
       - uses: actions/checkout@v6.0.3
 
@@ -43,33 +51,42 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: apps/agent -> target
+          workspaces: ${{ matrix.crate.path }} -> target
 
       - name: Check formatting
-        working-directory: apps/agent
+        working-directory: ${{ matrix.crate.path }}
         run: cargo fmt --check
 
       - name: Clippy
-        working-directory: apps/agent
+        working-directory: ${{ matrix.crate.path }}
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Test
-        working-directory: apps/agent
+        working-directory: ${{ matrix.crate.path }}
         run: cargo test
 
   check-go:
-    name: Go — Format · Vet · Build
+    name: Go — Format · Vet · Build (${{ matrix.service.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: project-controller
+            path: apps/project-controller
+          - name: hubble-collector
+            path: apps/hubble-collector
     steps:
       - uses: actions/checkout@v6.0.3
 
       - uses: actions/setup-go@v6.4.0
         with:
-          go-version-file: apps/metrics-sidecar/go.mod
-          cache: false
+          go-version-file: ${{ matrix.service.path }}/go.mod
+          cache: true
+          cache-dependency-path: ${{ matrix.service.path }}/go.sum
 
       - name: Check formatting
-        working-directory: apps/metrics-sidecar
+        working-directory: ${{ matrix.service.path }}
         run: |
           unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then
@@ -79,11 +96,11 @@ jobs:
           fi
 
       - name: Vet
-        working-directory: apps/metrics-sidecar
+        working-directory: ${{ matrix.service.path }}
         run: go vet ./...
 
       - name: Build
-        working-directory: apps/metrics-sidecar
+        working-directory: ${{ matrix.service.path }}
         run: go build ./...
 
   check-helm:
