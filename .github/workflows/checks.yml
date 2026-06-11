@@ -74,8 +74,10 @@ jobs:
         service:
           - name: project-controller
             path: apps/project-controller
+            build_pkg: ./cmd/...
           - name: hubble-collector
             path: apps/hubble-collector
+            build_pkg: ./...
     steps:
       - uses: actions/checkout@v6.0.3
 
@@ -101,7 +103,7 @@ jobs:
 
       - name: Build
         working-directory: ${{ matrix.service.path }}
-        run: go build ./...
+        run: go build ${{ matrix.service.build_pkg }}
 
   check-helm:
     name: Helm — Lint · Template
