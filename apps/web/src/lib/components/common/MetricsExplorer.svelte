@@ -71,7 +71,7 @@
     return `${(v / 3600).toFixed(2)} h`
   }
 
-  const activeSeries = $derived((): MetricSeriesData[] => {
+  const activeSeries = $derived.by((): MetricSeriesData[] => {
     if (!rangeData) return []
     switch (selectedTab) {
       case 'cpu':
@@ -88,7 +88,7 @@
     }
   })
 
-  const activeFormatter = $derived(() => {
+  const activeFormatter = $derived.by((): ((v: number) => string) => {
     switch (selectedTab) {
       case 'cpu':
         return formatCpu
@@ -154,7 +154,7 @@
     {:else if error}
       <div class="chart-error">{error}</div>
     {:else}
-      <TimeSeriesChart series={activeSeries()} formatValue={activeFormatter()} />
+      <TimeSeriesChart series={activeSeries} formatValue={activeFormatter} />
     {/if}
   </div>
 </div>
