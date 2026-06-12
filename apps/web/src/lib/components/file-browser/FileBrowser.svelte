@@ -97,7 +97,7 @@
       const url = podWsUrl(
         namespaceSlug,
         projectSlug,
-        '/api/fs/watch?path=' + encodeURIComponent(path),
+        '/fs/watch?path=' + encodeURIComponent(path),
         token
       )
       const ws = new WebSocket(url)
