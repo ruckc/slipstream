@@ -1,6 +1,6 @@
 [package]
 name = "slipstream-agent"
-version = "0.31.6"
+version = "0.31.7"
 edition = "2021"
 
 [[bin]]
