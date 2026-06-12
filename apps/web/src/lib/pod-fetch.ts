@@ -43,5 +43,6 @@ export function podWsUrl(
   const host = typeof window !== 'undefined' ? window.location.host : 'localhost'
   const base = podProxyBase(namespaceSlug, projectSlug)
   const fullPath = base + (path.startsWith('/') ? path : '/' + path)
-  return `${proto}//${host}${fullPath}?token=${encodeURIComponent(token)}`
+  const sep = fullPath.includes('?') ? '&' : '?'
+  return `${proto}//${host}${fullPath}${sep}token=${encodeURIComponent(token)}`
 }
