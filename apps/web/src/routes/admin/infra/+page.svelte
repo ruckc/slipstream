@@ -2,7 +2,7 @@
   import { SvelteSet } from 'svelte/reactivity'
   import { getNamespaces, describePod, getPodLogs } from '$lib/remote/admin-infra.remote'
 
-  type PodSummary = { name: string; phase: string; ready: boolean; restarts: number }
+  type PodSummary = { name: string; phase: string; ready: boolean; restarts: number; containers: string[] }
   type NamespaceSummary = { name: string; pods: PodSummary[] }
 
   type InspectTarget = { namespace: string; pod: string }
@@ -22,6 +22,8 @@
   let expanded = new SvelteSet<string>()
 
   let selected = $state<InspectTarget | null>(null)
+  let selectedContainers = $state<string[]>([])
+  let selectedContainer = $state<string | undefined>(undefined)
   let describeResult = $state<DescribeResult | null>(null)
   let describeLoading = $state(false)
   let describeError = $state('')
@@ -50,9 +52,11 @@
     else expanded.add(ns)
   }
 
-  async function inspect(ns: string, pod: string) {
+  async function inspect(ns: string, pod: string, containers: string[]) {
     stopLive()
     selected = { namespace: ns, pod }
+    selectedContainers = containers
+    selectedContainer = containers[0]
     describeLoading = true
     describeError = ''
     describeResult = null
@@ -66,15 +70,15 @@
     } finally {
       describeLoading = false
     }
-    fetchLogs(ns, pod)
+    fetchLogs(ns, pod, containers[0])
   }
 
-  async function fetchLogs(ns: string, pod: string) {
+  async function fetchLogs(ns: string, pod: string, container?: string) {
     logsLoading = true
     logsError = ''
     logs = ''
     try {
-      logs = (await getPodLogs({ namespace: ns, pod, tail: 200 })) as string
+      logs = (await getPodLogs({ namespace: ns, pod, container, tail: 200 })) as string
     } catch (e) {
       logsError = e instanceof Error ? e.message : 'Failed to fetch logs'
     } finally {
@@ -86,8 +90,9 @@
     if (!selected || liveSource) return
     logs = ''
     liveMode = true
+    const params = selectedContainer ? `?container=${encodeURIComponent(selectedContainer)}` : ''
     const es = new EventSource(
-      `/api/admin/pods/${selected.namespace}/${selected.pod}/logs/stream`,
+      `/api/admin/pods/${selected.namespace}/${selected.pod}/logs/stream${params}`,
       { withCredentials: true }
     )
     es.onmessage = (e) => {
@@ -153,7 +158,7 @@
                       class="pod-item"
                       class:pod-item--selected={selected?.namespace === ns.name &&
                         selected?.pod === pod.name}
-                      onclick={() => inspect(ns.name, pod.name)}
+                      onclick={() => inspect(ns.name, pod.name, pod.containers ?? [])}
                     >
                       <span class="pod-phase {phaseClass(pod.phase)}"></span>
                       <span class="pod-name">{pod.name}</span>
@@ -212,13 +217,29 @@
           <div class="section-header">
             <h2 class="section-title">Logs</h2>
             <div class="log-actions">
+              {#if selectedContainers.length > 1}
+                <select
+                  class="container-select"
+                  bind:value={selectedContainer}
+                  onchange={() => {
+                    if (selected) {
+                      stopLive()
+                      fetchLogs(selected.namespace, selected.pod, selectedContainer)
+                    }
+                  }}
+                >
+                  {#each selectedContainers as c (c)}
+                    <option value={c}>{c}</option>
+                  {/each}
+                </select>
+              {/if}
               {#if liveMode}
                 <button class="log-btn log-btn--stop" onclick={stopLive}>Stop</button>
               {:else}
                 <button
                   class="log-btn"
                   onclick={() => {
-                    if (selected) fetchLogs(selected.namespace, selected.pod)
+                    if (selected) fetchLogs(selected.namespace, selected.pod, selectedContainer)
                   }}
                 >
                   Refresh
@@ -547,7 +568,24 @@
 
   .log-actions {
     display: flex;
+    align-items: center;
     gap: var(--space-2);
+  }
+
+  .container-select {
+    height: 24px;
+    padding: 0 var(--space-2);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    cursor: pointer;
+  }
+
+  .container-select:hover {
+    color: var(--color-text-primary);
   }
 
   .log-btn {

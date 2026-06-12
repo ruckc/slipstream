@@ -14,7 +14,13 @@ export const getNamespaces = query(async () => {
   const coreApi = getCoreV1Api()
 
   const envs = await listProjectEnvironments()
-  const namespaceNames = [...new Set(envs.map((e) => `project-${e.spec.projectId}`))].sort()
+  const projectNamespaces = [...new Set(envs.map((e) => `project-${e.spec.projectId}`))].sort()
+
+  const releaseNamespace = process.env.WEB_NAMESPACE
+  const namespaceNames = [
+    ...(releaseNamespace ? [releaseNamespace] : []),
+    ...projectNamespaces,
+  ]
 
   return Promise.all(
     namespaceNames.map(async (name) => {
@@ -27,6 +33,7 @@ export const getNamespaces = query(async () => {
             ready: p.status?.conditions?.find((c) => c.type === 'Ready')?.status === 'True',
             restarts:
               p.status?.containerStatuses?.reduce((sum, cs) => sum + cs.restartCount, 0) ?? 0,
+            containers: p.spec?.containers?.map((c) => c.name) ?? [],
           }))
         )
         .catch(() => [])
@@ -74,7 +81,7 @@ export const getPodLogs = query(
     const logs = await coreApi.readNamespacedPodLog({
       name: arg.pod,
       namespace: arg.namespace,
-      container: arg.container ?? 'agent',
+      container: arg.container,
       tailLines: arg.tail ?? 200,
     })
     return typeof logs === 'string' ? logs : JSON.stringify(logs)
