@@ -31,7 +31,7 @@ RUN --mount=type=secret,id=actions_cache_url \
     SCCACHE_GHA_ENABLED=${SCCACHE_GHA_ENABLED:-false} \
     ACTIONS_CACHE_URL=$(cat /run/secrets/actions_cache_url 2>/dev/null || true) \
     ACTIONS_RUNTIME_TOKEN=$(cat /run/secrets/actions_runtime_token 2>/dev/null || true) \
-    cargo clean -p metrics-collector --release && \
+    rm -f target/release/metrics-collector && \
     cargo build --release && \
     # Guard against cargo-chef stub binaries being published: the real binary
     # is several MB; anything under 1 MB is a stub from a failed/cached build.
