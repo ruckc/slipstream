@@ -39,7 +39,8 @@ struct CollectorState {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    rustls::crypto::ring::install_default_provider()
+    rustls::crypto::ring::default_provider()
+        .install_default()
         .expect("ring crypto provider already installed");
 
     tracing_subscriber::registry()
