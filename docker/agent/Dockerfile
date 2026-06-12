@@ -43,7 +43,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.asc] https://mise.en.dev/deb stable main" > /etc/apt/sources.list.d/mise.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends mise \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && mise activate bash > /etc/profile.d/mise.sh
 RUN groupadd -g 1000 agent && useradd -u 1000 -g agent -s /bin/bash -m agent
 RUN mkdir -p /workspace && chown agent:agent /workspace
 USER 1000
