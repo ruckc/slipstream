@@ -78,7 +78,7 @@
     }
   }
 
-  let watchWs = $state<WebSocket | null>(null)
+  let watchWs: WebSocket | null = null
   let reloadTimer: ReturnType<typeof setTimeout> | null = null
 
   function scheduleReload() {
