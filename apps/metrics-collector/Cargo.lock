@@ -1199,6 +1199,7 @@ dependencies = [
  "k8s-openapi",
  "kube-core",
  "pem",
+ "rustls",
  "secrecy",
  "serde",
  "serde_json",
