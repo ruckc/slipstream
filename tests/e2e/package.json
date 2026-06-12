@@ -1,6 +1,6 @@
 {
   "devDependencies": {
-    "@playwright/test": "1.61.0-alpha-2026-06-10"
+    "@playwright/test": "1.60.0"
   },
   "name": "@slipstream/e2e",
   "private": true,
