@@ -14,7 +14,7 @@ spec:
         operations: [CREATE, UPDATE]
         resources: [services]
   validations:
-    - expression: "size(object.spec.externalIPs) == 0"
+    - expression: "!has(object.spec.externalIPs) || size(object.spec.externalIPs) == 0"
       message: "Services in project namespaces may not use externalIPs"
       reason: Forbidden
 ---

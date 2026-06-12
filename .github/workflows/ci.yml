@@ -300,7 +300,7 @@ jobs:
 
       - name: Set up sccache
         if: matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector'
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Log in to GHCR
         uses: docker/login-action@v4.2.0
@@ -373,7 +373,7 @@ jobs:
 
       - name: Set up sccache
         if: matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector'
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Build (no push)
         uses: docker/build-push-action@v7.2.0
