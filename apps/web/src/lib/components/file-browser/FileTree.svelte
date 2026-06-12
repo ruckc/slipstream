@@ -9,6 +9,7 @@
     namespaceSlug,
     projectSlug,
     selectedPath = '',
+    refreshTick = 0,
     onOpenFile,
     onContextMenu,
     onUpload,
@@ -19,6 +20,7 @@
     namespaceSlug: string
     projectSlug: string
     selectedPath?: string
+    refreshTick?: number
     onOpenFile: (path: string) => void
     onContextMenu: (e: MouseEvent, entry: FileEntry, path: string) => void
     onUpload: (uploads: import('./file-upload').FileUpload[], targetPath: string) => void
@@ -82,6 +84,7 @@
         {namespaceSlug}
         {projectSlug}
         {selectedPath}
+        {refreshTick}
         {onOpenFile}
         {onContextMenu}
         {onUpload}

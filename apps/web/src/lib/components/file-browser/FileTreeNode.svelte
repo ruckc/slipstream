@@ -13,6 +13,7 @@
     namespaceSlug,
     projectSlug,
     selectedPath,
+    refreshTick = 0,
     onOpenFile,
     onContextMenu,
     onUpload,
@@ -24,6 +25,7 @@
     namespaceSlug: string
     projectSlug: string
     selectedPath: string
+    refreshTick?: number
     onOpenFile: (path: string) => void
     onContextMenu: (e: MouseEvent, entry: FileEntry, path: string) => void
     onUpload: (uploads: import('./file-upload').FileUpload[], targetPath: string) => void
@@ -34,6 +36,31 @@
   let children = $state<FileEntry[]>([])
   let loadError = $state<string | null>(null)
   let hasLoaded = $state(false)
+
+  $effect(() => {
+    if (refreshTick > 0 && expanded && hasLoaded) {
+      refreshChildren()
+    }
+  })
+
+  async function refreshChildren() {
+    try {
+      const res = await podFetch(
+        projectId,
+        namespaceSlug,
+        projectSlug,
+        '/fs?path=' + encodeURIComponent(path)
+      )
+      if (!res.ok) return
+      const data = (await res.json()) as { entries: FileEntry[] }
+      children = (data.entries ?? []).slice().sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'dir' ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+    } catch {
+      // best-effort
+    }
+  }
 
   async function loadChildren() {
     if (hasLoaded) return
@@ -107,6 +134,7 @@
             {namespaceSlug}
             {projectSlug}
             {selectedPath}
+            {refreshTick}
             {onOpenFile}
             {onContextMenu}
             {onUpload}

@@ -57,8 +57,8 @@
   // Upload queue
   let uploadItems = $state<UploadItem[]>([])
 
-  async function loadDirectory(path: string) {
-    loading = true
+  async function loadDirectory(path: string, silent = false) {
+    if (!silent) loading = true
     loadError = null
     try {
       const res = await podFetch(
@@ -80,12 +80,14 @@
 
   let watchWs: WebSocket | null = null
   let reloadTimer: ReturnType<typeof setTimeout> | null = null
+  let refreshTick = $state(0)
 
   function scheduleReload() {
     if (reloadTimer !== null) clearTimeout(reloadTimer)
     reloadTimer = setTimeout(() => {
       reloadTimer = null
-      loadDirectory(currentPath)
+      loadDirectory(currentPath, true)
+      refreshTick++
     }, 150)
   }
 
@@ -414,6 +416,7 @@
           {namespaceSlug}
           {projectSlug}
           {selectedPath}
+          {refreshTick}
           onOpenFile={handleOpenFile}
           onContextMenu={handleContextMenu}
           onUpload={handleUpload}
