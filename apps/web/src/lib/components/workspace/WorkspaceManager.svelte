@@ -232,11 +232,13 @@
       const { session_id } = (await res.json()) as { session_id: string }
 
       if (command) {
-        saveProjectCommand({ projectId, command }).then((saved) => {
-          if (!savedCommands.some((c) => c.id === saved.id)) {
-            savedCommands = [saved, ...savedCommands]
-          }
-        }).catch(() => {})
+        saveProjectCommand({ projectId, command })
+          .then((saved) => {
+            if (!savedCommands.some((c) => c.id === saved.id)) {
+              savedCommands = [saved, ...savedCommands]
+            }
+          })
+          .catch(() => {})
       }
 
       const label = await resolveSessionLabel(session_id)
@@ -475,11 +477,7 @@
   }
 </script>
 
-<NewSessionDialog
-  bind:open={showNewSessionDialog}
-  {savedCommands}
-  onconfirm={doCreateTerminal}
-/>
+<NewSessionDialog bind:open={showNewSessionDialog} {savedCommands} onconfirm={doCreateTerminal} />
 
 <div class="workspace-root">
   {#if isMobile}
