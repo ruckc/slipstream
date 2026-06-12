@@ -29,7 +29,7 @@ use std::{
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 #[derive(Deserialize)]
 pub struct MoveBody {
@@ -587,13 +587,13 @@ async fn handle_watch_ws(mut socket: WebSocket, watch_path: PathBuf, workspace: 
     ) {
         Ok(w) => w,
         Err(e) => {
-            debug!("Failed to create fs watcher: {}", e);
+            warn!("Failed to create fs watcher: {}", e);
             return;
         }
     };
 
     if let Err(e) = watcher.watch(&watch_path, RecursiveMode::Recursive) {
-        debug!("Failed to watch path {:?}: {}", watch_path, e);
+        warn!("Failed to watch path {:?}: {}", watch_path, e);
         return;
     }
 
@@ -620,8 +620,9 @@ async fn handle_watch_ws(mut socket: WebSocket, watch_path: PathBuf, workspace: 
                 }
             }
             client_msg = socket.recv() => {
-                if client_msg.is_none() {
-                    break;
+                match client_msg {
+                    None | Some(Err(_)) => break,
+                    Some(Ok(_)) => {}
                 }
             }
         }
