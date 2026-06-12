@@ -51,6 +51,7 @@ async fn health() -> Json<serde_json::Value> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    eprintln!("agent binary started");
     // Initialize structured tracing.
     tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
