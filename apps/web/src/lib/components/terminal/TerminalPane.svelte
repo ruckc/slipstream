@@ -4,6 +4,7 @@
   import { tokenStore } from '$lib/token-store'
   import { WORKSPACE_CTX } from '$lib/components/workspace/WorkspaceTypes.js'
   import type { WorkspaceCtx } from '$lib/components/workspace/WorkspaceTypes.js'
+  import MobileTerminalKeyboard from './MobileTerminalKeyboard.svelte'
 
   let {
     paneId,
@@ -27,6 +28,7 @@
   let terminalEl = $state<HTMLDivElement | undefined>(undefined)
   let statusMessage = $state<string | null>(null)
   let reconnectAttempt = $state(0)
+  let mobileKeyboardVisible = $state(false)
 
   // State managed outside Svelte reactivity to avoid re-render overhead
   let terminal: import('@xterm/xterm').Terminal | null = null
@@ -86,6 +88,21 @@
 
     terminal.open(terminalEl)
     fitAddon.fit()
+
+    // Suppress the OS soft keyboard on mobile by setting inputmode="none"
+    // on xterm's hidden textarea, then show our custom keyboard instead.
+    const xtermTextarea = terminalEl.querySelector<HTMLTextAreaElement>(
+      'textarea.xterm-helper-textarea'
+    )
+    if (xtermTextarea) {
+      xtermTextarea.setAttribute('inputmode', 'none')
+      xtermTextarea.addEventListener('focus', () => {
+        mobileKeyboardVisible = true
+      })
+      xtermTextarea.addEventListener('blur', () => {
+        mobileKeyboardVisible = false
+      })
+    }
 
     terminal.onTitleChange((title) => {
       if (title) onRename?.(title)
@@ -205,6 +222,11 @@
     }, delay)
   }
 
+  function sendInput(data: string) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(JSON.stringify({ type: 'input', data: btoa(unescape(encodeURIComponent(data))) }))
+  }
+
   function clearTerminal() {
     if (terminal) terminal.clear()
   }
@@ -241,6 +263,9 @@
       <div class="terminal-status" aria-live="polite">{statusMessage}</div>
     {/if}
   </div>
+  {#if mobileKeyboardVisible}
+    <MobileTerminalKeyboard onSend={sendInput} />
+  {/if}
 </div>
 
 <style>
