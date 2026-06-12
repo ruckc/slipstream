@@ -14,6 +14,9 @@
   import WorkspaceNode from './WorkspaceNode.svelte'
   import WorkspaceGroup from './WorkspaceGroup.svelte'
   import MobileNavbar from '$lib/components/layout/MobileNavbar.svelte'
+  import NewSessionDialog from '$lib/components/terminal/NewSessionDialog.svelte'
+  import { getProjectCommands, saveProjectCommand } from '$lib/remote/project-commands.remote'
+  import type { ProjectCommand } from '$lib/server/db'
 
   let {
     projectId,
@@ -34,6 +37,16 @@
   } = $props()
 
   let isMobile = $state(false)
+  let showNewSessionDialog = $state(false)
+  let savedCommands = $state<ProjectCommand[]>([])
+
+  async function loadSavedCommands() {
+    try {
+      savedCommands = await getProjectCommands({ projectId })
+    } catch {
+      savedCommands = []
+    }
+  }
   $effect(() => {
     const mq = window.matchMedia('(max-width: 639px)')
     isMobile = mq.matches
@@ -196,17 +209,35 @@
     }
   }
 
-  export async function createTerminal() {
+  export function createTerminal() {
+    if (!canShell) return
+    loadSavedCommands()
+    showNewSessionDialog = true
+  }
+
+  async function doCreateTerminal(command: string | null, workingDir: string | null) {
     if (!canShell) return
     const target = getTargetGroup()
     try {
+      const body: Record<string, unknown> = {}
+      if (command) body.command = command.trim().split(/\s+/)
+      if (workingDir) body.working_dir = workingDir
+
       const res = await podFetch(projectId, namespaceSlug, projectSlug, '/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const { session_id } = (await res.json()) as { session_id: string }
+
+      if (command) {
+        saveProjectCommand({ projectId, command }).then((saved) => {
+          if (!savedCommands.some((c) => c.id === saved.id)) {
+            savedCommands = [saved, ...savedCommands]
+          }
+        }).catch(() => {})
+      }
 
       const label = await resolveSessionLabel(session_id)
 
@@ -425,7 +456,7 @@
         (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       )
       if (sessions.length === 0) {
-        await createTerminal()
+        await doCreateTerminal(null, null)
         return
       }
       const target = getTargetGroup()
@@ -439,10 +470,16 @@
       }
       activeGroupId = target.id
     } catch {
-      await createTerminal()
+      await doCreateTerminal(null, null)
     }
   }
 </script>
+
+<NewSessionDialog
+  bind:open={showNewSessionDialog}
+  {savedCommands}
+  onconfirm={doCreateTerminal}
+/>
 
 <div class="workspace-root">
   {#if isMobile}
