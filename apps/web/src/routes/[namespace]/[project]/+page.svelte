@@ -110,6 +110,7 @@
           namespaceSlug={namespace.slug}
           projectSlug={project.slug}
           onOpenFile={(path) => workspaceManager?.openFile(path)}
+          onCollapse={() => appShell?.toggleSidebar()}
         />
       {:else}
         <div class="sidebar-empty">

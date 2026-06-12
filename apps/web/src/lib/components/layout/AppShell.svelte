@@ -29,6 +29,9 @@
   <div class="app-shell-main">
     <!-- Sidebar -->
     {#if sidebarContent}
+      {#if sidebarOpen}
+        <div class="sidebar-backdrop" onclick={toggleSidebar} aria-hidden="true"></div>
+      {/if}
       <Sidebar bind:width={sidebarWidth} open={sidebarOpen}>
         {@render sidebarContent()}
       </Sidebar>
@@ -81,6 +84,20 @@
     overflow: hidden;
     min-width: 0;
     min-height: 0;
+  }
+
+  .sidebar-backdrop {
+    display: none;
+  }
+
+  @media (max-width: 639px) {
+    .sidebar-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 99;
+      background: rgba(0, 0, 0, 0.4);
+    }
   }
 
   .app-shell-empty {

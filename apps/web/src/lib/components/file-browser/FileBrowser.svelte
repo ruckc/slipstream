@@ -23,12 +23,23 @@
     namespaceSlug,
     projectSlug,
     onOpenFile,
+    onCollapse,
   }: {
     projectId: string
     namespaceSlug: string
     projectSlug: string
     onOpenFile: (path: string) => void
+    onCollapse?: () => void
   } = $props()
+
+  let isMobile = $state(false)
+  $effect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    isMobile = mq.matches
+    const handler = (e: MediaQueryListEvent) => (isMobile = e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  })
 
   // Navigation state
   let currentPath = $state('/')
@@ -136,6 +147,7 @@
   function handleOpenFile(path: string) {
     selectedPath = path
     onOpenFile(path)
+    if (isMobile) onCollapse?.()
   }
 
   function handleContextMenu(e: MouseEvent, entry: FileEntry, path: string) {
@@ -364,6 +376,11 @@
   <div class="file-browser-toolbar">
     <FileBreadcrumb path={currentPath} onNavigate={handleNavigate} />
     <div class="file-browser-actions">
+      {#if onCollapse}
+        <Button variant="ghost" size="sm" onclick={onCollapse} title="Close sidebar">
+          <Icon name="close" size={12} />
+        </Button>
+      {/if}
       <Button variant="ghost" size="sm" onclick={() => loadDirectory(currentPath)} title="Refresh">
         <Icon name="refresh" size={12} />
       </Button>

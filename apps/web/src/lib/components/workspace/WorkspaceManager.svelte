@@ -109,7 +109,7 @@
         projectId,
         namespaceSlug,
         projectSlug,
-        `/fs/read?path=${encodeURIComponent(path)}`
+        `/fs/download?path=${encodeURIComponent(path)}`
       )
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const buf = await res.arrayBuffer()
