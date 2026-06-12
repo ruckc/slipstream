@@ -24,6 +24,7 @@ RUN --mount=type=secret,id=actions_cache_url \
     ACTIONS_RUNTIME_TOKEN=$(cat /run/secrets/actions_runtime_token 2>/dev/null || true) \
     cargo chef cook --release --recipe-path recipe.json
 
+COPY apps/metrics-collector/Cargo.toml apps/metrics-collector/Cargo.lock ./
 COPY apps/metrics-collector/src ./src
 RUN --mount=type=secret,id=actions_cache_url \
     --mount=type=secret,id=actions_runtime_token \
