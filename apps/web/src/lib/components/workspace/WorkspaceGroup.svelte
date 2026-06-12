@@ -270,7 +270,7 @@
     background: var(--color-bg-surface);
     border-bottom: 1px solid var(--color-border);
     flex-shrink: 0;
-    overflow: hidden;
+    position: relative;
   }
 
   @media (max-width: 639px) {
