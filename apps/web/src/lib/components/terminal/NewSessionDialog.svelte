@@ -53,44 +53,43 @@
   <div class="new-session-form" onkeydown={handleKeydown} role="presentation">
     <fieldset class="choice-group">
       <legend class="choice-legend">Run</legend>
-
-      <label class="choice-option">
-        <input type="radio" name="cmd-choice" value="bash" bind:group={choice} />
-        <span>bash (default shell)</span>
-      </label>
-
-      {#each savedCommands as saved (saved.id)}
+      <div class="choice-list">
         <label class="choice-option">
-          <input
-            type="radio"
-            name="cmd-choice"
-            value="saved"
-            bind:group={choice}
-            onclick={() => {
-              choice = 'saved'
-              selectedSavedId = saved.id
-            }}
-            checked={choice === 'saved' && selectedSavedId === saved.id}
-          />
-          <span class="saved-label">{saved.label ?? saved.command}</span>
-          <code class="saved-command">{saved.command}</code>
+          <input type="radio" name="cmd-choice" value="bash" bind:group={choice} />
+          <span>bash (default shell)</span>
         </label>
-      {/each}
 
-      <label class="choice-option">
-        <input type="radio" name="cmd-choice" value="other" bind:group={choice} />
-        <span>Other</span>
-      </label>
+        {#each savedCommands as saved (saved.id)}
+          <label class="choice-option">
+            <input
+              type="radio"
+              name="cmd-choice"
+              value="saved"
+              bind:group={choice}
+              onclick={() => {
+                choice = 'saved'
+                selectedSavedId = saved.id
+              }}
+              checked={choice === 'saved' && selectedSavedId === saved.id}
+            />
+            <span class="saved-label">{saved.label ?? saved.command}</span>
+            <code class="saved-command">{saved.command}</code>
+          </label>
+        {/each}
 
-      {#if choice === 'other'}
-        <input
-          class="other-input"
-          type="text"
-          placeholder="e.g. cargo test"
-          bind:value={otherCommand}
-          aria-label="Command to run"
-        />
-      {/if}
+        <label class="choice-option choice-option--other">
+          <input type="radio" name="cmd-choice" value="other" bind:group={choice} />
+          <input
+            class="other-input"
+            type="text"
+            placeholder="Other…"
+            bind:value={otherCommand}
+            aria-label="Command to run"
+            onfocus={() => (choice = 'other')}
+            oninput={() => (choice = 'other')}
+          />
+        </label>
+      </div>
     </fieldset>
 
     <label class="field-label">
@@ -128,9 +127,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: var(--space-3);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+    min-width: 0;
   }
 
   .choice-legend {
@@ -140,6 +137,13 @@
     padding: 0 var(--space-1);
   }
 
+  .choice-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+
   .choice-option {
     display: flex;
     align-items: center;
@@ -147,6 +151,10 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-primary);
     cursor: pointer;
+  }
+
+  .choice-option--other {
+    align-items: center;
   }
 
   .saved-label {
@@ -159,7 +167,23 @@
     font-family: var(--font-mono);
   }
 
-  .other-input,
+  .other-input {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .other-input:focus {
+    border-color: var(--color-border-focus);
+    outline: none;
+  }
+
   .dir-input {
     font-family: var(--font-mono);
     font-size: var(--font-size-sm);
@@ -172,7 +196,6 @@
     margin-top: var(--space-1);
   }
 
-  .other-input:focus,
   .dir-input:focus {
     border-color: var(--color-border-focus);
     outline: none;
