@@ -33,6 +33,7 @@ RUN --mount=type=secret,id=actions_cache_url \
     ACTIONS_CACHE_URL=$(cat /run/secrets/actions_cache_url 2>/dev/null || true) \
     ACTIONS_RUNTIME_TOKEN=$(cat /run/secrets/actions_runtime_token 2>/dev/null || true) \
     rm -f target/release/metrics-collector && \
+    rm -rf target/release/.fingerprint/slipstream-metrics-collector-* && \
     cargo build --release && \
     # Guard against cargo-chef stub binaries being published: the real binary
     # is several MB; anything under 1 MB is a stub from a failed/cached build.
