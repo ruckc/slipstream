@@ -24,6 +24,15 @@ kubectl rollout status deployment/slipstream-web \
   --namespace slipstream-system \
   --timeout=120s
 
+echo "→ Restarting metrics-collector statefulset to pick up any image changes..."
+kubectl rollout restart statefulset/slipstream-metrics-collector \
+  --namespace slipstream-system
+
+echo "→ Waiting for metrics-collector to be ready..."
+kubectl rollout status statefulset/slipstream-metrics-collector \
+  --namespace slipstream-system \
+  --timeout=120s
+
 echo "→ Restarting running agent deployments to pick up any image changes..."
 kubectl get deployments \
   --all-namespaces \

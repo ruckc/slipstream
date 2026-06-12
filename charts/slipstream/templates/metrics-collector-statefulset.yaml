@@ -9,6 +9,8 @@ metadata:
 spec:
   replicas: {{ .Values.metricsCollector.replicas }}
   serviceName: slipstream-metrics-collector
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app: slipstream-metrics-collector
