@@ -17,10 +17,7 @@ export const getNamespaces = query(async () => {
   const projectNamespaces = [...new Set(envs.map((e) => `project-${e.spec.projectId}`))].sort()
 
   const releaseNamespace = process.env.WEB_NAMESPACE
-  const namespaceNames = [
-    ...(releaseNamespace ? [releaseNamespace] : []),
-    ...projectNamespaces,
-  ]
+  const namespaceNames = [...(releaseNamespace ? [releaseNamespace] : []), ...projectNamespaces]
 
   return Promise.all(
     namespaceNames.map(async (name) => {
