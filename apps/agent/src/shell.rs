@@ -105,8 +105,14 @@ impl SessionStore {
                     .iter()
                     .map(|a| format!("'{}'", a.replace('\'', "'\\''")))
                     .collect();
-                cmd.args(["-c", &format!("exec {}", escaped.join(" "))]);
+                // -l: login shell so /etc/profile.d/ is sourced (mise activation)
+                cmd.args(["-lc", &format!("exec {}", escaped.join(" "))]);
+            } else {
+                // Interactive login shell — sources /etc/profile.d/mise.sh
+                cmd.arg("-l");
             }
+        } else {
+            cmd.arg("-l");
         }
 
         // Try bash first, fall back to sh (only for the default shell case).
