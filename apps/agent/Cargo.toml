@@ -28,3 +28,5 @@ parking_lot = "0.12"
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22"
 futures-util = { version = "0.3", features = ["sink"] }
+notify = "7"
+ignore = "0.4"

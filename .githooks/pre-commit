@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PATH="$HOME/.local/share/mise/shims:$PATH"
+
 mise run format
 mise run lint
 pnpm --filter @slipstream/web build

@@ -123,6 +123,7 @@ async fn main() -> anyhow::Result<()> {
         // Filesystem (requires 'files:read' or 'files:write')
         .route("/api/fs", get(fs::list_dir))
         .route("/api/fs/download", get(fs::download_file))
+        .route("/api/fs/watch", get(fs::ws_watch))
         .route("/api/fs", delete(fs::delete_path))
         .route("/api/fs/mkdir", post(fs::create_dir))
         .route("/api/fs/move", post(fs::move_path))

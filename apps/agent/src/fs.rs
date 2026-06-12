@@ -5,13 +5,21 @@ use crate::{
 };
 use axum::{
     body::Body,
-    extract::{Query, State},
+    extract::{
+        ws::{Message, WebSocket},
+        Query, State, WebSocketUpgrade,
+    },
     http::{header, HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
+use ignore::{
+    gitignore::{Gitignore, GitignoreBuilder},
+    WalkBuilder,
+};
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{
@@ -19,6 +27,7 @@ use std::{
     sync::Arc,
 };
 use tokio::io::AsyncReadExt;
+use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info};
 
@@ -522,4 +531,118 @@ pub async fn move_path(
 
     info!("Moved '{}' -> '{}'", body.from, body.to);
     Ok(Json(json!({"from": body.from, "to": body.to})))
+}
+
+// ---------------------------------------------------------------------------
+// ws_watch: GET /fs/watch?path=... — inotify-based live directory updates
+// ---------------------------------------------------------------------------
+
+pub async fn ws_watch(
+    ws: WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
+    AuthUser(claims): AuthUser,
+    Query(params): Query<PathQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    require_permission(&claims, "files:read")?;
+
+    let watch_path = safe_path(&state.config.workspace_path, &params.path)?;
+    let workspace = state.config.workspace_path.clone();
+
+    Ok(ws.on_upgrade(move |socket| handle_watch_ws(socket, watch_path, workspace)))
+}
+
+/// Build a Gitignore matcher by walking the workspace and loading every
+/// .gitignore file found (the walk itself respects existing gitignore rules,
+/// so ignored directories like node_modules are not descended into).
+fn build_gitignore(workspace: &Path) -> Gitignore {
+    let mut builder = GitignoreBuilder::new(workspace);
+    for result in WalkBuilder::new(workspace).hidden(false).build() {
+        let Ok(entry) = result else { continue };
+        if entry.file_name() == ".gitignore" {
+            builder.add(entry.path());
+        }
+    }
+    builder
+        .build()
+        .unwrap_or_else(|_| GitignoreBuilder::new(workspace).build().unwrap())
+}
+
+fn is_ignored(gitignore: &Gitignore, path: &Path) -> bool {
+    let is_dir = path.is_dir();
+    gitignore
+        .matched_path_or_any_parents(path, is_dir)
+        .is_ignore()
+}
+
+async fn handle_watch_ws(mut socket: WebSocket, watch_path: PathBuf, workspace: PathBuf) {
+    let (tx, mut rx) = mpsc::channel::<Event>(256);
+
+    let mut watcher = match RecommendedWatcher::new(
+        move |res: notify::Result<Event>| {
+            if let Ok(event) = res {
+                let _ = tx.blocking_send(event);
+            }
+        },
+        Config::default(),
+    ) {
+        Ok(w) => w,
+        Err(e) => {
+            debug!("Failed to create fs watcher: {}", e);
+            return;
+        }
+    };
+
+    if let Err(e) = watcher.watch(&watch_path, RecursiveMode::Recursive) {
+        debug!("Failed to watch path {:?}: {}", watch_path, e);
+        return;
+    }
+
+    let mut gitignore = build_gitignore(&workspace);
+    let gitignore_name = std::ffi::OsStr::new(".gitignore");
+
+    loop {
+        tokio::select! {
+            event = rx.recv() => {
+                let event = match event {
+                    Some(e) => e,
+                    None => break,
+                };
+
+                // Rebuild gitignore rules when any .gitignore file changes.
+                if event.paths.iter().any(|p| p.file_name() == Some(gitignore_name)) {
+                    gitignore = build_gitignore(&workspace);
+                }
+
+                if let Some(msg) = watch_event_to_json(&event, &workspace, &gitignore) {
+                    if socket.send(Message::Text(msg.into())).await.is_err() {
+                        break;
+                    }
+                }
+            }
+            client_msg = socket.recv() => {
+                if client_msg.is_none() {
+                    break;
+                }
+            }
+        }
+    }
+}
+
+fn watch_event_to_json(event: &Event, workspace: &Path, gitignore: &Gitignore) -> Option<String> {
+    let to_rel = |p: &std::path::Path| -> String {
+        let rel = p.strip_prefix(workspace).unwrap_or(p);
+        format!("/{}", rel.to_string_lossy())
+    };
+
+    let kind = match &event.kind {
+        EventKind::Create(_) => "create",
+        EventKind::Modify(_) => "modify",
+        EventKind::Remove(_) => "remove",
+        EventKind::Access(_) | EventKind::Other | EventKind::Any => return None,
+    };
+
+    // Drop the event if every affected path is gitignored.
+    let visible_path = event.paths.iter().find(|p| !is_ignored(gitignore, p))?;
+
+    Some(json!({"kind": kind, "path": to_rel(visible_path)}).to_string())
 }

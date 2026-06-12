@@ -10,7 +10,8 @@
   import DeleteConfirmDialog from './DeleteConfirmDialog.svelte'
   import type { FileEntry } from './FileTreeFile.svelte'
   import type { UploadItem } from './FileUploadQueue.svelte'
-  import { podFetch } from '$lib/pod-fetch'
+  import { podFetch, podWsUrl } from '$lib/pod-fetch'
+  import { tokenStore } from '$lib/token-store'
   import Icon from '$lib/components/common/Icon.svelte'
   import Button from '$lib/components/common/Button.svelte'
   import { uploadsFromFileList, type FileUpload } from './file-upload'
@@ -77,8 +78,53 @@
     }
   }
 
+  let watchWs = $state<WebSocket | null>(null)
+  let reloadTimer: ReturnType<typeof setTimeout> | null = null
+
+  function scheduleReload() {
+    if (reloadTimer !== null) clearTimeout(reloadTimer)
+    reloadTimer = setTimeout(() => {
+      reloadTimer = null
+      loadDirectory(currentPath)
+    }, 150)
+  }
+
+  async function connectWatchWs(path: string) {
+    watchWs?.close()
+    watchWs = null
+    try {
+      const token = await tokenStore.get(projectId)
+      const url = podWsUrl(
+        namespaceSlug,
+        projectSlug,
+        '/api/fs/watch?path=' + encodeURIComponent(path),
+        token
+      )
+      const ws = new WebSocket(url)
+      ws.onmessage = () => scheduleReload()
+      ws.onclose = () => {
+        if (watchWs === ws) watchWs = null
+      }
+      watchWs = ws
+    } catch {
+      // watch is best-effort; polling still works via manual refresh
+    }
+  }
+
   onMount(() => {
     loadDirectory('/')
+  })
+
+  $effect(() => {
+    connectWatchWs(currentPath)
+    return () => {
+      watchWs?.close()
+      watchWs = null
+      if (reloadTimer !== null) {
+        clearTimeout(reloadTimer)
+        reloadTimer = null
+      }
+    }
   })
 
   function handleNavigate(path: string) {
