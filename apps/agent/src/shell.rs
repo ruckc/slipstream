@@ -94,6 +94,7 @@ impl SessionStore {
         // and the target process replaces bash as the PTY child.
         let mut cmd = CommandBuilder::new("/bin/bash");
         cmd.env("TERM", "xterm-256color");
+        cmd.env("COLORTERM", "truecolor");
         cmd.env("HOME", "/home/agent");
         cmd.env("SHELL", "/bin/bash");
         cmd.cwd(&cwd);
