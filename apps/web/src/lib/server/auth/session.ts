@@ -91,6 +91,15 @@ export async function validateSession(
         .where(eq(users.id, user.id))
         .returning()
       user = promoted
+      console.log(
+        JSON.stringify({
+          audit: true,
+          action: 'admin_auto_promotion',
+          userId: user.id,
+          email: user.email,
+          ts: new Date().toISOString(),
+        })
+      )
     }
   }
 

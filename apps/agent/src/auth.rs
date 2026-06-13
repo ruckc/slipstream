@@ -222,6 +222,17 @@ pub fn require_permission(claims: &Claims, permission: &str) -> Result<(), AppEr
 #[derive(Clone)]
 pub struct JwksCacheExt(pub Arc<JwksCache>);
 
+fn log_auth_failure(parts: &Parts, reason: &str) {
+    let ip = parts
+        .headers
+        .get("x-forwarded-for")
+        .or_else(|| parts.headers.get("x-real-ip"))
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+    let path = parts.uri.path();
+    warn!(ip, path, reason, "auth failure");
+}
+
 fn extract_bearer_header(parts: &Parts) -> Option<String> {
     parts
         .headers
@@ -260,11 +271,21 @@ where
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("JwksCache not in extensions")))?
             .clone();
 
-        let token_owned = extract_bearer_header(parts)
-            .ok_or_else(|| AppError::Unauthorized("Missing credentials".to_string()))?;
+        let token_owned = match extract_bearer_header(parts) {
+            Some(t) => t,
+            None => {
+                log_auth_failure(parts, "missing credentials");
+                return Err(AppError::Unauthorized("Missing credentials".to_string()));
+            }
+        };
 
-        let claims = jwks_ext.0.validate(&token_owned).await?;
-        Ok(AuthUser(claims))
+        match jwks_ext.0.validate(&token_owned).await {
+            Ok(claims) => Ok(AuthUser(claims)),
+            Err(e) => {
+                log_auth_failure(parts, "invalid token");
+                Err(e)
+            }
+        }
     }
 }
 
@@ -286,11 +307,20 @@ where
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("JwksCache not in extensions")))?
             .clone();
 
-        let token_owned = extract_bearer_header(parts)
-            .or_else(|| extract_token_query(parts))
-            .ok_or_else(|| AppError::Unauthorized("Missing credentials".to_string()))?;
+        let token_owned = match extract_bearer_header(parts).or_else(|| extract_token_query(parts)) {
+            Some(t) => t,
+            None => {
+                log_auth_failure(parts, "missing credentials");
+                return Err(AppError::Unauthorized("Missing credentials".to_string()));
+            }
+        };
 
-        let claims = jwks_ext.0.validate(&token_owned).await?;
-        Ok(AuthUserWs(claims))
+        match jwks_ext.0.validate(&token_owned).await {
+            Ok(claims) => Ok(AuthUserWs(claims)),
+            Err(e) => {
+                log_auth_failure(parts, "invalid token");
+                Err(e)
+            }
+        }
     }
 }

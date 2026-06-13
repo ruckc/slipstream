@@ -34,5 +34,15 @@ export const setUserRole = command(
     if (arg.role !== 'admin' && arg.role !== 'user') throw error(400, 'Invalid role')
 
     await db.update(users).set({ role: arg.role }).where(eq(users.id, arg.targetUserId))
+    console.log(
+      JSON.stringify({
+        audit: true,
+        action: 'setUserRole',
+        actor: actorId,
+        target: arg.targetUserId,
+        role: arg.role,
+        ts: new Date().toISOString(),
+      })
+    )
   }
 )

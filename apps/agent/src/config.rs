@@ -9,6 +9,9 @@ pub struct Config {
     pub home_path: PathBuf,
     pub idle_timeout_secs: u64,
     pub cors_origin: Option<String>,
+    /// If set, the /metrics endpoint requires `Authorization: Bearer <token>`.
+    /// If unset, /metrics returns 403 Forbidden.
+    pub metrics_token: Option<String>,
 }
 
 impl Config {
@@ -37,9 +40,8 @@ impl Config {
             .parse::<u64>()
             .map_err(|e| anyhow::anyhow!("Invalid IDLE_TIMEOUT_SECONDS: {}", e))?;
 
-        // CORS_ORIGIN restricts cross-origin requests to the app's public URL.
-        // If unset, falls back to allow-any (dev/testing only).
         let cors_origin = env::var("CORS_ORIGIN").ok().filter(|s| !s.is_empty());
+        let metrics_token = env::var("METRICS_TOKEN").ok().filter(|s| !s.is_empty());
 
         Ok(Self {
             port,
@@ -49,6 +51,7 @@ impl Config {
             home_path,
             idle_timeout_secs,
             cors_origin,
+            metrics_token,
         })
     }
 }

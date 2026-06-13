@@ -7,7 +7,36 @@ use tracing::warn;
 
 use crate::AppState;
 
-pub async fn metrics_handler(State(state): State<Arc<AppState>>) -> Response<String> {
+pub async fn metrics_handler(
+    State(state): State<Arc<AppState>>,
+    req: axum::extract::Request,
+) -> Response<String> {
+    // Require a bearer token if METRICS_TOKEN is configured; deny all access if unset.
+    match state.config.metrics_token.as_deref() {
+        None => {
+            return Response::builder()
+                .status(StatusCode::FORBIDDEN)
+                .body("metrics access requires METRICS_TOKEN to be configured".to_string())
+                .expect("response build failed");
+        }
+        Some(expected) => {
+            let provided = req
+                .headers()
+                .get(axum::http::header::AUTHORIZATION)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.strip_prefix("Bearer "));
+            match provided {
+                Some(token) if token == expected => {}
+                _ => {
+                    return Response::builder()
+                        .status(StatusCode::UNAUTHORIZED)
+                        .body("invalid or missing metrics token".to_string())
+                        .expect("response build failed");
+                }
+            }
+        }
+    }
+
     let project_id = &state.config.project_id;
     let label = format!(r#"{{project_id="{project_id}"}}"#);
     let mut out = String::with_capacity(512);
