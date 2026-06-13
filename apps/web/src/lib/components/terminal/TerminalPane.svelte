@@ -119,6 +119,10 @@
       )
     })
 
+    $effect(() => {
+      if (mobileKeyboardHeight >= 0) requestAnimationFrame(() => fitAddon?.fit())
+    })
+
     terminal.onResize(({ cols, rows }) => {
       if (!ws || ws.readyState !== WebSocket.OPEN) return
       ws.send(JSON.stringify({ type: 'resize', cols, rows }))

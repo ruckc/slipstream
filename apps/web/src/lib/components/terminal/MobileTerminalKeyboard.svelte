@@ -337,9 +337,7 @@
     min-width: 28px;
     padding: 0 5px;
     background: #2c2c2c;
-    border: 1px solid #444;
-    border-bottom-width: 2px;
-    border-bottom-color: #555;
+    border: 1px solid #3a3a3a;
     border-radius: 5px;
     color: #ddd;
     font-size: 14px;
