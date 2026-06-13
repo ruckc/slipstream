@@ -23,6 +23,15 @@ impl Config {
 
         let jwks_url = env::var("JWKS_URL")
             .map_err(|_| anyhow::anyhow!("JWKS_URL environment variable is required"))?;
+        {
+            let parsed = reqwest::Url::parse(&jwks_url)
+                .map_err(|_| anyhow::anyhow!("JWKS_URL is not a valid URL: {}", jwks_url))?;
+            if !matches!(parsed.scheme(), "http" | "https") || parsed.host().is_none() {
+                return Err(anyhow::anyhow!(
+                    "JWKS_URL must use http or https with a non-empty host"
+                ));
+            }
+        }
 
         let project_id = env::var("PROJECT_ID")
             .map_err(|_| anyhow::anyhow!("PROJECT_ID environment variable is required"))?;

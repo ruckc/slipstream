@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -23,6 +24,12 @@ const (
 
 func main() {
 	hubbleAddr := getenv("HUBBLE_RELAY_ADDRESS", "hubble-relay.kube-system.svc.cluster.local:4245")
+	if _, _, err := net.SplitHostPort(hubbleAddr); err != nil {
+		log.Fatalf("HUBBLE_RELAY_ADDRESS must be a host:port address, got %q: %v", hubbleAddr, err)
+	}
+	if strings.Contains(hubbleAddr, "://") {
+		log.Fatalf("HUBBLE_RELAY_ADDRESS must be a host:port address without a scheme, got %q", hubbleAddr)
+	}
 	databaseURL := mustenv("DATABASE_URL")
 
 	log.Printf("slipstream-hubble-collector starting: relay=%s", hubbleAddr)

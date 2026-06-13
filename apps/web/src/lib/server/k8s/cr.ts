@@ -51,11 +51,18 @@ export interface ProjectEnvironment {
   status?: ProjectEnvironmentStatus
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+function assertValidProjectId(projectId: string): void {
+  if (!UUID_RE.test(projectId)) throw new Error(`Invalid projectId: ${projectId}`)
+}
+
 function crName(projectId: string): string {
   return `project-${projectId}`
 }
 
 export async function createProjectEnvironment(spec: ProjectEnvironmentSpec): Promise<void> {
+  assertValidProjectId(spec.projectId)
   if (!spec.projectId) throw new Error('createProjectEnvironment: projectId is required')
   if (!spec.namespaceId) throw new Error('createProjectEnvironment: namespaceId is required')
   if (!spec.namespaceSlug) throw new Error('createProjectEnvironment: namespaceSlug is required')
@@ -75,6 +82,7 @@ export async function createProjectEnvironment(spec: ProjectEnvironmentSpec): Pr
 }
 
 export async function getProjectEnvironment(projectId: string): Promise<ProjectEnvironment | null> {
+  assertValidProjectId(projectId)
   const api = getCustomObjectsApi()
   try {
     const result = await api.getClusterCustomObject({
@@ -94,6 +102,7 @@ export async function patchProjectEnvironmentSpec(
   projectId: string,
   patch: Partial<ProjectEnvironmentSpec>
 ): Promise<void> {
+  assertValidProjectId(projectId)
   const api = getCustomObjectsApi()
   const ops = Object.entries(patch).map(([key, value]) => ({
     op: 'add',
@@ -110,6 +119,7 @@ export async function patchProjectEnvironmentSpec(
 }
 
 export async function isDeploymentReady(projectId: string): Promise<boolean> {
+  assertValidProjectId(projectId)
   try {
     const ns = `project-${projectId}`
     const api = getCoreV1Api()
@@ -123,6 +133,7 @@ export async function isDeploymentReady(projectId: string): Promise<boolean> {
 }
 
 export async function deleteProjectEnvironment(projectId: string): Promise<void> {
+  assertValidProjectId(projectId)
   const api = getCustomObjectsApi()
   try {
     await api.deleteClusterCustomObject({

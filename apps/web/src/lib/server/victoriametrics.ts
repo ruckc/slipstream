@@ -1,4 +1,17 @@
-const VM_URL = process.env.METRICS_PUSH_URL?.replace(/\/+$/, '') ?? ''
+function resolveVmUrl(): string {
+  const raw = process.env.METRICS_PUSH_URL?.replace(/\/+$/, '') ?? ''
+  if (!raw) return ''
+  try {
+    const parsed = new URL(raw)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return ''
+    if (!parsed.hostname) return ''
+  } catch {
+    return ''
+  }
+  return raw
+}
+
+const VM_URL = resolveVmUrl()
 
 export type MetricSeries = {
   timestamps: number[]

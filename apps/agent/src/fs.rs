@@ -42,11 +42,28 @@ pub struct MoveBody {
 // ---------------------------------------------------------------------------
 
 fn safe_path(workspace: &Path, user_path: &str) -> Result<PathBuf, AppError> {
+    // Reject raw .. components before any resolution.
+    if user_path.split('/').any(|c| c == "..") {
+        return Err(AppError::Forbidden("Path traversal not allowed".into()));
+    }
+
     let trimmed = user_path.trim_start_matches('/');
     let joined = workspace.join(trimmed);
 
-    // Canonicalize to resolve symlinks/.. — but only if the path exists.
-    let canonical = joined.canonicalize().unwrap_or_else(|_| joined.clone());
+    // For existing paths, canonicalize to resolve symlinks.
+    // For non-existent paths, canonicalize the nearest existing ancestor
+    // to ensure the resolved parent is still within the workspace.
+    let canonical = if joined.exists() {
+        joined
+            .canonicalize()
+            .map_err(|e| AppError::Internal(e.into()))?
+    } else {
+        let parent = joined.parent().unwrap_or(workspace);
+        let resolved_parent = parent
+            .canonicalize()
+            .unwrap_or_else(|_| workspace.to_path_buf());
+        resolved_parent.join(joined.file_name().unwrap_or_default())
+    };
 
     if !canonical.starts_with(workspace) {
         return Err(AppError::Forbidden("Path traversal not allowed".into()));
