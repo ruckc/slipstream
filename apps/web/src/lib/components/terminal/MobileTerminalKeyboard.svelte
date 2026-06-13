@@ -159,22 +159,28 @@
 <div class="mkb" role="toolbar" aria-label="Terminal keyboard" bind:clientHeight={height}>
   <!-- Function row: arrows + scrollable specials -->
   <div class="mkb-row mkb-row--fn">
-    <button class="mkb-key" onpointerdown={(e) => tap(e, ESC)}>Esc</button>
-    <button class="mkb-key" onpointerdown={(e) => tap(e, TAB)}>Tab</button>
-    <button class="mkb-key mkb-key--arrow" onpointerdown={(e) => tap(e, ARROW_UP)} aria-label="Up"
-      >↑</button
+    <button tabindex="-1" class="mkb-key" onpointerdown={(e) => tap(e, ESC)}>Esc</button>
+    <button tabindex="-1" class="mkb-key" onpointerdown={(e) => tap(e, TAB)}>Tab</button>
+    <button
+      tabindex="-1"
+      class="mkb-key mkb-key--arrow"
+      onpointerdown={(e) => tap(e, ARROW_UP)}
+      aria-label="Up">↑</button
     >
     <button
+      tabindex="-1"
       class="mkb-key mkb-key--arrow"
       onpointerdown={(e) => tap(e, ARROW_DOWN)}
       aria-label="Down">↓</button
     >
     <button
+      tabindex="-1"
       class="mkb-key mkb-key--arrow"
       onpointerdown={(e) => tap(e, ARROW_LEFT)}
       aria-label="Left">←</button
     >
     <button
+      tabindex="-1"
       class="mkb-key mkb-key--arrow"
       onpointerdown={(e) => tap(e, ARROW_RIGHT)}
       aria-label="Right">→</button
@@ -184,7 +190,7 @@
   <!-- Scrollable special chars row -->
   <div class="mkb-row mkb-row--scroll">
     {#each specialRow as k (k.label)}
-      <button class="mkb-key mkb-key--special" onpointerdown={(e) => tap(e, k.data)}
+      <button tabindex="-1" class="mkb-key mkb-key--special" onpointerdown={(e) => tap(e, k.data)}
         >{k.label}</button
       >
     {/each}
@@ -193,7 +199,7 @@
   <!-- Number row -->
   <div class="mkb-row mkb-row--stretch">
     {#each row1 as ch (ch)}
-      <button class="mkb-key mkb-key--char" onpointerdown={(e) => tapKey(e, ch)}
+      <button tabindex="-1" class="mkb-key mkb-key--char" onpointerdown={(e) => tapKey(e, ch)}
         >{displayChar(ch)}</button
       >
     {/each}
@@ -203,6 +209,7 @@
   <div class="mkb-row mkb-row--stretch">
     {#each row2 as ch (ch)}
       <button
+        tabindex="-1"
         class="mkb-key mkb-key--char"
         class:mkb-key--ctrl-hint={ctrlActive}
         onpointerdown={(e) => tapKey(e, ch)}>{displayChar(ch)}</button
@@ -214,6 +221,7 @@
   <div class="mkb-row mkb-row--stretch mkb-row--indent">
     {#each row3 as ch (ch)}
       <button
+        tabindex="-1"
         class="mkb-key mkb-key--char"
         class:mkb-key--ctrl-hint={ctrlActive}
         onpointerdown={(e) => tapKey(e, ch)}>{displayChar(ch)}</button
@@ -224,6 +232,7 @@
   <!-- Shift + ZXCV + Backspace -->
   <div class="mkb-row mkb-row--stretch">
     <button
+      tabindex="-1"
       class="mkb-key mkb-key--action"
       class:mkb-key--active={shiftActive || shiftLocked}
       class:mkb-key--locked={shiftLocked}
@@ -232,31 +241,41 @@
     >
     {#each row4 as ch (ch)}
       <button
+        tabindex="-1"
         class="mkb-key mkb-key--char"
         class:mkb-key--ctrl-hint={ctrlActive}
         onpointerdown={(e) => tapKey(e, ch)}>{displayChar(ch)}</button
       >
     {/each}
-    <button class="mkb-key mkb-key--action" onpointerdown={(e) => tap(e, BS)} title="Backspace"
-      >⌫</button
+    <button
+      tabindex="-1"
+      class="mkb-key mkb-key--action"
+      onpointerdown={(e) => tap(e, BS)}
+      title="Backspace">⌫</button
     >
   </div>
 
   <!-- Bottom row: Ctrl Alt Space Enter -->
   <div class="mkb-row mkb-row--bottom">
     <button
+      tabindex="-1"
       class="mkb-key mkb-key--mod mkb-key--sm"
       class:mkb-key--active={ctrlActive}
       onpointerdown={tapCtrl}>Ctrl</button
     >
     <button
+      tabindex="-1"
       class="mkb-key mkb-key--mod mkb-key--sm"
       class:mkb-key--active={altActive}
       onpointerdown={tapAlt}>Alt</button
     >
-    <button class="mkb-key mkb-key--space" onpointerdown={(e) => tap(e, SPACE)}>space</button>
-    <button class="mkb-key mkb-key--action mkb-key--enter" onpointerdown={(e) => tap(e, ENTER)}
-      >↵</button
+    <button tabindex="-1" class="mkb-key mkb-key--space" onpointerdown={(e) => tap(e, SPACE)}
+      >space</button
+    >
+    <button
+      tabindex="-1"
+      class="mkb-key mkb-key--action mkb-key--enter"
+      onpointerdown={(e) => tap(e, ENTER)}>↵</button
     >
   </div>
 </div>
