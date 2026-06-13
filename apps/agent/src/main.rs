@@ -90,7 +90,10 @@ async fn main() -> anyhow::Result<()> {
         Some(origin) => match origin.parse::<HeaderValue>() {
             Ok(val) => AllowOrigin::exact(val),
             Err(_) => {
-                eprintln!("FATAL: CORS_ORIGIN '{}' is not a valid HTTP header value", origin);
+                eprintln!(
+                    "FATAL: CORS_ORIGIN '{}' is not a valid HTTP header value",
+                    origin
+                );
                 std::process::exit(1);
             }
         },
