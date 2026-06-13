@@ -1,6 +1,6 @@
 module slipstream/hubble-collector
 
-go 1.25.0
+go 1.25.11
 
 require (
 	github.com/cilium/cilium v1.19.4

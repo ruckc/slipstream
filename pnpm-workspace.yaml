@@ -11,4 +11,4 @@ minimumReleaseAgeExclude:
   - playwright@1.61.0-alpha-2026-06-10
 overrides:
   "cookie@*": "^1.1.1"
-  "esbuild@*": "^0.28.0"
+  "esbuild@*": ">=0.28.1"
