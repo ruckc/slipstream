@@ -63,6 +63,7 @@ pub struct JwksCache {
 }
 
 const CACHE_TTL: Duration = Duration::from_secs(300); // 5 minutes
+const CACHE_HARD_MAX_AGE: Duration = Duration::from_secs(1800); // 30 minutes
 
 impl JwksCache {
     pub async fn new(url: String, project_id: String) -> anyhow::Result<Self> {
@@ -142,10 +143,23 @@ impl JwksCache {
                 .unwrap_or(false)
         };
 
-        if !cache_valid {
+        // Check if the cache has exceeded the hard maximum age regardless of TTL.
+        let cache_hard_expired = {
+            let guard = self.cache.read();
+            guard
+                .as_ref()
+                .map(|c| c.fetched_at.elapsed() >= CACHE_HARD_MAX_AGE)
+                .unwrap_or(false)
+        };
+
+        if !cache_valid || cache_hard_expired {
             if let Err(e) = self.fetch_keys().await {
+                if cache_hard_expired {
+                    return Err(AppError::Unauthorized(format!(
+                        "JWKS cache expired and refresh failed: {e}"
+                    )));
+                }
                 warn!("Failed to refresh JWKS keys: {}", e);
-                // Continue with stale keys rather than failing hard.
             }
         }
 
@@ -307,7 +321,8 @@ where
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("JwksCache not in extensions")))?
             .clone();
 
-        let token_owned = match extract_bearer_header(parts).or_else(|| extract_token_query(parts)) {
+        let token_owned = match extract_bearer_header(parts).or_else(|| extract_token_query(parts))
+        {
             Some(t) => t,
             None => {
                 log_auth_failure(parts, "missing credentials");

@@ -96,6 +96,7 @@ export const sessions = pgTable(
       .references(() => users.id)
       .notNull(),
     expiresAt: timestamp('expires_at').notNull(),
+    lastActiveAt: timestamp('last_active_at').defaultNow(),
     createdAt: timestamp('created_at').defaultNow(),
   },
   (t) => [index('sessions_user_id_expires_at_idx').on(t.userId, t.expiresAt)]

@@ -64,6 +64,13 @@
       "when": 1781100000000,
       "tag": "0008_kube_deploy_access",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781369214847,
+      "tag": "0009_neat_sentinels",
+      "breakpoints": true
     }
   ]
 }

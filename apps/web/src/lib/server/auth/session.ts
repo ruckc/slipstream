@@ -1,7 +1,11 @@
 import { db, sessions, users } from '$lib/server/db'
-import { eq, and, gt, lt } from 'drizzle-orm'
+import { eq, and, gt, lt, sql } from 'drizzle-orm'
 import { createHmac, timingSafeEqual } from 'crypto'
 import type { User, Session } from '$lib/server/db/schema'
+
+const INACTIVITY_TIMEOUT_MS =
+  (parseInt(process.env.SESSION_INACTIVITY_TIMEOUT_SECONDS ?? '28800', 10) || 28800) * 1000
+const LAST_ACTIVE_UPDATE_DEBOUNCE_MS = 60_000
 
 function getAdminEmails(): Set<string> {
   const raw = process.env.ADMIN_EMAILS ?? ''
@@ -80,6 +84,21 @@ export async function validateSession(
 
   let user = rows[0].user
   const session = rows[0].session
+
+  // Reject if session has been inactive for too long
+  const lastActive = session.lastActiveAt ?? session.createdAt ?? new Date(0)
+  if (now.getTime() - lastActive.getTime() > INACTIVITY_TIMEOUT_MS) {
+    await db.delete(sessions).where(eq(sessions.id, sessionId))
+    return null
+  }
+
+  // Update lastActiveAt if debounce window has passed (avoid per-request writes)
+  if (now.getTime() - lastActive.getTime() > LAST_ACTIVE_UPDATE_DEBOUNCE_MS) {
+    await db
+      .update(sessions)
+      .set({ lastActiveAt: sql`now()` })
+      .where(eq(sessions.id, sessionId))
+  }
 
   // Auto-promote if email is in ADMIN_EMAILS and not already admin
   if (user.role !== 'admin') {
