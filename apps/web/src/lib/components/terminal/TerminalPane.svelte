@@ -30,6 +30,13 @@
   let reconnectAttempt = $state(0)
   let mobileKeyboardVisible = $state(false)
   let mobileKeyboardHeight = $state(0)
+  let xtermTextarea = $state<HTMLTextAreaElement | undefined>(undefined)
+
+  function dispatchKey(init: KeyboardEventInit) {
+    xtermTextarea?.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
+    )
+  }
 
   $effect(() => {
     if (mobileKeyboardHeight >= 0) requestAnimationFrame(() => fitAddon?.fit())
@@ -96,9 +103,8 @@
 
     // Suppress the OS soft keyboard on mobile by setting inputmode="none"
     // on xterm's hidden textarea, then show our custom keyboard instead.
-    const xtermTextarea = terminalEl.querySelector<HTMLTextAreaElement>(
-      'textarea.xterm-helper-textarea'
-    )
+    xtermTextarea =
+      terminalEl.querySelector<HTMLTextAreaElement>('textarea.xterm-helper-textarea') ?? undefined
     if (xtermTextarea) {
       xtermTextarea.setAttribute('inputmode', 'none')
       xtermTextarea.addEventListener('focus', () => {
@@ -273,7 +279,11 @@
   {/if}
 </div>
 {#if mobileKeyboardVisible}
-  <MobileTerminalKeyboard onSend={sendInput} bind:height={mobileKeyboardHeight} />
+  <MobileTerminalKeyboard
+    onSend={sendInput}
+    onKey={dispatchKey}
+    bind:height={mobileKeyboardHeight}
+  />
 {/if}
 
 <style>

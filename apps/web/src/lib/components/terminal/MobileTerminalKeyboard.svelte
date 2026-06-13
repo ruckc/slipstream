@@ -1,9 +1,11 @@
 <script lang="ts">
   let {
     onSend,
+    onKey,
     height = $bindable(0),
   }: {
     onSend: (data: string) => void
+    onKey: (init: KeyboardEventInit) => void
     height?: number
   } = $props()
 
@@ -18,10 +20,6 @@
   const TAB = '\t'
   const ENTER = '\r'
   const SPACE = ' '
-  const ARROW_UP = '\x1b[A'
-  const ARROW_DOWN = '\x1b[B'
-  const ARROW_LEFT = '\x1b[D'
-  const ARROW_RIGHT = '\x1b[C'
   const HOME = '\x1b[H'
   const END = '\x1b[F'
   const PAGE_UP = '\x1b[5~'
@@ -164,25 +162,37 @@
     <button
       tabindex="-1"
       class="mkb-key mkb-key--arrow"
-      onpointerdown={(e) => tap(e, ARROW_UP)}
+      onpointerdown={(e) => {
+        e.preventDefault()
+        onKey({ key: 'ArrowUp' })
+      }}
       aria-label="Up">↑</button
     >
     <button
       tabindex="-1"
       class="mkb-key mkb-key--arrow"
-      onpointerdown={(e) => tap(e, ARROW_DOWN)}
+      onpointerdown={(e) => {
+        e.preventDefault()
+        onKey({ key: 'ArrowDown' })
+      }}
       aria-label="Down">↓</button
     >
     <button
       tabindex="-1"
       class="mkb-key mkb-key--arrow"
-      onpointerdown={(e) => tap(e, ARROW_LEFT)}
+      onpointerdown={(e) => {
+        e.preventDefault()
+        onKey({ key: 'ArrowLeft' })
+      }}
       aria-label="Left">←</button
     >
     <button
       tabindex="-1"
       class="mkb-key mkb-key--arrow"
-      onpointerdown={(e) => tap(e, ARROW_RIGHT)}
+      onpointerdown={(e) => {
+        e.preventDefault()
+        onKey({ key: 'ArrowRight' })
+      }}
       aria-label="Right">→</button
     >
   </div>
