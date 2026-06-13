@@ -1,8 +1,10 @@
 <script lang="ts">
   let {
     onSend,
+    height = $bindable(0),
   }: {
     onSend: (data: string) => void
+    height?: number
   } = $props()
 
   let ctrlActive = $state(false)
@@ -96,7 +98,7 @@
   ]
 </script>
 
-<div class="mkb" role="toolbar" aria-label="Terminal keyboard">
+<div class="mkb" role="toolbar" aria-label="Terminal keyboard" bind:clientHeight={height}>
   <!-- Row 1: modifiers + navigation -->
   <div class="mkb-row">
     <button
@@ -164,14 +166,18 @@
 
 <style>
   .mkb {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
     display: flex;
     flex-direction: column;
     gap: 2px;
     background: #1a1a1a;
-    border-top: 1px solid #333;
-    padding: 4px 4px;
+    border-top: 1px solid #444;
+    padding: 4px;
     padding-bottom: max(4px, env(safe-area-inset-bottom));
-    flex-shrink: 0;
     user-select: none;
     -webkit-user-select: none;
   }

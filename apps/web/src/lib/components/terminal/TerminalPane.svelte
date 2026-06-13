@@ -29,6 +29,7 @@
   let statusMessage = $state<string | null>(null)
   let reconnectAttempt = $state(0)
   let mobileKeyboardVisible = $state(false)
+  let mobileKeyboardHeight = $state(0)
 
   // State managed outside Svelte reactivity to avoid re-render overhead
   let terminal: import('@xterm/xterm').Terminal | null = null
@@ -257,16 +258,19 @@
 </script>
 
 <div class="terminal-pane" id="terminal-pane-{sessionId}">
-  <div class="terminal-container">
+  <div
+    class="terminal-container"
+    style={mobileKeyboardVisible ? `padding-bottom: ${mobileKeyboardHeight}px` : ''}
+  >
     <div class="xterm-host" bind:this={terminalEl}></div>
     {#if statusMessage}
       <div class="terminal-status" aria-live="polite">{statusMessage}</div>
     {/if}
   </div>
-  {#if mobileKeyboardVisible}
-    <MobileTerminalKeyboard onSend={sendInput} />
-  {/if}
 </div>
+{#if mobileKeyboardVisible}
+  <MobileTerminalKeyboard onSend={sendInput} bind:height={mobileKeyboardHeight} />
+{/if}
 
 <style>
   .terminal-pane {
