@@ -31,6 +31,10 @@
   let mobileKeyboardVisible = $state(false)
   let mobileKeyboardHeight = $state(0)
 
+  $effect(() => {
+    if (mobileKeyboardHeight >= 0) requestAnimationFrame(() => fitAddon?.fit())
+  })
+
   // State managed outside Svelte reactivity to avoid re-render overhead
   let terminal: import('@xterm/xterm').Terminal | null = null
   let fitAddon: import('@xterm/addon-fit').FitAddon | null = null
@@ -117,10 +121,6 @@
           data: btoa(unescape(encodeURIComponent(data))),
         })
       )
-    })
-
-    $effect(() => {
-      if (mobileKeyboardHeight >= 0) requestAnimationFrame(() => fitAddon?.fit())
     })
 
     terminal.onResize(({ cols, rows }) => {
