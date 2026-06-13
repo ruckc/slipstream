@@ -1951,7 +1951,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slipstream-metrics-collector"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "anyhow",
  "axum",
