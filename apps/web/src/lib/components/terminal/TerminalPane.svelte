@@ -32,7 +32,21 @@
   let mobileKeyboardHeight = $state(0)
   let xtermTextarea = $state<HTMLTextAreaElement | undefined>(undefined)
 
+  const ARROW_SEQS: Record<string, [string, string]> = {
+    ArrowUp: ['\x1b[A', '\x1bOA'],
+    ArrowDown: ['\x1b[B', '\x1bOB'],
+    ArrowLeft: ['\x1b[D', '\x1bOD'],
+    ArrowRight: ['\x1b[C', '\x1bOC'],
+  }
+
   function dispatchKey(init: KeyboardEventInit) {
+    const key = init.key ?? ''
+    const arrowSeq = ARROW_SEQS[key]
+    if (arrowSeq) {
+      const app = terminal?.modes.applicationCursorKeysMode ?? false
+      sendInput(app ? arrowSeq[1] : arrowSeq[0])
+      return
+    }
     xtermTextarea?.dispatchEvent(
       new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
     )
