@@ -24,8 +24,8 @@ docker/
 tests/
   e2e/                  # Playwright end-to-end tests against the dev cluster
 .github/workflows/
-  ci.yml                # checks + edge image push on every push to main / PR
-  release.yml           # manual workflow_dispatch — bumps version, tags, builds, publishes
+  ci.yml                # checks + build + sign + release on push to main / PR
+  checks.yml            # reusable: format, lint, types, cargo-audit, pnpm-audit, govulncheck
 ```
 
 ## Commands
@@ -135,6 +135,8 @@ The SvelteKit server never proxies pod traffic — the gateway routes it directl
 
 Slugs are globally unique across users and orgs (enforced by a DB unique index on `namespaces.slug`). Kubernetes namespaces are prefixed: user `alice` → `u-alice`, org `acme` → `o-acme`. First registrant of a slug wins permanently.
 
+The slugs `api`, `auth`, `admin`, `env`, `health`, `metrics`, `static`, `_app`, and any slug starting with `kube-` are reserved and rejected at registration time.
+
 Each **project** gets its own dedicated Kubernetes namespace (`project-{projectId}`). All project resources (Pod, Service, HTTPRoute, NetworkPolicy, PVC, `ProjectEnvironment` CR) live in that namespace. Deleting the namespace cascades all non-PVC resources automatically.
 
 ### Project lifecycle
@@ -149,7 +151,23 @@ PVCs are never deleted when a project stops — only when a project is explicitl
 
 Idle timeout resolution priority: `project.idleTimeoutSeconds` → `org/user.idleTimeoutSeconds` → `DEFAULT_IDLE_TIMEOUT_SECONDS` env var (default 1800 s).
 
-The web app interacts with `ProjectEnvironment` CRs via `src/lib/server/k8s/cr.ts` (`createProjectEnvironment`, `getProjectEnvironment`, `patchProjectEnvironmentSpec`, `patchEgressPolicy`, `deleteProjectEnvironment`, `phaseToProjectStatus`).
+The web app interacts with `ProjectEnvironment` CRs via `src/lib/server/k8s/cr.ts` (`createProjectEnvironment`, `getProjectEnvironment`, `patchProjectEnvironmentSpec`, `patchEgressPolicy`, `deleteProjectEnvironment`, `phaseToProjectStatus`). All functions validate `projectId` against a UUID regex before making any K8s API calls.
+
+### Project pod filesystem layout
+
+Each project pod has three volume mounts:
+
+| Path | Type | Notes |
+|---|---|---|
+| `/workspace` | PVC | Persistent workspace — survives stop/start cycles |
+| `/home/agent` | PVC | Persistent home directory — survives stop/start cycles |
+| `/tmp` | emptyDir | Ephemeral scratch space |
+
+**Important**: `/home/agent` is a PVC that mounts over the image's home directory at runtime, hiding any files baked into the image at that path. Shell configuration, aliases, and other per-session setup must go in `/etc/profile.d/` (sourced by every `bash -l` login shell), **not** in `/home/agent/.bashrc` or `/home/agent/.profile`.
+
+Current `/etc/profile.d/` scripts in the agent image:
+- `/etc/profile.d/mise.sh` — activates mise for all bash login shells
+- `/etc/profile.d/slipstream.sh` — color prompt, ls/grep aliases, OSC 7 CWD reporting, terminal title updates
 
 ### Egress policy
 
@@ -159,9 +177,11 @@ The **hubble-collector** (`apps/hubble-collector/`) connects to Cilium's Hubble 
 
 ### JWT issuance
 
-`src/lib/server/jwt/keys.ts` manages an RS256 keypair — ephemeral in-memory for single-replica dev, or loaded from the `K8S_JWT_PRIVATE_KEY` env var (base64 PKCS8 PEM) for multi-replica. The pod fetches the JWKS from `http://slipstream-web.slipstream-system.svc.cluster.local/api/jwks` on startup and caches with a 5-minute TTL. The NetworkPolicy explicitly allows this egress from pods.
+`src/lib/server/jwt/keys.ts` manages an RS256 keypair — ephemeral in-memory for single-replica dev, or loaded from the `K8S_JWT_PRIVATE_KEY` env var (base64 PKCS8 PEM) for multi-replica. The pod fetches the JWKS from `http://slipstream-web.slipstream-system.svc.cluster.local/api/jwks` on startup and caches with a 5-minute TTL, with a 30-minute hard expiry (after which a failed refresh causes token rejection rather than accepting stale keys). The NetworkPolicy explicitly allows this egress from pods.
 
 JWT claims: `{ sub: userId, projectId, permissions: string[], exp, iat }`. The agent enforces permissions per route: `files:read` for downloads/listing, `files:write` for upload/delete/mkdir, `shell` for PTY sessions.
+
+The `?token=` query parameter is accepted **only** on WebSocket routes (where browsers can't set custom headers). All non-WebSocket routes require `Authorization: Bearer` header only.
 
 ### Permission model
 
@@ -170,6 +190,12 @@ Four independent permission bits: `files:read`, `files:write`, `shell`, `project
 2. Org owner → all permissions on all org projects
 3. Explicit `project_permissions` row for the user
 4. Explicit `project_permissions` row for any org the user belongs to
+
+Admin-only remote functions (`listUsers`, `setUserRole`, `getDashboardStats`, `getErrors`, `getErrorRoutes`) check `locals.user.role === 'admin'` via `requireAdmin()` at the top of each function. `ADMIN_EMAILS` auto-promotion is audit-logged.
+
+### Sessions
+
+Sessions are stored in a `sessions` DB table (id, userId, expiresAt, lastActiveAt, createdAt). On each validated request, `lastActiveAt` is updated if more than 60 seconds have passed since the last update (debounced to avoid per-request writes). Sessions are rejected if `lastActiveAt` is older than `SESSION_INACTIVITY_TIMEOUT_SECONDS` (default 28800 / 8 hours). Logout deletes the DB row immediately.
 
 ### Remote functions pattern
 
@@ -197,7 +223,7 @@ Key imports:
 
 ### Client-side JWT handling
 
-`src/lib/token-store.ts` holds a per-project token cache. Before any request to a pod, `tokenStore.get(projectId)` is called; if the token is missing or expires in under 30 s, it transparently calls `POST /api/token` and deduplicates concurrent refreshes via an inflight promise. `src/lib/pod-fetch.ts` wraps this into `podFetch()` and `podWsUrl()`.
+`src/lib/token-store.ts` holds a per-project token cache. Before any request to a pod, `tokenStore.get(projectId)` is called; if the token is missing or expires in under 30 s, it transparently calls `POST /api/token` and deduplicates concurrent refreshes via an inflight promise. `src/lib/pod-fetch.ts` wraps this into `podFetch()` and `podWsUrl()`. The token cache is cleared on logout.
 
 ### Dev mode
 
@@ -213,8 +239,8 @@ Key variables the web app reads at runtime:
 
 | Variable | Required | Notes |
 |---|---|---|
-| `DATABASE_URL` | yes | Postgres connection string |
-| `APP_URL` | yes | Public base URL (for OIDC redirect URIs) |
+| `DATABASE_URL` | yes | Postgres connection string; `sslmode=require` is appended automatically in production if absent |
+| `APP_URL` | yes | Public base URL (for OIDC redirect URIs); also passed to agent pods as `CORS_ORIGIN` |
 | `AGENT_IMAGE` | yes (controller) | Docker image for project pods — read by project-controller, not web |
 | `GATEWAY_NAME` | yes (controller) | Name of the Gateway API Gateway resource — read by project-controller |
 | `GATEWAY_NAMESPACE` | yes (controller) | Namespace of the gateway — read by project-controller |
@@ -223,22 +249,33 @@ Key variables the web app reads at runtime:
 | `MICROSOFT_CLIENT_ID` / `_SECRET` | no | Enables Microsoft OIDC |
 | `GITHUB_CLIENT_ID` / `_SECRET` | no | Enables GitHub OAuth2 |
 | `SESSION_SECRET` | yes (prod) | HMAC-SHA256 key for signing session cookies; falls back to a hardcoded dev value if unset |
+| `SESSION_INACTIVITY_TIMEOUT_SECONDS` | no | Session inactivity timeout (default: 28800 / 8h) |
 | `DEV_MODE` | no | Set to `true` to enable `/auth/dev` |
 | `K8S_JWT_PRIVATE_KEY` | no | Base64 PKCS8 PEM; generate ephemeral key if absent |
 | `DEFAULT_IDLE_TIMEOUT_SECONDS` | no | Default 1800 |
 | `AGENT_STORAGE_CLASS` | no | PVC storage class (default: `standard`) |
-| `METRICS_PUSH_URL` | no | VictoriaMetrics push endpoint — enables idle shutdown in controller |
+| `METRICS_PUSH_URL` | no | VictoriaMetrics push endpoint — enables idle shutdown in controller; must be http/https URL |
 
-The Rust agent reads: `PORT`, `JWKS_URL`, `PROJECT_ID`, `WORKSPACE_PATH`, `HOME_PATH`, `IDLE_TIMEOUT_SECONDS`, `CORS_ORIGIN` (passed automatically from `APP_URL`).
+The Rust agent reads: `PORT`, `JWKS_URL` (required; must be http/https URL), `PROJECT_ID`, `WORKSPACE_PATH`, `HOME_PATH`, `IDLE_TIMEOUT_SECONDS`, `CORS_ORIGIN` (required — agent exits at startup if unset), `METRICS_TOKEN` (optional; if set, `/metrics` requires `Authorization: Bearer <token>`; if unset, `/metrics` returns 403).
 
 The project-controller additionally reads: `USAGE_REPORT_URL` (optional, for usage telemetry), `KUBECONFIG` (optional, falls back to in-cluster config).
+
+The hubble-collector reads: `HUBBLE_RELAY_ADDRESS` (default: `hubble-relay.kube-system.svc.cluster.local:4245`; must be `host:port` format, no URL scheme), `DATABASE_URL`.
+
+## Security notes
+
+- **Admin guards**: All admin remote functions call `requireAdmin()` which checks `locals.user.role === 'admin'`. Never add admin operations without this guard.
+- **Path safety**: `safe_path()` in `apps/agent/src/fs.rs` rejects `..` components and canonicalizes parent directories for non-existent paths. Always route file operations through this function.
+- **Reserved slugs**: `api`, `auth`, `admin`, `env`, `health`, `metrics`, `static`, `_app`, and `kube-*` prefixed slugs are blocked at registration — enforced in both `organization.remote.ts` and `project.remote.ts`.
+- **Security headers**: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Strict-Transport-Security`, and `Content-Security-Policy` are set in `src/hooks.server.ts` on every response.
+- **Supply chain**: All GitHub Actions are pinned to commit SHAs. All Docker base images use digest pins. Docker images are signed with cosign (keyless via GitHub Actions OIDC). CI runs `cargo audit`, `pnpm audit --audit-level=high`, and `govulncheck` on every push.
 
 ## Versioning and releases
 
 The canonical version lives in the root `VERSION` file. Releases are created by triggering the `release` workflow manually (`workflow_dispatch`) from the `main` branch. It:
-1. Runs all three check jobs
+1. Runs all check jobs (format, lint, types, audit)
 2. Analyses conventional commits since the last `v*.*.*` tag to determine the bump (`feat!`/`BREAKING CHANGE` → major, `feat` → minor, else patch)
 3. Updates `VERSION`, `apps/web/package.json`, `apps/agent/Cargo.toml` and `apps/metrics-collector/Cargo.toml` (via `tomlkit`), and `version.go` in all Go services (`project-controller`, `hubble-collector`)
-4. Commits, tags, and pushes — then builds all Docker images from the tag and creates a GitHub Release
+4. Commits, tags, and pushes — then builds all Docker images from the tag, signs them with cosign, and creates a GitHub Release with the Helm chart attached
 
 The `bump` input can override auto-detection.

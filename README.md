@@ -49,7 +49,7 @@ The **metrics-collector** scrapes each running agent pod's `/metrics` endpoint a
 | Variable | Required | Description |
 |---|---|---|
 | `DATABASE_URL` | yes | PostgreSQL connection string |
-| `APP_URL` | yes | Public base URL (used for OIDC redirect URIs) |
+| `APP_URL` | yes | Public base URL (used for OIDC redirect URIs and agent CORS) |
 | `AGENT_IMAGE` | yes | Docker image for project pods — read by project-controller |
 | `GATEWAY_NAME` | yes | Name of the Gateway API `Gateway` resource |
 | `GATEWAY_NAMESPACE` | yes | Namespace containing the gateway |
@@ -59,8 +59,10 @@ The **metrics-collector** scrapes each running agent pod's `/metrics` endpoint a
 | `MICROSOFT_CLIENT_ID` / `_SECRET` | no | Enables Microsoft OIDC login |
 | `GITHUB_CLIENT_ID` / `_SECRET` | no | Enables GitHub OAuth2 login |
 | `DEFAULT_IDLE_TIMEOUT_SECONDS` | no | Pod idle timeout (default: 1800) |
+| `SESSION_INACTIVITY_TIMEOUT_SECONDS` | no | Web session inactivity timeout (default: 28800 / 8h) |
 | `AGENT_STORAGE_CLASS` | no | PVC storage class (default: `standard`) |
 | `METRICS_PUSH_URL` | no | VictoriaMetrics endpoint — enables idle shutdown in controller |
+| `METRICS_TOKEN` | no | Bearer token for agent `/metrics` endpoint; if unset, `/metrics` returns 403 |
 | `K8S_JWT_PRIVATE_KEY` | no | Base64 PKCS8 PEM for multi-replica deployments |
 
 ### Helm install
@@ -127,7 +129,7 @@ Set `DEV_MODE=true` to enable the `/auth/dev` login endpoint. Run `pnpm db:seed:
 
 ## Namespace model
 
-Slugs are globally unique across all users and orgs. Kubernetes namespaces are prefixed: user `alice` → `u-alice`, org `acme` → `o-acme`. First registrant of a slug wins permanently.
+Slugs are globally unique across all users and orgs. Kubernetes namespaces are prefixed: user `alice` → `u-alice`, org `acme` → `o-acme`. First registrant of a slug wins permanently. The slugs `api`, `auth`, `admin`, `env`, `health`, `metrics`, `static`, `_app`, and any slug starting with `kube-` are reserved and cannot be registered.
 
 ## Permission model
 
@@ -140,7 +142,7 @@ Four permission bits: `files:read`, `files:write`, `shell`, `project:manage`. Re
 
 ## Releases
 
-Releases are created by triggering the `release` workflow manually from `main`. It analyses conventional commits since the last tag to determine the version bump (`feat!`/`BREAKING CHANGE` → major, `feat` → minor, else patch), updates all version files, tags, builds all Docker images, and publishes a GitHub Release.
+Releases are created by triggering the `release` workflow manually from `main`. It analyses conventional commits since the last tag to determine the version bump (`feat!`/`BREAKING CHANGE` → major, `feat` → minor, else patch), updates all version files, tags, builds all Docker images, signs them with [cosign](https://github.com/sigstore/cosign) (keyless via GitHub Actions OIDC), and publishes a GitHub Release.
 
 Images are published to `ghcr.io/ruckc/`:
 
