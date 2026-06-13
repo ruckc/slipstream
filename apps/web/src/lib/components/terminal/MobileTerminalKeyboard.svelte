@@ -7,12 +7,17 @@
     height?: number
   } = $props()
 
+  let shiftActive = $state(false)
+  let shiftLocked = $state(false) // double-tap caps lock
   let ctrlActive = $state(false)
   let altActive = $state(false)
+  let lastShiftTap = 0
 
-  // Key sequences
+  const BS = '\x7f'
   const ESC = '\x1b'
   const TAB = '\t'
+  const ENTER = '\r'
+  const SPACE = ' '
   const ARROW_UP = '\x1b[A'
   const ARROW_DOWN = '\x1b[B'
   const ARROW_LEFT = '\x1b[D'
@@ -21,52 +26,99 @@
   const END = '\x1b[F'
   const PAGE_UP = '\x1b[5~'
   const PAGE_DOWN = '\x1b[6~'
-  const DEL = '\x1b[3~'
+  const DEL_FWD = '\x1b[3~'
 
-  // Ctrl+letter = byte offset from 0x60
-  const CTRL: Record<string, string> = {
-    C: '\x03',
-    D: '\x04',
-    Z: '\x1a',
-    L: '\x0c',
-    A: '\x01',
-    E: '\x05',
-    W: '\x17',
-    U: '\x15',
-    R: '\x12',
-    K: '\x0b',
-    B: '\x02',
-    F: '\x06',
+  const SHIFT_NUMS: Record<string, string> = {
+    '1': '!',
+    '2': '@',
+    '3': '#',
+    '4': '$',
+    '5': '%',
+    '6': '^',
+    '7': '&',
+    '8': '*',
+    '9': '(',
+    '0': ')',
   }
 
-  function send(data: string) {
-    let out = data
-    if (altActive && !ctrlActive) {
-      out = ESC + data
+  // Ctrl+A=\x01 … Ctrl+Z=\x1a
+  function ctrlSeq(ch: string): string {
+    return String.fromCharCode(ch.toUpperCase().charCodeAt(0) - 64)
+  }
+
+  function sendKey(raw: string) {
+    let ch = raw
+    if (ctrlActive && /^[a-zA-Z]$/.test(ch)) {
+      onSend(ctrlSeq(ch))
+      ctrlActive = false
+      return
     }
-    onSend(out)
-    // Auto-release modifier after use (except for ctrl which users often hold)
-    if (altActive) altActive = false
+    if (shiftActive || shiftLocked) {
+      if (/^[a-z]$/.test(ch)) ch = ch.toUpperCase()
+      else if (SHIFT_NUMS[ch]) ch = SHIFT_NUMS[ch]
+    }
+    if (altActive) {
+      onSend(ESC + ch)
+      altActive = false
+    } else {
+      onSend(ch)
+    }
+    // auto-release shift (not caps lock)
+    if (shiftActive && !shiftLocked) shiftActive = false
   }
 
-  function sendCtrl(letter: string) {
-    const seq = CTRL[letter]
-    if (seq) onSend(seq)
-    ctrlActive = false
+  function tapShift(e: Event) {
+    e.preventDefault()
+    const now = Date.now()
+    if (now - lastShiftTap < 400) {
+      // double-tap → caps lock
+      shiftLocked = !shiftLocked
+      shiftActive = shiftLocked
+    } else {
+      shiftLocked = false
+      shiftActive = !shiftActive
+    }
+    lastShiftTap = now
   }
 
   function tap(e: Event, data: string) {
     e.preventDefault()
-    send(data)
+    onSend(data)
+    if (altActive && data !== ESC) altActive = false
   }
 
-  function tapCtrl(e: Event, letter: string) {
+  function tapKey(e: Event, raw: string) {
     e.preventDefault()
-    sendCtrl(letter)
+    sendKey(raw)
   }
 
-  // Rows shown when no modifier or alt active
-  const charRow = [
+  function tapCtrl(e: Event) {
+    e.preventDefault()
+    ctrlActive = !ctrlActive
+    altActive = false
+  }
+
+  function tapAlt(e: Event) {
+    e.preventDefault()
+    altActive = !altActive
+    ctrlActive = false
+  }
+
+  const row1 = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
+  const row2 = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p']
+  const row3 = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l']
+  const row4 = ['z', 'x', 'c', 'v', 'b', 'n', 'm']
+
+  function displayChar(ch: string): string {
+    if (ctrlActive && /^[a-zA-Z]$/.test(ch)) return '^' + ch.toUpperCase()
+    if (shiftActive || shiftLocked) {
+      if (/^[a-z]$/.test(ch)) return ch.toUpperCase()
+      if (SHIFT_NUMS[ch]) return SHIFT_NUMS[ch]
+    }
+    return ch
+  }
+
+  const specialRow = [
     { label: '~', data: '~' },
     { label: '/', data: '/' },
     { label: '-', data: '-' },
@@ -74,56 +126,53 @@
     { label: '|', data: '|' },
     { label: '\\', data: '\\' },
     { label: '`', data: '`' },
-    { label: 'Del', data: DEL },
+    { label: "'", data: "'" },
+    { label: '"', data: '"' },
+    { label: ';', data: ';' },
+    { label: ':', data: ':' },
+    { label: '(', data: '(' },
+    { label: ')', data: ')' },
+    { label: '[', data: '[' },
+    { label: ']', data: ']' },
+    { label: '{', data: '{' },
+    { label: '}', data: '}' },
+    { label: '<', data: '<' },
+    { label: '>', data: '>' },
+    { label: '=', data: '=' },
+    { label: '+', data: '+' },
+    { label: '?', data: '?' },
+    { label: '!', data: '!' },
+    { label: '@', data: '@' },
+    { label: '#', data: '#' },
+    { label: '$', data: '$' },
+    { label: '%', data: '%' },
+    { label: '&', data: '&' },
+    { label: '*', data: '*' },
+    { label: 'Del→', data: DEL_FWD },
     { label: 'Home', data: HOME },
     { label: 'End', data: END },
     { label: 'PgUp', data: PAGE_UP },
     { label: 'PgDn', data: PAGE_DOWN },
   ]
-
-  // Ctrl shortcuts
-  const ctrlRow = [
-    { label: 'C', letter: 'C', title: 'Ctrl+C (interrupt)' },
-    { label: 'D', letter: 'D', title: 'Ctrl+D (EOF)' },
-    { label: 'Z', letter: 'Z', title: 'Ctrl+Z (suspend)' },
-    { label: 'L', letter: 'L', title: 'Ctrl+L (clear)' },
-    { label: 'A', letter: 'A', title: 'Ctrl+A (line start)' },
-    { label: 'E', letter: 'E', title: 'Ctrl+E (line end)' },
-    { label: 'W', letter: 'W', title: 'Ctrl+W (del word)' },
-    { label: 'U', letter: 'U', title: 'Ctrl+U (del line)' },
-    { label: 'R', letter: 'R', title: 'Ctrl+R (history)' },
-    { label: 'K', letter: 'K', title: 'Ctrl+K (del to end)' },
-    { label: 'B', letter: 'B', title: 'Ctrl+B (back)' },
-    { label: 'F', letter: 'F', title: 'Ctrl+F (forward)' },
-  ]
 </script>
 
 <div class="mkb" role="toolbar" aria-label="Terminal keyboard" bind:clientHeight={height}>
-  <!-- Row 1: modifiers + navigation -->
-  <div class="mkb-row">
+  <!-- Function row: modifiers + arrows + scrollable specials -->
+  <div class="mkb-row mkb-row--fn">
     <button
       class="mkb-key mkb-key--mod"
       class:mkb-key--active={ctrlActive}
-      onpointerdown={(e) => {
-        e.preventDefault()
-        ctrlActive = !ctrlActive
-        altActive = false
-      }}
-      title="Ctrl modifier">Ctrl</button
+      onpointerdown={tapCtrl}
+      title="Ctrl">Ctrl</button
     >
     <button
       class="mkb-key mkb-key--mod"
       class:mkb-key--active={altActive}
-      onpointerdown={(e) => {
-        e.preventDefault()
-        altActive = !altActive
-        ctrlActive = false
-      }}
-      title="Alt modifier">Alt</button
+      onpointerdown={tapAlt}
+      title="Alt">Alt</button
     >
-    <button class="mkb-key" onpointerdown={(e) => tap(e, ESC)} title="Escape">Esc</button>
-    <button class="mkb-key" onpointerdown={(e) => tap(e, TAB)} title="Tab">Tab</button>
-    <div class="mkb-spacer"></div>
+    <button class="mkb-key" onpointerdown={(e) => tap(e, ESC)}>Esc</button>
+    <button class="mkb-key" onpointerdown={(e) => tap(e, TAB)}>Tab</button>
     <button class="mkb-key mkb-key--arrow" onpointerdown={(e) => tap(e, ARROW_UP)} aria-label="Up"
       >↑</button
     >
@@ -144,23 +193,83 @@
     >
   </div>
 
-  <!-- Row 2: context-sensitive keys -->
+  <!-- Scrollable special chars row -->
   <div class="mkb-row mkb-row--scroll">
-    {#if ctrlActive}
-      {#each ctrlRow as k (k.letter)}
-        <button
-          class="mkb-key mkb-key--ctrl"
-          onpointerdown={(e) => tapCtrl(e, k.letter)}
-          title={k.title}
-        >
-          ^{k.label}
-        </button>
-      {/each}
-    {:else}
-      {#each charRow as k (k.label)}
-        <button class="mkb-key" onpointerdown={(e) => tap(e, k.data)}>{k.label}</button>
-      {/each}
-    {/if}
+    {#each specialRow as k (k.label)}
+      <button class="mkb-key mkb-key--special" onpointerdown={(e) => tap(e, k.data)}
+        >{k.label}</button
+      >
+    {/each}
+  </div>
+
+  <!-- Number row -->
+  <div class="mkb-row mkb-row--stretch">
+    {#each row1 as ch (ch)}
+      <button class="mkb-key mkb-key--char" onpointerdown={(e) => tapKey(e, ch)}
+        >{displayChar(ch)}</button
+      >
+    {/each}
+  </div>
+
+  <!-- QWERTY -->
+  <div class="mkb-row mkb-row--stretch">
+    {#each row2 as ch (ch)}
+      <button
+        class="mkb-key mkb-key--char"
+        class:mkb-key--ctrl-hint={ctrlActive}
+        onpointerdown={(e) => tapKey(e, ch)}>{displayChar(ch)}</button
+      >
+    {/each}
+  </div>
+
+  <!-- ASDF -->
+  <div class="mkb-row mkb-row--stretch mkb-row--indent">
+    {#each row3 as ch (ch)}
+      <button
+        class="mkb-key mkb-key--char"
+        class:mkb-key--ctrl-hint={ctrlActive}
+        onpointerdown={(e) => tapKey(e, ch)}>{displayChar(ch)}</button
+      >
+    {/each}
+  </div>
+
+  <!-- Shift + ZXCV + Backspace -->
+  <div class="mkb-row mkb-row--stretch">
+    <button
+      class="mkb-key mkb-key--action"
+      class:mkb-key--active={shiftActive || shiftLocked}
+      class:mkb-key--locked={shiftLocked}
+      onpointerdown={tapShift}
+      title="Shift (double-tap for caps lock)">⇧</button
+    >
+    {#each row4 as ch (ch)}
+      <button
+        class="mkb-key mkb-key--char"
+        class:mkb-key--ctrl-hint={ctrlActive}
+        onpointerdown={(e) => tapKey(e, ch)}>{displayChar(ch)}</button
+      >
+    {/each}
+    <button class="mkb-key mkb-key--action" onpointerdown={(e) => tap(e, BS)} title="Backspace"
+      >⌫</button
+    >
+  </div>
+
+  <!-- Bottom row: Ctrl Alt Space Enter -->
+  <div class="mkb-row mkb-row--bottom">
+    <button
+      class="mkb-key mkb-key--mod mkb-key--sm"
+      class:mkb-key--active={ctrlActive}
+      onpointerdown={tapCtrl}>Ctrl</button
+    >
+    <button
+      class="mkb-key mkb-key--mod mkb-key--sm"
+      class:mkb-key--active={altActive}
+      onpointerdown={tapAlt}>Alt</button
+    >
+    <button class="mkb-key mkb-key--space" onpointerdown={(e) => tap(e, SPACE)}>space</button>
+    <button class="mkb-key mkb-key--action mkb-key--enter" onpointerdown={(e) => tap(e, ENTER)}
+      >↵</button
+    >
   </div>
 </div>
 
@@ -173,10 +282,10 @@
     z-index: 200;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    background: #1a1a1a;
-    border-top: 1px solid #444;
-    padding: 4px;
+    gap: 3px;
+    background: #131313;
+    border-top: 1px solid #3a3a3a;
+    padding: 4px 3px;
     padding-bottom: max(4px, env(safe-area-inset-bottom));
     user-select: none;
     -webkit-user-select: none;
@@ -189,55 +298,104 @@
     align-items: center;
   }
 
+  .mkb-row--fn {
+    gap: 3px;
+  }
+
   .mkb-row--scroll {
     overflow-x: auto;
     scrollbar-width: none;
+    flex-wrap: nowrap;
   }
   .mkb-row--scroll::-webkit-scrollbar {
     display: none;
   }
 
-  .mkb-spacer {
+  .mkb-row--stretch {
+    justify-content: stretch;
+  }
+  .mkb-row--stretch .mkb-key--char {
     flex: 1;
+    min-width: 0;
+    padding: 0;
   }
 
+  .mkb-row--indent {
+    padding: 0 5%;
+  }
+
+  .mkb-row--bottom {
+    gap: 3px;
+  }
+
+  /* Base key */
   .mkb-key {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 40px;
-    height: 32px;
-    padding: 0 6px;
-    background: #2d2d2d;
+    height: 38px;
+    min-width: 28px;
+    padding: 0 5px;
+    background: #2c2c2c;
     border: 1px solid #444;
+    border-bottom-width: 2px;
+    border-bottom-color: #555;
     border-radius: 5px;
-    color: #ccc;
-    font-size: 12px;
-    font-family: var(--font-mono, monospace);
+    color: #ddd;
+    font-size: 14px;
+    font-family: var(--font-sans, system-ui, sans-serif);
     white-space: nowrap;
     flex-shrink: 0;
     cursor: pointer;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+    transition: background 60ms;
   }
 
   .mkb-key:active {
-    background: #444;
+    background: #555;
+    border-color: #666;
     color: #fff;
   }
 
   .mkb-key--mod {
-    background: #3a3a3a;
+    background: #1e1e1e;
+    border-color: #3a3a3a;
     color: #aaa;
-    font-family: var(--font-sans, sans-serif);
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
+    min-width: 42px;
+    letter-spacing: 0.02em;
+  }
+
+  .mkb-key--sm {
+    min-width: 36px;
+    font-size: 10px;
+  }
+
+  .mkb-key--action {
+    background: #1e1e1e;
+    border-color: #3a3a3a;
+    color: #bbb;
+    min-width: 44px;
+    font-size: 16px;
+  }
+
+  .mkb-key--enter {
+    min-width: 52px;
+    color: #6af;
+    font-size: 18px;
   }
 
   .mkb-key--active {
-    background: #005f87;
-    border-color: #0087af;
-    color: #fff;
+    background: #005f87 !important;
+    border-color: #0087af !important;
+    color: #fff !important;
+  }
+
+  .mkb-key--locked {
+    background: #006f4f !important;
+    border-color: #00af7f !important;
   }
 
   .mkb-key--arrow {
@@ -245,9 +403,31 @@
     min-width: 36px;
   }
 
-  .mkb-key--ctrl {
+  .mkb-key--special {
+    background: #222;
+    border-color: #3a3a3a;
+    color: #bbb;
+    font-size: 12px;
+    font-family: var(--font-mono, monospace);
+    min-width: 34px;
+    height: 32px;
+  }
+
+  .mkb-key--char {
+    font-size: 16px;
+    font-weight: 500;
+    height: 40px;
+  }
+
+  .mkb-key--ctrl-hint {
     color: #f9a825;
-    font-size: 11px;
+  }
+
+  .mkb-key--space {
+    flex: 1;
+    font-size: 12px;
+    color: #888;
+    background: #2c2c2c;
   }
 
   @media (min-width: 640px) {
