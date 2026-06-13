@@ -46,8 +46,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && mise activate bash > /etc/profile.d/mise.sh
 RUN groupadd -g 1000 agent && useradd -u 1000 -g agent -s /bin/bash -m agent
-RUN sed -i 's/#force_color_prompt=yes/force_color_prompt=yes/' /home/agent/.bashrc \
-    && printf "\nalias ls='ls --color=auto'\nalias grep='grep --color=auto'\nalias ll='ls -lah --color=auto'\n" >> /home/agent/.bashrc
+RUN printf '\nforce_color_prompt=yes\nalias ls="ls --color=auto"\nalias grep="grep --color=auto"\nalias ll="ls -lah --color=auto"\n' >> /home/agent/.bashrc
 RUN mkdir -p /workspace && chown agent:agent /workspace
 USER 1000
 WORKDIR /workspace

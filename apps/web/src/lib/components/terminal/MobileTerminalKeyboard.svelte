@@ -157,20 +157,8 @@
 </script>
 
 <div class="mkb" role="toolbar" aria-label="Terminal keyboard" bind:clientHeight={height}>
-  <!-- Function row: modifiers + arrows + scrollable specials -->
+  <!-- Function row: arrows + scrollable specials -->
   <div class="mkb-row mkb-row--fn">
-    <button
-      class="mkb-key mkb-key--mod"
-      class:mkb-key--active={ctrlActive}
-      onpointerdown={tapCtrl}
-      title="Ctrl">Ctrl</button
-    >
-    <button
-      class="mkb-key mkb-key--mod"
-      class:mkb-key--active={altActive}
-      onpointerdown={tapAlt}
-      title="Alt">Alt</button
-    >
     <button class="mkb-key" onpointerdown={(e) => tap(e, ESC)}>Esc</button>
     <button class="mkb-key" onpointerdown={(e) => tap(e, TAB)}>Tab</button>
     <button class="mkb-key mkb-key--arrow" onpointerdown={(e) => tap(e, ARROW_UP)} aria-label="Up"
