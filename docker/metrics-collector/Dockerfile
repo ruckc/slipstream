@@ -1,4 +1,4 @@
-FROM lukemathwalker/cargo-chef:latest-rust-slim AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-slim@sha256:43ee9436c9b0c5c6631931a0f891233bb819261b02dab12646709d8bd8d74bdd AS chef
 WORKDIR /build
 
 FROM chef AS planner
@@ -7,11 +7,15 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 ARG SCCACHE_VERSION=0.10.0
+ARG SCCACHE_SHA256=1fbb35e135660d04a2d5e42b59c7874d39b3deb17de56330b25b713ec59f849b
 # cmake is required by aws-lc-sys (pulled in by some rustls/reqwest feature combinations)
 RUN apt-get update && apt-get install -y --no-install-recommends curl cmake && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
-    | tar -xz -C /tmp \
-    && mv "/tmp/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache" /usr/local/bin/sccache
+    -o /tmp/sccache.tar.gz \
+    && echo "${SCCACHE_SHA256}  /tmp/sccache.tar.gz" | sha256sum -c - \
+    && tar -xz -C /tmp -f /tmp/sccache.tar.gz \
+    && mv "/tmp/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache" /usr/local/bin/sccache \
+    && rm /tmp/sccache.tar.gz
 
 ENV RUSTC_WRAPPER=sccache
 
@@ -40,7 +44,7 @@ RUN --mount=type=secret,id=actions_cache_url \
     test $(stat -c%s target/release/metrics-collector) -gt 1048576 || \
       { echo "ERROR: metrics-collector binary is suspiciously small (stub build?)" >&2; exit 1; }
 
-FROM debian:13.5-slim
+FROM debian:13.5-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*

@@ -1,5 +1,5 @@
 # ── Stage 1: Install all dependencies (for build) ─────────────────────────────
-FROM node:lts-alpine AS deps
+FROM node:lts-alpine@sha256:fb71d01345f11b708a3553c66e7c74074f2d506400ea81973343d915cb64eef0 AS deps
 WORKDIR /app
 RUN corepack enable
 
@@ -10,7 +10,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter @slipstream/web...
 
 # ── Stage 1b: Install production-only dependencies (for runtime) ───────────────
-FROM node:lts-alpine AS prod-deps
+FROM node:lts-alpine@sha256:fb71d01345f11b708a3553c66e7c74074f2d506400ea81973343d915cb64eef0 AS prod-deps
 WORKDIR /app
 RUN corepack enable
 
@@ -21,7 +21,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --prod --filter @slipstream/web...
 
 # ── Stage 2: Build ────────────────────────────────────────────────────────────
-FROM node:lts-alpine AS builder
+FROM node:lts-alpine@sha256:fb71d01345f11b708a3553c66e7c74074f2d506400ea81973343d915cb64eef0 AS builder
 WORKDIR /app
 RUN corepack enable
 
@@ -37,7 +37,7 @@ RUN pnpm --filter @slipstream/web build
 RUN mkdir -p apps/web/drizzle
 
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
-FROM node:lts-alpine AS runner
+FROM node:lts-alpine@sha256:fb71d01345f11b708a3553c66e7c74074f2d506400ea81973343d915cb64eef0 AS runner
 WORKDIR /app
 
 RUN addgroup -g 1001 -S slipstream \
