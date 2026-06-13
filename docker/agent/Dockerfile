@@ -50,7 +50,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && mise activate bash > /etc/profile.d/mise.sh
 RUN groupadd -g 1000 agent && useradd -u 1000 -g agent -s /bin/bash -m agent
-RUN printf '\nforce_color_prompt=yes\nalias ls="ls --color=auto"\nalias grep="grep --color=auto"\nalias ll="ls -lah --color=auto"\n__osc7() { printf "\033]7;file://%s%s\007" "$HOSTNAME" "$PWD"; }\n__set_title() { printf "\033]2;%s: %s\007" "${USER:-agent}" "$PWD"; }\ntrap '"'"'printf "\033]2;%s\007" "$BASH_COMMAND"'"'"' DEBUG\nPROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}__osc7;__set_title"\n' >> /home/agent/.bashrc
+# /home/agent is a PVC mount at runtime — put shell config in /etc/profile.d
+# so it is sourced by interactive bash regardless of the home volume contents.
+RUN printf 'force_color_prompt=yes\nalias ls="ls --color=auto"\nalias grep="grep --color=auto"\nalias ll="ls -lah --color=auto"\n__osc7() { printf "\033]7;file://%s%s\007" "$HOSTNAME" "$PWD"; }\n__set_title() { printf "\033]2;%s: %s\007" "${USER:-agent}" "$PWD"; }\ntrap '"'"'printf "\033]2;%s\007" "$BASH_COMMAND"'"'"' DEBUG\nPROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}__osc7;__set_title"\n' > /etc/profile.d/slipstream.sh
 RUN mkdir -p /workspace && chown agent:agent /workspace
 USER 1000
 WORKDIR /workspace
