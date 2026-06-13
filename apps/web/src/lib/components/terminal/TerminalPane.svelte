@@ -262,15 +262,15 @@
 </script>
 
 <div class="terminal-pane" id="terminal-pane-{sessionId}">
-  <div
-    class="terminal-container"
-    style={mobileKeyboardVisible ? `padding-bottom: ${mobileKeyboardHeight}px` : ''}
-  >
+  <div class="terminal-container">
     <div class="xterm-host" bind:this={terminalEl}></div>
     {#if statusMessage}
       <div class="terminal-status" aria-live="polite">{statusMessage}</div>
     {/if}
   </div>
+  {#if mobileKeyboardVisible && mobileKeyboardHeight > 0}
+    <div style="height: {mobileKeyboardHeight}px; flex-shrink: 0;"></div>
+  {/if}
 </div>
 {#if mobileKeyboardVisible}
   <MobileTerminalKeyboard onSend={sendInput} bind:height={mobileKeyboardHeight} />
