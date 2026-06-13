@@ -70,6 +70,7 @@
   })
 
   let workspaceManager: WorkspaceManager = $state(null!)
+  let fileBrowser: FileBrowser = $state(null!)
 </script>
 
 <svelte:head>
@@ -106,6 +107,7 @@
     {#if canReadFiles}
       {#if projectStatus === 'running'}
         <FileBrowser
+          bind:this={fileBrowser}
           projectId={project.id}
           namespaceSlug={namespace.slug}
           projectSlug={project.slug}
@@ -137,6 +139,7 @@
         {canShell}
         {canReadFiles}
         onToggleSidebar={() => appShell?.toggleSidebar()}
+        onCwdChange={(path) => fileBrowser?.navigateTo(path)}
       />
     {:else}
       <div class="workspace-idle">

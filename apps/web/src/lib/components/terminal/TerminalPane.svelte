@@ -13,6 +13,7 @@
     namespaceSlug,
     projectSlug,
     onRename,
+    onCwdChange,
   }: {
     paneId?: string
     sessionId: string
@@ -21,6 +22,7 @@
     namespaceSlug: string
     projectSlug: string
     onRename?: (newLabel: string) => void
+    onCwdChange?: (path: string) => void
   } = $props()
 
   const ctx = getContext<WorkspaceCtx | undefined>(WORKSPACE_CTX)
@@ -131,6 +133,17 @@
 
     terminal.onTitleChange((title) => {
       if (title) onRename?.(title)
+    })
+
+    // OSC 7 — shell reports CWD after each prompt (file://hostname/path)
+    terminal.parser.registerOscHandler(7, (data) => {
+      try {
+        const url = new URL(data)
+        onCwdChange?.(decodeURIComponent(url.pathname))
+      } catch {
+        if (data.startsWith('/')) onCwdChange?.(data)
+      }
+      return true
     })
 
     terminal.onData((data) => {

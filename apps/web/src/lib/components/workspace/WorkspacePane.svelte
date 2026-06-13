@@ -26,6 +26,7 @@
       onRename={(label) => {
         pane.label = label
       }}
+      onCwdChange={ctx.onCwdChange}
     />
   {:else if pane.kind === 'pod-logs'}
     <PodLogsPane {pane} onRefresh={() => ctx.refreshPodLogs(pane.id)} />

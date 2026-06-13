@@ -26,6 +26,7 @@
     canShell,
     canReadFiles,
     onToggleSidebar,
+    onCwdChange,
   }: {
     projectId: string
     namespaceSlug: string
@@ -34,6 +35,7 @@
     canShell: boolean
     canReadFiles: boolean
     onToggleSidebar?: () => void
+    onCwdChange?: (path: string) => void
   } = $props()
 
   let isMobile = $state(false)
@@ -407,6 +409,9 @@
     },
     get canShell() {
       return canShell
+    },
+    get onCwdChange() {
+      return onCwdChange
     },
     getActiveGroupId: () => activeGroupId,
     setActiveGroupId: (id) => {

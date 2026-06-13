@@ -57,6 +57,7 @@ export interface WorkspaceCtx {
   namespaceSlug: string
   projectSlug: string
   canShell: boolean
+  onCwdChange?: (path: string) => void
   getActiveGroupId(): string
   setActiveGroupId(id: string): void
   closePane(groupId: string, paneId: string): void

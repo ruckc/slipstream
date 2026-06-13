@@ -32,6 +32,10 @@
     onCollapse?: () => void
   } = $props()
 
+  export function navigateTo(path: string) {
+    loadDirectory(path)
+  }
+
   let isMobile = $state(false)
   $effect(() => {
     const mq = window.matchMedia('(max-width: 639px)')
