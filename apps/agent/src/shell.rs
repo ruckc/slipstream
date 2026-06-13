@@ -1,5 +1,5 @@
 use crate::{
-    auth::{require_permission, AuthUser},
+    auth::{require_permission, AuthUser, AuthUserWs},
     error::AppError,
     AppState,
 };
@@ -54,6 +54,7 @@ pub struct Session {
 
 pub struct SessionStore {
     pub sessions: DashMap<String, Arc<Mutex<Session>>>,
+    pub workspace_path: std::path::PathBuf,
 }
 
 #[derive(Serialize)]
@@ -65,9 +66,10 @@ pub struct SessionInfo {
 }
 
 impl SessionStore {
-    pub fn new() -> Self {
+    pub fn new(workspace_path: std::path::PathBuf) -> Self {
         Self {
             sessions: DashMap::new(),
+            workspace_path,
         }
     }
 
@@ -87,7 +89,23 @@ impl SessionStore {
             })
             .map_err(|e| anyhow::anyhow!("Failed to open PTY: {}", e))?;
 
-        let cwd = working_dir.unwrap_or_else(|| "/workspace".to_string());
+        let workspace = self.workspace_path.clone();
+        let requested = working_dir.unwrap_or_else(|| workspace.to_string_lossy().into_owned());
+        let cwd_path = std::fs::canonicalize(&requested).unwrap_or_else(|_| {
+            // Path doesn't exist yet; validate by canonicalizing the parent.
+            let p = std::path::Path::new(&requested);
+            p.parent()
+                .and_then(|parent| std::fs::canonicalize(parent).ok())
+                .unwrap_or_else(|| workspace.clone())
+        });
+        let cwd = if cwd_path.starts_with(&workspace) {
+            requested
+        } else {
+            return Err(anyhow::anyhow!(
+                "working_dir '{}' is outside the workspace",
+                requested
+            ));
+        };
 
         // Build the shell invocation. If a command is provided, use
         // `bash -c "exec <cmd>"` so $PATH resolution happens inside the shell
@@ -273,7 +291,7 @@ pub async fn kill_session(
 pub async fn ws_attach(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
-    AuthUser(claims): AuthUser,
+    AuthUserWs(claims): AuthUserWs,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     require_permission(&claims, "shell")?;

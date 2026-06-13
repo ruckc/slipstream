@@ -1,5 +1,5 @@
 use crate::{
-    auth::{require_permission, AuthUser},
+    auth::{require_permission, AuthUser, AuthUserWs},
     error::AppError,
     AppState,
 };
@@ -540,7 +540,7 @@ pub async fn move_path(
 pub async fn ws_watch(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
-    AuthUser(claims): AuthUser,
+    AuthUserWs(claims): AuthUserWs,
     Query(params): Query<PathQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     require_permission(&claims, "files:read")?;

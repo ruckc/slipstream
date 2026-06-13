@@ -222,6 +222,29 @@ pub fn require_permission(claims: &Claims, permission: &str) -> Result<(), AppEr
 #[derive(Clone)]
 pub struct JwksCacheExt(pub Arc<JwksCache>);
 
+fn extract_bearer_header(parts: &Parts) -> Option<String> {
+    parts
+        .headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(str::to_owned)
+}
+
+fn extract_token_query(parts: &Parts) -> Option<String> {
+    parts.uri.query().and_then(|q| {
+        q.split('&').find_map(|pair| {
+            let (k, v) = pair.split_once('=')?;
+            if k == "token" {
+                Some(v.to_owned())
+            } else {
+                None
+            }
+        })
+    })
+}
+
+/// Extractor for non-WebSocket routes: Authorization header only.
 pub struct AuthUser(pub Claims);
 
 impl<S> FromRequestParts<S> for AuthUser
@@ -231,40 +254,43 @@ where
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        // Pull the JwksCache from axum Extensions (added by the router layer).
         let jwks_ext = parts
             .extensions
             .get::<JwksCacheExt>()
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("JwksCache not in extensions")))?
             .clone();
 
-        // For WebSocket upgrades browsers cannot set custom headers, so accept
-        // the token from a `?token=` query parameter as a fallback.
-        let token_from_header = parts
-            .headers
-            .get(axum::http::header::AUTHORIZATION)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "))
-            .map(str::to_owned);
-
-        let token_from_query = parts.uri.query().and_then(|q| {
-            q.split('&').find_map(|pair| {
-                let (k, v) = pair.split_once('=')?;
-                if k == "token" {
-                    Some(v.to_owned())
-                } else {
-                    None
-                }
-            })
-        });
-
-        let token_owned = token_from_header
-            .or(token_from_query)
+        let token_owned = extract_bearer_header(parts)
             .ok_or_else(|| AppError::Unauthorized("Missing credentials".to_string()))?;
-        let token = token_owned.as_str();
 
-        let claims = jwks_ext.0.validate(token).await?;
-
+        let claims = jwks_ext.0.validate(&token_owned).await?;
         Ok(AuthUser(claims))
+    }
+}
+
+/// Extractor for WebSocket routes: Authorization header OR `?token=` query param.
+/// Browsers cannot set custom headers on WebSocket upgrades, so the query param
+/// fallback is required. Restrict this extractor to WS-only routes.
+pub struct AuthUserWs(pub Claims);
+
+impl<S> FromRequestParts<S> for AuthUserWs
+where
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let jwks_ext = parts
+            .extensions
+            .get::<JwksCacheExt>()
+            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("JwksCache not in extensions")))?
+            .clone();
+
+        let token_owned = extract_bearer_header(parts)
+            .or_else(|| extract_token_query(parts))
+            .ok_or_else(|| AppError::Unauthorized("Missing credentials".to_string()))?;
+
+        let claims = jwks_ext.0.validate(&token_owned).await?;
+        Ok(AuthUserWs(claims))
     }
 }

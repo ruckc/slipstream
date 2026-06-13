@@ -1,5 +1,10 @@
 import { query, command, getRequestEvent } from '$app/server'
 import { error } from '@sveltejs/kit'
+
+function requireAdmin() {
+  const { locals } = getRequestEvent()
+  if (!locals.user || locals.user.role !== 'admin') throw error(403, 'Forbidden')
+}
 import { db, serverErrors, users } from '$lib/server/db'
 import { and, gte, lte, eq, desc } from 'drizzle-orm'
 import type { ServerError } from '$lib/server/db/schema'
@@ -24,6 +29,7 @@ export const getErrors = query(
     limit?: number
     offset?: number
   }): Promise<{ rows: ErrorRow[]; total: number }> => {
+    requireAdmin()
     const conditions = []
 
     if (arg.fromDate) conditions.push(gte(serverErrors.occurredAt, new Date(arg.fromDate)))
@@ -63,6 +69,7 @@ export const getErrors = query(
 )
 
 export const getErrorRoutes = query(async (): Promise<string[]> => {
+  requireAdmin()
   const rows = await db
     .selectDistinct({ route: serverErrors.route })
     .from(serverErrors)

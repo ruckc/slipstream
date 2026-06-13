@@ -10,7 +10,7 @@ use serde_json::json;
 use tokio::net::TcpListener;
 use tokio::signal;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
-use tracing::{info, warn};
+use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 mod auth;
@@ -74,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
     let jwks = Arc::new(JwksCache::new(config.jwks_url.clone(), config.project_id.clone()).await?);
 
     // 3. Session store + idle tracker.
-    let sessions = Arc::new(SessionStore::new());
+    let sessions = Arc::new(SessionStore::new(config.workspace_path.clone()));
     let idle = Arc::new(IdleTracker::new(sessions.clone()));
 
     // 4. Build app state.
@@ -85,21 +85,18 @@ async fn main() -> anyhow::Result<()> {
         idle,
     });
 
-    // 5. CORS layer — restrict to APP_URL origin when CORS_ORIGIN is set.
+    // 5. CORS layer — restrict to APP_URL origin; CORS_ORIGIN is required.
     let allow_origin: AllowOrigin = match state.config.cors_origin.as_deref() {
         Some(origin) => match origin.parse::<HeaderValue>() {
             Ok(val) => AllowOrigin::exact(val),
             Err(_) => {
-                warn!(
-                    "CORS_ORIGIN '{}' is not a valid header value; falling back to allow-any",
-                    origin
-                );
-                AllowOrigin::any()
+                eprintln!("FATAL: CORS_ORIGIN '{}' is not a valid HTTP header value", origin);
+                std::process::exit(1);
             }
         },
         None => {
-            warn!("CORS_ORIGIN not set; allowing all origins (dev/testing only)");
-            AllowOrigin::any()
+            eprintln!("FATAL: CORS_ORIGIN env var is required");
+            std::process::exit(1);
         }
     };
 
