@@ -60,6 +60,23 @@ async function assertNamespaceAccess(userId: string, namespaceId: string): Promi
   throw error(403, 'You do not have permission to create projects in this namespace')
 }
 
+const RESERVED_SLUGS = new Set([
+  'api',
+  'auth',
+  'admin',
+  'env',
+  'health',
+  'metrics',
+  'static',
+  '_app',
+])
+
+function assertSlugAllowed(slug: string): void {
+  if (RESERVED_SLUGS.has(slug) || slug.startsWith('kube-')) {
+    throw error(400, `'${slug}' is a reserved name and cannot be used`)
+  }
+}
+
 export const createProject = command(
   v.object({
     actorUserId: v.string(),
@@ -73,6 +90,7 @@ export const createProject = command(
     slug: string
     displayName: string
   }): Promise<Project> => {
+    assertSlugAllowed(arg.slug)
     await assertNamespaceAccess(arg.actorUserId, arg.namespaceId)
 
     const existing = await db

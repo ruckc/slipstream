@@ -16,6 +16,23 @@ async function assertOrgOwner(userId: string, orgId: string): Promise<void> {
   }
 }
 
+const RESERVED_SLUGS = new Set([
+  'api',
+  'auth',
+  'admin',
+  'env',
+  'health',
+  'metrics',
+  'static',
+  '_app',
+])
+
+function assertSlugAllowed(slug: string): void {
+  if (RESERVED_SLUGS.has(slug) || slug.startsWith('kube-')) {
+    throw error(400, `'${slug}' is a reserved name and cannot be used`)
+  }
+}
+
 export const createOrganization = command(
   v.object({ actorUserId: v.string(), slug: v.string(), displayName: v.string() }),
   async (arg: {
@@ -23,6 +40,8 @@ export const createOrganization = command(
     slug: string
     displayName: string
   }): Promise<Organization> => {
+    assertSlugAllowed(arg.slug)
+
     const existing = await db
       .select({ id: namespaces.id })
       .from(namespaces)
