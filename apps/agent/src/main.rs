@@ -20,6 +20,7 @@ mod fs;
 mod idle;
 mod metrics;
 mod shell;
+mod tmux;
 
 use auth::{JwksCache, JwksCacheExt};
 use config::Config;
@@ -121,6 +122,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/sessions", get(shell::list_sessions))
         .route("/api/sessions/{id}", delete(shell::kill_session))
         .route("/api/sessions/{id}/attach", get(shell::ws_attach))
+        // Persistent tmux processes (requires 'shell' permission)
+        .route("/api/tmux", post(tmux::create_tmux_session))
+        .route("/api/tmux", get(tmux::list_tmux_sessions))
+        .route("/api/tmux/{name}", delete(tmux::kill_tmux_session))
         // Filesystem (requires 'files:read' or 'files:write')
         .route("/api/fs", get(fs::list_dir))
         .route("/api/fs/download", get(fs::download_file))

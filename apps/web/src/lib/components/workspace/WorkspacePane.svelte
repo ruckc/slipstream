@@ -6,6 +6,7 @@
   import TerminalPane from '$lib/components/terminal/TerminalPane.svelte'
   import PodLogsPane from './PodLogsPane.svelte'
   import PodDescribePane from './PodDescribePane.svelte'
+  import ProcessesPane from './ProcessesPane.svelte'
 
   let { pane, active }: { pane: PaneData; active: boolean } = $props()
 
@@ -32,6 +33,8 @@
     <PodLogsPane {pane} onRefresh={() => ctx.refreshPodLogs(pane.id)} />
   {:else if pane.kind === 'pod-describe'}
     <PodDescribePane {pane} onRefresh={() => ctx.refreshPodDescribe(pane.id)} />
+  {:else if pane.kind === 'processes'}
+    <ProcessesPane />
   {/if}
 </div>
 

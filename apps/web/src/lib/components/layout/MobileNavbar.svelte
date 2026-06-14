@@ -66,6 +66,7 @@
     if (kind === 'terminal') return 'terminal'
     if (kind === 'pod-logs') return 'file-text'
     if (kind === 'pod-describe') return 'info'
+    if (kind === 'processes') return 'play'
     return 'file'
   }
 </script>
@@ -179,6 +180,22 @@
         >
           <Icon name="terminal" size={14} />
           <span>New terminal</span>
+        </button>
+      {/if}
+
+      {#if ctx.canShell}
+        <button
+          class="dropdown-item"
+          type="button"
+          role="menuitem"
+          onclick={(e) => {
+            e.stopPropagation()
+            ctx.openProcesses()
+            menuOpen = false
+          }}
+        >
+          <Icon name="play" size={14} />
+          <span>Processes</span>
         </button>
       {/if}
 

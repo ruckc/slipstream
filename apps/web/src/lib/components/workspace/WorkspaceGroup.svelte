@@ -208,6 +208,18 @@
           </button>
         </Tooltip>
       {/if}
+      {#if ctx.canShell}
+        <Tooltip text="Processes" position="bottom" delay={300}>
+          <button
+            class="tab-action-btn"
+            type="button"
+            aria-label="Processes"
+            onclick={() => ctx.openProcesses()}
+          >
+            <Icon name="play" size={13} />
+          </button>
+        </Tooltip>
+      {/if}
       <Tooltip text="Pod logs" position="bottom" delay={300}>
         <button
           class="tab-action-btn"

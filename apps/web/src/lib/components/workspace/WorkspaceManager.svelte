@@ -217,6 +217,34 @@
     showNewSessionDialog = true
   }
 
+  export function openProcesses() {
+    const target = getTargetGroup()
+    const existing = groups.flatMap((g) => g.panes).find((p) => p.kind === 'processes')
+    if (existing) {
+      for (const g of groups) {
+        if (g.panes.some((p) => p.id === existing.id)) {
+          g.activeId = existing.id
+          activeGroupId = g.id
+        }
+      }
+      return
+    }
+    const id: string = crypto.randomUUID()
+    const pane = { kind: 'processes' as const, id, label: 'Processes' }
+    target.panes = [...target.panes, pane]
+    target.activeId = id
+    activeGroupId = target.id
+  }
+
+  function openTmuxAttach(sessionId: string, tmuxName: string) {
+    const target = getTargetGroup()
+    const id: string = crypto.randomUUID()
+    const pane = { kind: 'terminal' as const, id, sessionId, label: tmuxName }
+    target.panes = [...target.panes, pane]
+    target.activeId = id
+    activeGroupId = target.id
+  }
+
   async function doCreateTerminal(command: string | null, workingDir: string | null) {
     if (!canShell) return
     const target = getTargetGroup()
@@ -424,6 +452,8 @@
     createTerminal,
     openPodLogs,
     openPodDescribe,
+    openProcesses,
+    openTmuxAttach,
     registerTerminalActions: (paneId, actions) => terminalActionsMap.set(paneId, actions),
     unregisterTerminalActions: (paneId) => terminalActionsMap.delete(paneId),
     getTerminalActions: (paneId) => terminalActionsMap.get(paneId),

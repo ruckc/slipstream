@@ -31,7 +31,18 @@ export type PodDescribePaneData = {
   loading: boolean
 }
 
-export type PaneData = FilePaneData | TerminalPaneData | PodLogsPaneData | PodDescribePaneData
+export type ProcessesPaneData = {
+  kind: 'processes'
+  id: string
+  label: string
+}
+
+export type PaneData =
+  | FilePaneData
+  | TerminalPaneData
+  | PodLogsPaneData
+  | PodDescribePaneData
+  | ProcessesPaneData
 
 export interface Group {
   id: string
@@ -67,6 +78,8 @@ export interface WorkspaceCtx {
   createTerminal(): void
   openPodLogs(): void
   openPodDescribe(): void
+  openProcesses(): void
+  openTmuxAttach(sessionId: string, tmuxName: string): void
   registerTerminalActions(paneId: string, actions: TerminalActions): void
   unregisterTerminalActions(paneId: string): void
   getTerminalActions(paneId: string): TerminalActions | undefined
