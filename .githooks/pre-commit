@@ -10,6 +10,10 @@ mise run lint
 
 # Auto-stage any files that format rewrote so they travel with the commit.
 git diff --quiet apps/agent/Cargo.lock || git add apps/agent/Cargo.lock
+git diff --quiet apps/agent/src       || git add apps/agent/src
+git diff --quiet apps/metrics-collector/src || git add apps/metrics-collector/src
+git diff --quiet apps/project-controller   || git add apps/project-controller
+git diff --quiet apps/hubble-collector     || git add apps/hubble-collector
 git diff --quiet apps/web || git -C apps/web add -u .
 
 # Rust tests (matches CI check-rust job)
