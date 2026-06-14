@@ -26,11 +26,12 @@ fn prometheus_name_to_db(name: &str) -> Option<&'static str> {
         .map(|(_, db)| *db)
 }
 
-pub async fn scrape(client: &reqwest::Client, project_id: &str) -> Result<Vec<ScrapedMetric>> {
+pub async fn scrape(client: &reqwest::Client, project_id: &str, metrics_token: &str) -> Result<Vec<ScrapedMetric>> {
     let url =
         format!("http://svc-{project_id}.project-{project_id}.svc.cluster.local:8080/metrics");
     let body = client
         .get(&url)
+        .header("Authorization", format!("Bearer {metrics_token}"))
         .send()
         .await
         .context("GET /metrics")?

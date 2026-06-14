@@ -11,7 +11,7 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    ...devices['Desktop Firefox'],
+    ...devices['Desktop Chrome'],
   },
   timeout: 180_000,
 })

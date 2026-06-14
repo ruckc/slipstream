@@ -34,7 +34,10 @@ pub async fn batch_insert(pool: &PgPool, samples: Vec<Sample>) -> Result<()> {
     sqlx::query(
         r#"
         INSERT INTO usage_samples (id, project_id, metric, value, sampled_at)
-        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::numeric[], $5::timestamptz[])
+        SELECT u.id, u.project_id, u.metric, u.value, u.sampled_at
+        FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::numeric[], $5::timestamptz[])
+          AS u(id, project_id, metric, value, sampled_at)
+        WHERE EXISTS (SELECT 1 FROM projects WHERE id = u.project_id)
         "#,
     )
     .bind(&ids)

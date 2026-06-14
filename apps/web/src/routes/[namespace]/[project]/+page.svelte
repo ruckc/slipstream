@@ -48,25 +48,37 @@
       })
   })
 
-  // Stream pod start status via SSE while starting. Transitions to running or
-  // shows a failure reason; closes automatically when either terminal state
-  // is reached or when the component is destroyed (navigation away).
+  // Poll pod start status while starting. Transitions to running or shows a
+  // failure reason. Stops when the component is destroyed (navigation away).
   $effect(() => {
     if (projectStatus !== 'starting') return
-    const es = new EventSource(`/api/pods/${project.id}/start-status`)
-    es.onmessage = (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as { phase: string; failureReason?: string }
-      if (data.phase === 'running') {
-        projectStatus = 'running'
-        showStartingOverlay = false
-        es.close()
-      } else if (data.phase === 'failed' && data.failureReason) {
-        podFailureReason = data.failureReason
-        es.close()
+    let cancelled = false
+    const poll = async () => {
+      if (cancelled) return
+      try {
+        const res = await fetch(`/api/pods/${project.id}/phase`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.phase === 'running') {
+            projectStatus = 'running'
+            showStartingOverlay = false
+            return
+          }
+          if (data.phase === 'failed' && data.failureReason) {
+            podFailureReason = data.failureReason
+            showStartingOverlay = true
+            return
+          }
+        }
+      } catch {
+        // transient error — keep polling
       }
+      if (!cancelled) setTimeout(poll, 2000)
     }
-    es.onerror = () => es.close()
-    return () => es.close()
+    poll()
+    return () => {
+      cancelled = true
+    }
   })
 
   let workspaceManager: WorkspaceManager = $state(null!)

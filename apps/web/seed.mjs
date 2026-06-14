@@ -15,6 +15,7 @@ const DEV_ACCOUNTS = [
     email: 'admin@dev.local',
     displayName: 'Dev Admin',
     namespaceSlug: 'dev-admin',
+    role: 'admin',
   },
   {
     id: '00000000-0000-0000-0000-000000000002',
@@ -100,10 +101,10 @@ async function ensureK8sNamespace(k8sNamespace, slug, type) {
 }
 
 async function upsertNamespace(slug, type) {
-  const k8sNamespace = `${type === 'user' ? 'u' : 'o'}-${slug}`
+  const _k8sNamespace = `${type === 'user' ? 'u' : 'o'}-${slug}`
   const rows = await sql`
-    INSERT INTO namespaces (slug, type, k8s_namespace)
-    VALUES (${slug}, ${type}, ${k8sNamespace})
+    INSERT INTO namespaces (slug, type)
+    VALUES (${slug}, ${type})
     ON CONFLICT (slug) DO NOTHING
     RETURNING id
   `
@@ -120,8 +121,8 @@ async function main() {
     await ensureK8sNamespace(k8sNs, account.namespaceSlug, 'user')
     const namespaceId = await upsertNamespace(account.namespaceSlug, 'user')
     await sql`
-      INSERT INTO users (id, namespace_id, email, display_name)
-      VALUES (${account.id}, ${namespaceId}, ${account.email}, ${account.displayName})
+      INSERT INTO users (id, namespace_id, email, display_name, role)
+      VALUES (${account.id}, ${namespaceId}, ${account.email}, ${account.displayName}, ${account.role ?? 'user'})
       ON CONFLICT (id) DO NOTHING
     `
     console.log(`  user: ${account.email} (namespace: ${account.namespaceSlug}, k8s: ${k8sNs})`)

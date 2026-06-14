@@ -31,6 +31,9 @@ export const getBillingReport = query(
       error(400, 'Invalid date range')
     }
 
+    const fromIso = from.toISOString()
+    const toIso = to.toISOString()
+
     // Use LAG() window function to compute deltas from raw cumulative values.
     // GREATEST(..., 0) drops negative deltas (counter resets from pod restarts).
     const rows = await db.execute(sql`
@@ -45,8 +48,8 @@ export const getBillingReport = query(
             0
           ) AS delta
         FROM usage_samples
-        WHERE sampled_at >= ${from}
-          AND sampled_at <= ${to}
+        WHERE sampled_at >= ${fromIso}::timestamptz
+          AND sampled_at <= ${toIso}::timestamptz
       )
       SELECT
         project_id,

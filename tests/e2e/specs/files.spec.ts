@@ -8,39 +8,47 @@ test.describe.configure({ mode: 'serial' })
 test.describe('file browser', () => {
   test.beforeAll(async ({ browser }) => {
     const page = await browser.newPage()
-    await page.goto('/auth/dev')
-    await page.getByRole('button', { name: 'Login as Dev Admin' }).click()
-    await page.waitForURL('/')
-    await page.goto('/new')
-    await page.getByLabel('Project slug').fill(slug)
-    await page.getByLabel('Display name').fill('E2E Files Test')
-    await page.getByRole('button', { name: 'Create project' }).click()
-    await expect(page).toHaveURL(`/${DEV_ADMIN_NAMESPACE}/${slug}`, { timeout: 10_000 })
-    await expect(page.locator('.starting-overlay')).not.toBeVisible({ timeout: 120_000 })
-    await page.close()
+    try {
+      await page.goto('/auth/dev')
+      await page.getByRole('button', { name: 'Login as Dev Admin' }).click()
+      await page.waitForURL('/')
+      await page.goto('/new')
+      await page.getByLabel('Project slug').fill(slug)
+      await page.getByLabel('Display name').fill('E2E Files Test')
+      await page.getByRole('button', { name: 'Create project' }).click()
+      await expect(page).toHaveURL(`/${DEV_ADMIN_NAMESPACE}/${slug}`, { timeout: 10_000 })
+      await expect(page.locator('.starting-overlay')).not.toBeVisible({ timeout: 120_000 })
+    } finally {
+      await page.close()
+    }
   })
 
   test.afterAll(async ({ browser }) => {
     const page = await browser.newPage()
-    await page.goto('/auth/dev')
-    await page.getByRole('button', { name: 'Login as Dev Admin' }).click()
-    await page.waitForURL('/')
-    await page.goto(`/${DEV_ADMIN_NAMESPACE}/${slug}/settings`)
-    await page.getByRole('button', { name: /delete/i }).click()
-    const modal = page.locator('[role="dialog"]')
-    await modal.getByRole('textbox').fill(slug)
-    await modal.getByRole('button', { name: /delete/i }).click()
-    await page.close()
+    try {
+      await page.goto('/auth/dev')
+      await page.getByRole('button', { name: 'Login as Dev Admin' }).click()
+      await page.waitForURL('/')
+      await page.goto(`/${DEV_ADMIN_NAMESPACE}/${slug}/settings`)
+      await page.getByRole('button', { name: /delete/i }).click()
+      const modal = page.locator('[role="dialog"]')
+      await modal.getByRole('textbox').fill(slug)
+      await modal.getByRole('button', { name: /delete/i }).click()
+    } finally {
+      await page.close()
+    }
   })
 
   test('create file via terminal and verify it appears in the tree', async ({ authedPage: page }) => {
     await page.goto(`/${DEV_ADMIN_NAMESPACE}/${slug}`)
     await expect(page.locator('.starting-overlay')).not.toBeVisible({ timeout: 120_000 })
 
-    // The project auto-opens a terminal — click to focus, wait for shell prompt
+    // The project auto-opens a terminal — click to focus
     const xtermRows = page.locator('.xterm-rows')
     await expect(xtermRows).toBeVisible({ timeout: 15_000 })
     await page.locator('.xterm-screen').click()
+    // Press Enter to trigger a fresh prompt in case we reconnected to a silent session
+    await page.keyboard.press('Enter')
     await expect(xtermRows).toContainText('$', { timeout: 15_000 })
 
     // Create a file

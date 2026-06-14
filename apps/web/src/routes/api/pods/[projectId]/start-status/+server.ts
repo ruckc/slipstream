@@ -45,6 +45,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
         if (phase === 'running') {
           send({ phase: 'running' })
+          // Give the client a moment to receive the message before the server
+          // closes the stream. WebKit fires EOF before the message event when
+          // the connection closes immediately after the last chunk.
+          await new Promise<void>((r) => setTimeout(r, 200))
           controller.close()
           return
         }
@@ -79,6 +83,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
         if (failureReason) {
           send({ phase: 'failed', failureReason })
+          await new Promise<void>((r) => setTimeout(r, 200))
           controller.close()
           return
         }

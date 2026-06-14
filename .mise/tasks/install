@@ -15,6 +15,10 @@ helm upgrade --install slipstream ./charts/slipstream \
   --create-namespace \
   "${VALUES_ARGS[@]}"
 
+echo "→ Rolling restart of slipstream deployments/statefulsets (picks up latest :local image)..."
+kubectl rollout restart deployment -n slipstream-system -l "app.kubernetes.io/instance=slipstream" 2>/dev/null || true
+kubectl rollout restart statefulset -n slipstream-system -l "app.kubernetes.io/instance=slipstream" 2>/dev/null || true
+
 echo "→ Waiting for web deployment to be ready..."
 kubectl rollout status deployment/slipstream-web \
   --namespace slipstream-system \

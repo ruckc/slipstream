@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"slipstream/project-controller/api/v1alpha1"
@@ -412,6 +413,17 @@ func (c *Controller) ensureHTTPRoute(ctx context.Context, pe *v1alpha1.ProjectEn
 	return err
 }
 
+// isCRDNotInstalled returns true when the API server returns a "resource not found"
+// error for a missing CRD (e.g. Cilium on a plain kind cluster).
+func isCRDNotInstalled(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "the server could not find the requested resource") ||
+		strings.Contains(msg, "no matches for kind")
+}
+
 // --- CiliumNetworkPolicy (dynamic client for Cilium CRD) ---
 
 var ciliumPolicyGVR = schema.GroupVersionResource{
@@ -426,13 +438,20 @@ func (c *Controller) ensureCiliumPolicy(ctx context.Context, pe *v1alpha1.Projec
 
 	desired := buildCiliumNetworkPolicy(pe)
 	existing, err := c.dynClient.Resource(ciliumPolicyGVR).Namespace(ns).Get(ctx, name, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		obj := &unstructured.Unstructured{Object: desired}
-		_, err = c.dynClient.Resource(ciliumPolicyGVR).Namespace(ns).Create(ctx, obj, metav1.CreateOptions{})
-		return err
-	}
 	if err != nil {
-		return err
+		// CRD not installed (e.g. dev cluster without Cilium) — skip gracefully.
+		if isCRDNotInstalled(err) {
+			return nil
+		}
+		if !errors.IsNotFound(err) {
+			return err
+		}
+		obj := &unstructured.Unstructured{Object: desired}
+		_, createErr := c.dynClient.Resource(ciliumPolicyGVR).Namespace(ns).Create(ctx, obj, metav1.CreateOptions{})
+		if isCRDNotInstalled(createErr) {
+			return nil
+		}
+		return createErr
 	}
 
 	// Replace spec on update.

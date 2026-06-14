@@ -142,6 +142,7 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 				{Name: "WORKSPACE_PATH", Value: "/workspace"},
 				{Name: "HOME_PATH", Value: "/home/agent"},
 				{Name: "CORS_ORIGIN", Value: "https://" + cfg.GatewayHostname},
+				{Name: "METRICS_TOKEN", Value: cfg.MetricsToken},
 			},
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "workspace", MountPath: "/workspace"},

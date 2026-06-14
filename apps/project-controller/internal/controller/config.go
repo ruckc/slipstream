@@ -9,6 +9,7 @@ type Config struct {
 	GatewayHostname      string
 	GatewayListenerHTTPS string // listener name, default "https"
 	Namespace            string // controller's own namespace, resolved at startup
+	MetricsToken         string // shared bearer token for /metrics endpoints on agent pods
 }
 
 func (c *Config) JWKSUrl() string {

@@ -6,6 +6,7 @@ rust = "latest"
 go = "latest"
 kind = "latest"
 helm = "latest"
+kubectl = "latest"
 
 [tasks.format]
 description = "Format all projects"

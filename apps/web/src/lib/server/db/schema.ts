@@ -208,7 +208,7 @@ export type NewProjectPermission = InferInsertModel<typeof projectPermissions>
 export const usageSamples = pgTable('usage_samples', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id')
-    .references(() => projects.id)
+    .references(() => projects.id, { onDelete: 'cascade' })
     .notNull(),
   metric: text('metric').notNull(), // 'cpu_seconds'|'memory_byte_seconds'|'disk_bytes'|'ingress_bytes'|'egress_bytes'
   value: numeric('value').notNull(),

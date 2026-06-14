@@ -110,8 +110,8 @@ importers:
   tests/e2e:
     devDependencies:
       '@playwright/test':
-        specifier: 1.60.0
-        version: 1.60.0
+        specifier: 1.61.0-alpha-2026-06-10
+        version: 1.61.0-alpha-2026-06-10
 
 packages:
 
@@ -390,8 +390,8 @@ packages:
   '@oxc-project/types@0.133.0':
     resolution: {integrity: sha512-KzkdCd6Uxqnf6l3HOw1xfatAlUURA0g14cvBYFyJ5SaNOQbOUvBr9PKArcPcrNIeRsBdgcUzOGrhKveVpvOIGA==}
 
-  '@playwright/test@1.60.0':
-    resolution: {integrity: sha512-O71yZIbAh/PxDMNGns37GHBIfrVkEVyn+AXyIa5dOTfb4/xNvRWV+Vv/NMbNCtODB/pO7vLlF2OTmMVLhmr7Ag==}
+  '@playwright/test@1.61.0-alpha-2026-06-10':
+    resolution: {integrity: sha512-k+48ui5S6L6ULoPnsomYFda9qMO+uMWfiBCVG2nokcZ45fO/bovEVE9psJ2IOB6aLZdGOliUtKOvl6BwlBjiSw==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -1630,13 +1630,13 @@ packages:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
     engines: {node: '>=12'}
 
-  playwright-core@1.60.0:
-    resolution: {integrity: sha512-9bW6zvX/m0lEbgTKJ6YppOKx8H3VOPBMOCFh2irXFOT4BbHgrx5hPjwJYLT40Lu+4qtD36qKc/Hn56StUW57IA==}
+  playwright-core@1.61.0-alpha-2026-06-10:
+    resolution: {integrity: sha512-Rjov1mjb2vBz2HiiOCAGwUhgA8bOX468tsxzFM745R/cIDWnoQbqzzwmrG3cvqiLnU40MivNLHuRGDiPnnIZUA==}
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright@1.60.0:
-    resolution: {integrity: sha512-hheHdokM8cdqCb0lcE3s+zT4t4W+vvjpGxsZlDnikarzx8tSzMebh3UiFtgqwFwnTnjYQcsyMF8ei2mCO/tpeA==}
+  playwright@1.61.0-alpha-2026-06-10:
+    resolution: {integrity: sha512-xUKR/gCKL2FJlzJ0sJymhFr2E3AOczRxSy+RJM0wy1vznq3HMP7GKu690utl0sIktxatP91sgspStMQXS94L0w==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -2241,9 +2241,9 @@ snapshots:
 
   '@oxc-project/types@0.133.0': {}
 
-  '@playwright/test@1.60.0':
+  '@playwright/test@1.61.0-alpha-2026-06-10':
     dependencies:
-      playwright: 1.60.0
+      playwright: 1.61.0-alpha-2026-06-10
 
   '@polka/url@1.0.0-next.29': {}
 
@@ -3280,11 +3280,11 @@ snapshots:
 
   picomatch@4.0.4: {}
 
-  playwright-core@1.60.0: {}
+  playwright-core@1.61.0-alpha-2026-06-10: {}
 
-  playwright@1.60.0:
+  playwright@1.61.0-alpha-2026-06-10:
     dependencies:
-      playwright-core: 1.60.0
+      playwright-core: 1.61.0-alpha-2026-06-10
     optionalDependencies:
       fsevents: 2.3.2
 

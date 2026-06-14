@@ -38,6 +38,11 @@ spec:
             {{- include "slipstream.databaseEnv" . | nindent 12 }}
             - name: SCRAPE_INTERVAL_SECONDS
               value: {{ .Values.metricsCollector.scrapeIntervalSeconds | quote }}
+            - name: METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: slipstream-web-secret
+                  key: METRICS_TOKEN
           readinessProbe:
             httpGet:
               path: /metrics

@@ -31,6 +31,12 @@ spec:
           envFrom:
             - configMapRef:
                 name: slipstream-controller-config
+          env:
+            - name: METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: slipstream-web-secret
+                  key: METRICS_TOKEN
           resources:
             requests:
               cpu: 50m

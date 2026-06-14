@@ -19,12 +19,15 @@ image:
   web:
     repository: localhost:5001/slipstream-web
     tag: local
+    pullPolicy: Always
   agent:
     repository: localhost:5001/slipstream-agent
     tag: local
+    pullPolicy: Always
   metricsCollector:
     repository: localhost:5001/slipstream-metrics-collector
     tag: local
+    pullPolicy: Always
   projectController:
     repository: localhost:5001/slipstream-project-controller
     tag: local

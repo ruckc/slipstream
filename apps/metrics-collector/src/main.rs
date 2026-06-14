@@ -51,6 +51,9 @@ async fn main() -> Result<()> {
     let database_url =
         env::var("DATABASE_URL").context("DATABASE_URL environment variable is required")?;
 
+    let metrics_token =
+        env::var("METRICS_TOKEN").context("METRICS_TOKEN environment variable is required")?;
+
     let scrape_interval_secs: u64 = env::var("SCRAPE_INTERVAL_SECONDS")
         .unwrap_or_else(|_| "30".to_string())
         .parse()
@@ -98,6 +101,7 @@ async fn main() -> Result<()> {
         sts_name.clone(),
         my_ordinal,
         scrape_interval_secs,
+        metrics_token,
         loop_state,
     ));
 
@@ -142,6 +146,7 @@ async fn scrape_loop(
     sts_name: String,
     my_ordinal: u32,
     interval_secs: u64,
+    metrics_token: String,
     state: Arc<CollectorState>,
 ) {
     let mut ticker = time::interval(Duration::from_secs(interval_secs));
@@ -177,8 +182,9 @@ async fn scrape_loop(
                 .map(|p| {
                     let client = http_client.clone();
                     let project_id = p.project_id.clone();
+                    let token = metrics_token.clone();
                     async move {
-                        let result = scrape::scrape(&client, &project_id).await;
+                        let result = scrape::scrape(&client, &project_id, &token).await;
                         (project_id, result)
                     }
                 })
