@@ -2,10 +2,12 @@
   let {
     onSend,
     onKey,
+    onToggleSelect,
     height = $bindable(0),
   }: {
     onSend: (data: string) => void
     onKey: (init: KeyboardEventInit) => void
+    onToggleSelect?: () => void
     height?: number
   } = $props()
 
@@ -265,7 +267,7 @@
     >
   </div>
 
-  <!-- Bottom row: Ctrl Alt Space Enter -->
+  <!-- Bottom row: Ctrl Alt Space Enter Select -->
   <div class="mkb-row mkb-row--bottom">
     <button
       tabindex="-1"
@@ -287,6 +289,17 @@
       class="mkb-key mkb-key--action mkb-key--enter"
       onpointerdown={(e) => tap(e, ENTER)}>↵</button
     >
+    {#if onToggleSelect}
+      <button
+        tabindex="-1"
+        class="mkb-key mkb-key--mod mkb-key--sm"
+        onpointerdown={(e) => {
+          e.preventDefault()
+          onToggleSelect()
+        }}
+        title="Select text">⌗</button
+      >
+    {/if}
   </div>
 </div>
 

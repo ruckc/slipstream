@@ -32,6 +32,7 @@
   let reconnectAttempt = $state(0)
   let mobileKeyboardVisible = $state(false)
   let mobileKeyboardHeight = $state(0)
+  let mobileSelectMode = $state(false)
   let xtermTextarea = $state<HTMLTextAreaElement | undefined>(undefined)
 
   const ARROW_SEQS: Record<string, [string, string]> = {
@@ -108,6 +109,7 @@
       scrollback: 5000,
       allowTransparency: false,
       macOptionIsMeta: true,
+      allowProposedApi: true,
     })
 
     fitAddon = new FitAddon()
@@ -124,7 +126,7 @@
     if (xtermTextarea) {
       xtermTextarea.setAttribute('inputmode', 'none')
       xtermTextarea.addEventListener('focus', () => {
-        mobileKeyboardVisible = true
+        if (!mobileSelectMode) mobileKeyboardVisible = true
       })
       xtermTextarea.addEventListener('blur', () => {
         mobileKeyboardVisible = false
@@ -275,6 +277,28 @@
     }
   }
 
+  function toggleSelectMode() {
+    mobileSelectMode = !mobileSelectMode
+    if (mobileSelectMode) {
+      // Hide keyboard so touch gestures reach xterm for selection
+      mobileKeyboardVisible = false
+      xtermTextarea?.blur()
+    } else {
+      // Return to input mode
+      mobileKeyboardVisible = true
+    }
+  }
+
+  async function copySelection() {
+    const text = terminal?.getSelection()
+    if (text) {
+      await navigator.clipboard.writeText(text).catch(() => {})
+      terminal?.clearSelection()
+    }
+    mobileSelectMode = false
+    mobileKeyboardVisible = true
+  }
+
   onMount(() => {
     if (ctx && paneId) {
       ctx.registerTerminalActions(paneId, { clear: clearTerminal, kill: killSession })
@@ -305,10 +329,30 @@
     <div style="height: {mobileKeyboardHeight}px; flex-shrink: 0;"></div>
   {/if}
 </div>
+{#if mobileSelectMode}
+  <div class="select-bar">
+    <span class="select-bar__hint">Drag to select text</span>
+    <button
+      class="select-bar__btn select-bar__btn--copy"
+      onpointerdown={(e) => {
+        e.preventDefault()
+        copySelection()
+      }}>Copy</button
+    >
+    <button
+      class="select-bar__btn"
+      onpointerdown={(e) => {
+        e.preventDefault()
+        toggleSelectMode()
+      }}>Cancel</button
+    >
+  </div>
+{/if}
 {#if mobileKeyboardVisible}
   <MobileTerminalKeyboard
     onSend={sendInput}
     onKey={dispatchKey}
+    onToggleSelect={toggleSelectMode}
     bind:height={mobileKeyboardHeight}
   />
 {/if}
@@ -345,6 +389,52 @@
   .xterm-host :global(.xterm-viewport) {
     overflow-y: auto;
     background: #1e1e1e !important; /* prevent transparent strip below rows */
+  }
+
+  .select-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+    background: #1a1a2e;
+    border-top: 1px solid #3a3a5c;
+  }
+
+  .select-bar__hint {
+    flex: 1;
+    font-size: var(--font-size-xs);
+    color: #8888cc;
+  }
+
+  .select-bar__btn {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid #3a3a5c;
+    background: #2a2a4e;
+    color: #aaaaee;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .select-bar__btn--copy {
+    background: #005f87;
+    border-color: #0087af;
+    color: #fff;
+  }
+
+  @media (min-width: 640px) {
+    .select-bar {
+      display: none;
+    }
   }
 
   .terminal-status {
