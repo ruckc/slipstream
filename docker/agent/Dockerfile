@@ -41,7 +41,7 @@ RUN --mount=type=secret,id=actions_cache_url \
 
 FROM debian:13.5-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    bash build-essential ca-certificates curl dnsutils git git-lfs gpg htop iproute2 lsof procps \
+    bash build-essential ca-certificates curl dnsutils git git-lfs gpg htop iproute2 lsof procps tmux \
     && install -dm 755 /etc/apt/keyrings \
     && curl -fSs https://mise.en.dev/gpg-key.pub | tee /etc/apt/keyrings/mise-archive-keyring.asc > /dev/null \
     && echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.asc] https://mise.en.dev/deb stable main" > /etc/apt/sources.list.d/mise.list \
