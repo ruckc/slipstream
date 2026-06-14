@@ -49,6 +49,3 @@ postgresql:
   enabled: true
   storage: 2Gi
 
-# Disable monitoring in dev to avoid needing a second namespace and PVC.
-victoriametrics:
-  enabled: false

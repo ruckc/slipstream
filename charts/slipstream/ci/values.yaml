@@ -31,5 +31,3 @@ postgresql:
   storage: 1Gi
   storageClass: standard
 
-victoriametrics:
-  enabled: false

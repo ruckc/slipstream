@@ -145,7 +145,7 @@ Projects are managed via a `ProjectEnvironment` custom resource (CRD group `slip
 
 The **project-controller** (`apps/project-controller/`) is a Kubernetes operator that watches `ProjectEnvironment` CRs and reconciles the actual pod, service, HTTPRoute, and NetworkPolicy resources. The web app sets `spec.desiredState` (`running` | `stopped`) on the CR; the controller drives the cluster toward that state.
 
-**Idle shutdown** is handled by the project-controller's idle loop (`apps/project-controller/internal/controller/idle.go`), which polls VictoriaMetrics for `slipstream_last_activity_at`, identifies projects whose last activity exceeds their idle timeout, and patches `spec.desiredState = stopped`. This only runs when `METRICS_PUSH_URL` is set.
+**Idle shutdown** is handled by the project-controller's idle loop (`apps/project-controller/internal/controller/idle.go`), which scrapes `slipstream_last_activity_at` directly from each running pod's `/metrics` endpoint, identifies projects whose last activity exceeds their idle timeout, and patches `spec.desiredState = stopped`.
 
 PVCs are never deleted when a project stops — only when a project is explicitly deleted.
 
@@ -254,8 +254,6 @@ Key variables the web app reads at runtime:
 | `K8S_JWT_PRIVATE_KEY` | no | Base64 PKCS8 PEM; generate ephemeral key if absent |
 | `DEFAULT_IDLE_TIMEOUT_SECONDS` | no | Default 1800 |
 | `AGENT_STORAGE_CLASS` | no | PVC storage class (default: `standard`) |
-| `METRICS_PUSH_URL` | no | VictoriaMetrics push endpoint — enables idle shutdown in controller; must be http/https URL |
-
 The Rust agent reads: `PORT`, `JWKS_URL` (required; must be http/https URL), `PROJECT_ID`, `WORKSPACE_PATH`, `HOME_PATH`, `IDLE_TIMEOUT_SECONDS`, `CORS_ORIGIN` (required — agent exits at startup if unset), `METRICS_TOKEN` (optional; if set, `/metrics` requires `Authorization: Bearer <token>`; if unset, `/metrics` returns 403).
 
 The project-controller additionally reads: `USAGE_REPORT_URL` (optional, for usage telemetry), `KUBECONFIG` (optional, falls back to in-cluster config).

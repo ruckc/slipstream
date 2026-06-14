@@ -4,7 +4,7 @@ import { db, namespaces, projects, organizations, orgMembers } from '$lib/server
 import { eq, and } from 'drizzle-orm'
 import { resolvePermissions } from '$lib/server/permissions'
 import { fetchMetricsForProjects, queryMetricRangeByProject } from '$lib/server/project-metrics'
-import type { MetricSeries } from '$lib/server/victoriametrics'
+import type { MetricSeries } from '$lib/server/project-metrics'
 import * as v from 'valibot'
 
 export type TimeWindow = '1h' | '6h' | '24h' | '7d' | '30d'

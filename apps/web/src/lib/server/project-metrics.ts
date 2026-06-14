@@ -1,8 +1,10 @@
 import { db } from './db'
 import { sql } from 'drizzle-orm'
-import type { MetricSeries } from './victoriametrics'
 
-export type { MetricSeries }
+export type MetricSeries = {
+  timestamps: number[]
+  values: number[]
+}
 
 export type ProjectMetricsSnapshot = {
   projectId: string

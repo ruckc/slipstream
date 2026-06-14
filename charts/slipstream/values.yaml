@@ -124,18 +124,6 @@ devMode:
   # Enables the /auth/dev login endpoint. Never set to true in production.
   enabled: false
 
-victoriametrics:
-  enabled: true
-  namespace: metrics
-  storage: 20Gi
-  storageClass: standard
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      memory: 1Gi
-
 postgresql:
   # Deploys a single-node PostgreSQL instance in the release namespace.
   # Suitable for development and testing; use a managed database for production.
