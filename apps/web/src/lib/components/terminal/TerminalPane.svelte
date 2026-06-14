@@ -31,9 +31,10 @@
   let statusMessage = $state<string | null>(null)
   let reconnectAttempt = $state(0)
   let mobileKeyboardVisible = $state(false)
-  let mobileKeyboardHeight = $state(0)
   let mobileSelectMode = $state(false)
   let xtermTextarea = $state<HTMLTextAreaElement | undefined>(undefined)
+  // Keys typed while WS is not OPEN are queued and flushed on reconnect
+  let inputQueue: string[] = []
 
   const ARROW_SEQS: Record<string, [string, string]> = {
     ArrowUp: ['\x1b[A', '\x1bOA'],
@@ -54,10 +55,6 @@
       new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
     )
   }
-
-  $effect(() => {
-    if (mobileKeyboardHeight >= 0) requestAnimationFrame(() => fitAddon?.fit())
-  })
 
   // State managed outside Svelte reactivity to avoid re-render overhead
   let terminal: import('@xterm/xterm').Terminal | null = null
@@ -146,11 +143,14 @@
     if (xtermTextarea) {
       xtermTextarea.setAttribute('inputmode', 'none')
       xtermTextarea.addEventListener('focus', () => {
-        if (!mobileSelectMode) mobileKeyboardVisible = true
+        // Only show custom keyboard on narrow/touch screens
+        if (!mobileSelectMode && window.matchMedia('(max-width: 639px)').matches) {
+          mobileKeyboardVisible = true
+        }
       })
-      xtermTextarea.addEventListener('blur', () => {
-        mobileKeyboardVisible = false
-      })
+      // Do NOT hide on blur — key presses would steal focus briefly on iOS,
+      // causing the keyboard to flash away and drop the visual input sequence.
+      // The keyboard is dismissed via its explicit close button instead.
     }
 
     terminal.onTitleChange((title) => {
@@ -224,6 +224,15 @@
             })
           )
         }
+        // Flush any keys typed while the connection was being established
+        if (inputQueue.length > 0) {
+          for (const data of inputQueue) {
+            ws.send(
+              JSON.stringify({ type: 'input', data: btoa(unescape(encodeURIComponent(data))) })
+            )
+          }
+          inputQueue = []
+        }
       }
 
       ws.onmessage = (event) => {
@@ -283,7 +292,12 @@
   }
 
   function sendInput(data: string) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    terminal?.scrollToBottom()
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // Queue rather than silently drop — flushed once WS is open again
+      inputQueue.push(data)
+      return
+    }
     ws.send(JSON.stringify({ type: 'input', data: btoa(unescape(encodeURIComponent(data))) }))
   }
 
@@ -295,6 +309,11 @@
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'kill' }))
     }
+  }
+
+  function hideKeyboard() {
+    mobileKeyboardVisible = false
+    xtermTextarea?.blur()
   }
 
   function toggleSelectMode() {
@@ -345,37 +364,34 @@
       <div class="terminal-status" aria-live="polite">{statusMessage}</div>
     {/if}
   </div>
-  {#if mobileKeyboardVisible && mobileKeyboardHeight > 0}
-    <div style="height: {mobileKeyboardHeight}px; flex-shrink: 0;"></div>
+  {#if mobileSelectMode}
+    <div class="select-bar">
+      <span class="select-bar__hint">Drag to select text</span>
+      <button
+        class="select-bar__btn select-bar__btn--copy"
+        onpointerdown={(e) => {
+          e.preventDefault()
+          copySelection()
+        }}>Copy</button
+      >
+      <button
+        class="select-bar__btn"
+        onpointerdown={(e) => {
+          e.preventDefault()
+          toggleSelectMode()
+        }}>Cancel</button
+      >
+    </div>
+  {/if}
+  {#if mobileKeyboardVisible && !mobileSelectMode}
+    <MobileTerminalKeyboard
+      onSend={sendInput}
+      onKey={dispatchKey}
+      onToggleSelect={toggleSelectMode}
+      onClose={hideKeyboard}
+    />
   {/if}
 </div>
-{#if mobileSelectMode}
-  <div class="select-bar">
-    <span class="select-bar__hint">Drag to select text</span>
-    <button
-      class="select-bar__btn select-bar__btn--copy"
-      onpointerdown={(e) => {
-        e.preventDefault()
-        copySelection()
-      }}>Copy</button
-    >
-    <button
-      class="select-bar__btn"
-      onpointerdown={(e) => {
-        e.preventDefault()
-        toggleSelectMode()
-      }}>Cancel</button
-    >
-  </div>
-{/if}
-{#if mobileKeyboardVisible}
-  <MobileTerminalKeyboard
-    onSend={sendInput}
-    onKey={dispatchKey}
-    onToggleSelect={toggleSelectMode}
-    bind:height={mobileKeyboardHeight}
-  />
-{/if}
 
 <style>
   .terminal-pane {
@@ -412,12 +428,8 @@
   }
 
   .select-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 200;
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
@@ -449,12 +461,6 @@
     background: #005f87;
     border-color: #0087af;
     color: #fff;
-  }
-
-  @media (min-width: 640px) {
-    .select-bar {
-      display: none;
-    }
   }
 
   .terminal-status {

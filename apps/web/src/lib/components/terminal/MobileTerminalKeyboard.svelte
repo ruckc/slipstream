@@ -3,12 +3,12 @@
     onSend,
     onKey,
     onToggleSelect,
-    height = $bindable(0),
+    onClose,
   }: {
     onSend: (data: string) => void
     onKey: (init: KeyboardEventInit) => void
     onToggleSelect?: () => void
-    height?: number
+    onClose?: () => void
   } = $props()
 
   let shiftActive = $state(false)
@@ -156,7 +156,16 @@
   ]
 </script>
 
-<div class="mkb" role="toolbar" aria-label="Terminal keyboard" bind:clientHeight={height}>
+<div
+  class="mkb"
+  role="toolbar"
+  aria-label="Terminal keyboard"
+  ontouchstart={(e) => {
+    // Prevent touch from stealing focus away from the xterm textarea
+    const target = e.target as HTMLElement
+    if (!target.closest('input,textarea,select')) e.preventDefault()
+  }}
+>
   <!-- Function row: arrows + scrollable specials -->
   <div class="mkb-row mkb-row--fn">
     <button tabindex="-1" class="mkb-key" onpointerdown={(e) => tap(e, ESC)}>Esc</button>
@@ -197,6 +206,17 @@
       }}
       aria-label="Right">→</button
     >
+    {#if onClose}
+      <button
+        tabindex="-1"
+        class="mkb-key mkb-key--close"
+        onpointerdown={(e) => {
+          e.preventDefault()
+          onClose()
+        }}
+        aria-label="Hide keyboard">⌨</button
+      >
+    {/if}
   </div>
 
   <!-- Scrollable special chars row -->
@@ -305,11 +325,6 @@
 
 <style>
   .mkb {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 200;
     display: flex;
     flex-direction: column;
     gap: 3px;
@@ -319,6 +334,7 @@
     padding-bottom: max(4px, env(safe-area-inset-bottom));
     user-select: none;
     -webkit-user-select: none;
+    flex-shrink: 0;
   }
 
   .mkb-row {
@@ -458,9 +474,10 @@
     background: #2c2c2c;
   }
 
-  @media (min-width: 640px) {
-    .mkb {
-      display: none;
-    }
+  .mkb-key--close {
+    min-width: 36px;
+    margin-left: auto;
+    font-size: 15px;
+    color: #888;
   }
 </style>
