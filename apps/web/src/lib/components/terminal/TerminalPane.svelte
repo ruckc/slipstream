@@ -114,7 +114,27 @@
 
     fitAddon = new FitAddon()
     terminal.loadAddon(fitAddon)
-    terminal.loadAddon(new WebLinksAddon())
+    // Only open links to public internet URLs. Private/local addresses (localhost,
+    // 192.168.x, 10.x, etc.) would trigger Chrome's Private Network Access dialog
+    // on mobile when a public origin (slips.ruck.io) tries to navigate to them.
+    terminal.loadAddon(
+      new WebLinksAddon((_event, url) => {
+        try {
+          const { hostname } = new URL(url)
+          const priv =
+            hostname === 'localhost' ||
+            hostname === '127.0.0.1' ||
+            hostname === '::1' ||
+            hostname.endsWith('.local') ||
+            /^10\./.test(hostname) ||
+            /^192\.168\./.test(hostname) ||
+            /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+          if (!priv) window.open(url, '_blank', 'noopener,noreferrer')
+        } catch {
+          // malformed URL — ignore
+        }
+      })
+    )
 
     terminal.open(terminalEl)
     fitAddon.fit()
