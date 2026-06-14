@@ -17,6 +17,7 @@ use tokio::process::Command;
 pub struct CreateTmuxRequest {
     pub name: String,
     pub command: String,
+    pub working_dir: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -54,20 +55,29 @@ pub async fn create_tmux_session(
     let escaped_cmd = req.command.replace('\'', "'\\''");
     let shell_cmd = format!("/bin/bash -l -c '{escaped_cmd}'");
 
-    let output = Command::new("tmux")
-        .args([
-            "new-session",
-            "-d",
-            "-s",
-            &req.name,
-            "-x",
-            "220",
-            "-y",
-            "50",
-        ])
-        .arg(&shell_cmd)
-        .env("HOME", "/home/agent")
-        .output()
+    let workspace = state.config.workspace_path.to_string_lossy();
+    let cwd = req
+        .working_dir
+        .as_deref()
+        .unwrap_or(&workspace);
+
+    let mut cmd = Command::new("tmux");
+    cmd.args([
+        "new-session",
+        "-d",
+        "-s",
+        &req.name,
+        "-x",
+        "220",
+        "-y",
+        "50",
+        "-c",
+        cwd,
+    ])
+    .arg(&shell_cmd)
+    .env("HOME", "/home/agent");
+
+    let output = cmd.output()
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("tmux not found: {}", e)))?;
 

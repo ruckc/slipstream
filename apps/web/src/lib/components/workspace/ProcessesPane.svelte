@@ -21,6 +21,7 @@
   let showForm = $state(false)
   let formName = $state('')
   let formCommand = $state('')
+  let formWorkingDir = $state('')
   let formError = $state<string | null>(null)
   let formBusy = $state(false)
 
@@ -54,7 +55,11 @@
       const res = await podFetch(ctx.projectId, ctx.namespaceSlug, ctx.projectSlug, '/tmux', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formName.trim(), command: formCommand.trim() }),
+        body: JSON.stringify({
+          name: formName.trim(),
+          command: formCommand.trim(),
+          working_dir: formWorkingDir.trim() || undefined,
+        }),
       })
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string }
@@ -62,6 +67,7 @@
       }
       formName = ''
       formCommand = ''
+      formWorkingDir = ''
       showForm = false
       await load()
     } catch (e) {
@@ -159,6 +165,19 @@
           type="text"
           placeholder="e.g. npm run dev"
           bind:value={formCommand}
+          onkeydown={(e) => e.key === 'Enter' && spawn()}
+        />
+      </div>
+      <div class="form-row">
+        <label class="form-label" for="proc-cwd"
+          >Working directory <span class="form-label--opt">(optional)</span></label
+        >
+        <input
+          id="proc-cwd"
+          class="form-input"
+          type="text"
+          placeholder="/workspace"
+          bind:value={formWorkingDir}
           onkeydown={(e) => e.key === 'Enter' && spawn()}
         />
       </div>
@@ -297,6 +316,10 @@
     font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--color-text-muted);
+  }
+  .form-label--opt {
+    font-weight: 400;
+    opacity: 0.7;
   }
 
   .form-input {
