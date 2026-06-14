@@ -49,10 +49,9 @@ const SUPPORTED_LANGS = [
   'scala',
   'nginx',
   'ini',
-  'env',
+  'dotenv',
   'diff',
-  'git-commit',
-  'text',
+  'shellscript',
 ] as const
 
 export type SupportedLang = (typeof SUPPORTED_LANGS)[number]
@@ -128,14 +127,14 @@ export function extensionToLang(filename: string): string {
     scala: 'scala',
     nginx: 'nginx',
     ini: 'ini',
-    env: 'env',
+    env: 'dotenv',
     diff: 'diff',
-    txt: 'text',
+    txt: 'shellscript',
   }
   // Special filenames
   const baseName = filename.split('/').pop()?.toLowerCase() ?? ''
   if (baseName === 'dockerfile') return 'dockerfile'
-  if (baseName === '.env' || baseName.startsWith('.env.')) return 'bash'
+  if (baseName === '.env' || baseName.startsWith('.env.')) return 'dotenv'
   if (baseName === 'makefile') return 'bash'
   if (baseName === 'nginx.conf') return 'nginx'
 
