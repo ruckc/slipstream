@@ -56,10 +56,7 @@ pub async fn create_tmux_session(
     let shell_cmd = format!("/bin/bash -l -c '{escaped_cmd}'");
 
     let workspace = state.config.workspace_path.to_string_lossy();
-    let cwd = req
-        .working_dir
-        .as_deref()
-        .unwrap_or(&workspace);
+    let cwd = req.working_dir.as_deref().unwrap_or(&workspace);
 
     let mut cmd = Command::new("tmux");
     cmd.args([
@@ -77,7 +74,8 @@ pub async fn create_tmux_session(
     .arg(&shell_cmd)
     .env("HOME", "/home/agent");
 
-    let output = cmd.output()
+    let output = cmd
+        .output()
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("tmux not found: {}", e)))?;
 
