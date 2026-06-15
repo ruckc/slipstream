@@ -193,11 +193,14 @@ pub async fn create_tmux_session(
         "-c",
         cwd,
         "/bin/bash",
-        "-l",
         "-c",
         &req.command,
     ])
-    .env("HOME", "/home/agent");
+    .env("HOME", "/home/agent")
+    .env(
+        "PATH",
+        "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    );
 
     let output = cmd
         .output()
@@ -214,6 +217,18 @@ pub async fn create_tmux_session(
     }
 
     info!(name = %req.name, command = %req.command, persistent = req.persistent, "Created tmux session");
+
+    // Wait until the session is visible via list-sessions (tmux server may need a moment to settle)
+    for attempt in 0..20u32 {
+        let visible = running_session_names().await;
+        if visible.contains(&req.name) {
+            if attempt > 0 {
+                info!(attempts = attempt, name = %req.name, "Session became visible after retries");
+            }
+            break;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(25)).await;
+    }
 
     if req.persistent {
         let mut procs = load_persistent(&state.config.home_path);
@@ -240,16 +255,35 @@ pub async fn list_tmux_sessions(
     require_permission(&claims, "shell")?;
     state.idle.touch();
 
-    let output = Command::new("tmux")
-        .args([
-            "list-sessions",
-            "-F",
-            "#{session_name}\t#{session_created}\t#{session_activity}\t#{session_windows}",
-        ])
-        .env("HOME", "/home/agent")
-        .output()
-        .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("tmux not found: {}", e)))?;
+    // Retry briefly to handle transient unavailability right after session creation.
+    let output = {
+        let mut last = None;
+        for attempt in 0..5u32 {
+            let out = Command::new("tmux")
+                .args([
+                    "list-sessions",
+                    "-F",
+                    "#{session_name}|#{session_created}|#{session_activity}|#{session_windows}",
+                ])
+                .env("HOME", "/home/agent")
+                .output()
+                .await
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("tmux not found: {}", e)))?;
+            if out.status.success() {
+                if attempt > 0 {
+                    info!(attempt, "list-sessions succeeded after retry");
+                }
+                last = Some(out);
+                break;
+            }
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            let status = out.status.code().unwrap_or(-1);
+            info!(status, attempt, stderr = %stderr.trim(), "list-sessions returned non-zero, retrying");
+            last = Some(out);
+            tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
+        }
+        last.unwrap()
+    };
 
     if !output.status.success() {
         // tmux exits non-zero when there are no sessions — that's normal
@@ -265,7 +299,7 @@ pub async fn list_tmux_sessions(
     let sessions: Vec<TmuxSession> = stdout
         .lines()
         .filter_map(|line| {
-            let parts: Vec<&str> = line.splitn(4, '\t').collect();
+            let parts: Vec<&str> = line.splitn(4, '|').collect();
             if parts.len() < 4 {
                 return None;
             }
@@ -281,7 +315,12 @@ pub async fn list_tmux_sessions(
         })
         .collect();
 
-    info!(count = sessions.len(), "Listed tmux sessions");
+    if sessions.is_empty() {
+        info!(stdout = %String::from_utf8_lossy(&output.stdout).trim(),
+              "Listed tmux sessions: count=0 (exit 0 but empty output)");
+    } else {
+        info!(count = sessions.len(), "Listed tmux sessions");
+    }
     Ok(Json(json!({ "sessions": sessions })))
 }
 

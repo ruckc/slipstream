@@ -41,55 +41,57 @@ test.describe('processes', () => {
     }
   })
 
-  test('open processes pane', async ({ authedPage: page }) => {
+  // Helper: navigate to the project and wait until the workspace is fully hydrated.
+  // We wait for a terminal tab to appear, which confirms hydrateTerminals() completed,
+  // so subsequent clicks on Processes won't be overwritten by async hydration finishing.
+  async function openWorkspace(page: import('@playwright/test').Page) {
     await page.goto(`/${DEV_ADMIN_NAMESPACE}/${slug}`)
     await expect(page.locator('.starting-overlay')).not.toBeVisible({ timeout: 120_000 })
+    await expect(page.getByRole('button', { name: 'Processes' })).toBeVisible({ timeout: 60_000 })
+    // Wait for hydrateTerminals to finish (a terminal tab will appear once done).
+    await expect(page.locator('.tab-bar .tab')).toBeVisible({ timeout: 30_000 })
+  }
+
+  test('open processes pane', async ({ authedPage: page }) => {
+    await openWorkspace(page)
 
     // Open the processes pane via the toolbar button
     await page.getByRole('button', { name: 'Processes' }).click()
 
     // Processes pane should appear with the title and empty state
-    await expect(page.getByText('Persistent Processes')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText('Persistent Processes', { exact: true })).toBeVisible({ timeout: 5_000 })
     await expect(page.getByText('No persistent processes running.')).toBeVisible()
   })
 
-  test('start a long-lived process (top) and verify it appears in the list', async ({
+  test('start a long-lived process and verify it appears in the list', async ({
     authedPage: page,
   }) => {
-    await page.goto(`/${DEV_ADMIN_NAMESPACE}/${slug}`)
-    await expect(page.locator('.starting-overlay')).not.toBeVisible({ timeout: 120_000 })
+    await openWorkspace(page)
 
     await page.getByRole('button', { name: 'Processes' }).click()
-    await expect(page.getByText('Persistent Processes')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText('Persistent Processes', { exact: true })).toBeVisible({ timeout: 5_000 })
 
-    // Click "New" to open the spawn form
-    await page.getByRole('button', { name: 'New' }).click()
+    await page.locator('.processes-toolbar').getByRole('button', { name: 'New process' }).click()
     await expect(page.locator('#proc-name')).toBeVisible()
 
-    // Fill in name and command
     await page.locator('#proc-name').fill('monitor')
-    await page.locator('#proc-cmd').fill('top -b -d 5')
-
-    // Click Start
+    await page.locator('#proc-cmd').fill('sleep 3600')
     await page.getByRole('button', { name: 'Start' }).click()
 
-    // The form should close and the session should appear in the list
     await expect(page.locator('#proc-name')).not.toBeVisible({ timeout: 5_000 })
-    await expect(page.locator('.sessions-table')).toBeVisible({ timeout: 5_000 })
+    await expect(page.locator('.sessions-table')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText('monitor')).toBeVisible()
   })
 
   test('start a persistent process and verify the pin badge', async ({ authedPage: page }) => {
-    await page.goto(`/${DEV_ADMIN_NAMESPACE}/${slug}`)
-    await expect(page.locator('.starting-overlay')).not.toBeVisible({ timeout: 120_000 })
-
+    await openWorkspace(page)
     await page.getByRole('button', { name: 'Processes' }).click()
-    await expect(page.getByText('Persistent Processes')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText('Persistent Processes', { exact: true })).toBeVisible({ timeout: 5_000 })
 
-    await page.getByRole('button', { name: 'New' }).click()
+    await page.locator('.processes-toolbar').getByRole('button', { name: 'New process' }).click()
     await page.locator('#proc-name').fill('keepalive')
-    await page.locator('#proc-cmd').fill('top -b -d 10')
-    await page.locator('input[type="checkbox"]').check()
+    await page.locator('#proc-cmd').fill('sleep 3600')
+    await page.locator('.spawn-form .form-checkbox').click()
     await page.getByRole('button', { name: 'Start' }).click()
 
     // Wait for the session to appear with the star badge
@@ -100,11 +102,9 @@ test.describe('processes', () => {
   })
 
   test('kill a process and verify it disappears', async ({ authedPage: page }) => {
-    await page.goto(`/${DEV_ADMIN_NAMESPACE}/${slug}`)
-    await expect(page.locator('.starting-overlay')).not.toBeVisible({ timeout: 120_000 })
-
+    await openWorkspace(page)
     await page.getByRole('button', { name: 'Processes' }).click()
-    await expect(page.getByText('Persistent Processes')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText('Persistent Processes', { exact: true })).toBeVisible({ timeout: 5_000 })
 
     // Find the 'monitor' session row and kill it
     const monitorRow = page.locator('.sessions-table tbody tr').filter({ hasText: 'monitor' })
@@ -117,11 +117,9 @@ test.describe('processes', () => {
   })
 
   test('unpin a persistent process removes the pin badge', async ({ authedPage: page }) => {
-    await page.goto(`/${DEV_ADMIN_NAMESPACE}/${slug}`)
-    await expect(page.locator('.starting-overlay')).not.toBeVisible({ timeout: 120_000 })
-
+    await openWorkspace(page)
     await page.getByRole('button', { name: 'Processes' }).click()
-    await expect(page.getByText('Persistent Processes')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText('Persistent Processes', { exact: true })).toBeVisible({ timeout: 5_000 })
 
     const keepaliveRow = page.locator('.sessions-table tbody tr').filter({ hasText: 'keepalive' })
     await expect(keepaliveRow).toBeVisible({ timeout: 5_000 })

@@ -18,6 +18,7 @@
   let sessions = $state<TmuxSession[]>([])
   let loading = $state(true)
   let error = $state<string | null>(null)
+  let loadSeq = 0
 
   let showForm = $state(false)
   let formName = $state('')
@@ -28,17 +29,20 @@
   let formBusy = $state(false)
 
   async function load() {
+    const seq = ++loadSeq
     loading = true
     error = null
     try {
       const res = await podFetch(ctx.projectId, ctx.namespaceSlug, ctx.projectSlug, '/tmux')
+      if (seq !== loadSeq) return
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = (await res.json()) as { sessions: TmuxSession[] }
       sessions = data.sessions ?? []
     } catch (e) {
+      if (seq !== loadSeq) return
       error = e instanceof Error ? e.message : 'Failed to load processes'
     } finally {
-      loading = false
+      if (seq === loadSeq) loading = false
     }
   }
 
@@ -73,7 +77,7 @@
       formWorkingDir = ''
       formPersistent = false
       showForm = false
-      await load()
+      load()
     } catch (e) {
       formError = e instanceof Error ? e.message : 'Failed to spawn process'
     } finally {
