@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{path::PathBuf, sync::Arc};
 use tokio::process::Command;
+use tracing::{info, warn};
 
 // ---------------------------------------------------------------------------
 // Persistent process store
@@ -64,8 +65,6 @@ pub async fn restore_persistent_processes(state: &Arc<AppState>) {
         if running.contains(&proc.name) {
             continue;
         }
-        let escaped_cmd = proc.command.replace('\'', "'\\''");
-        let shell_cmd = format!("/bin/bash -l -c '{escaped_cmd}'");
         let workspace = state.config.workspace_path.to_string_lossy().to_string();
         let cwd = proc
             .working_dir
@@ -85,8 +84,11 @@ pub async fn restore_persistent_processes(state: &Arc<AppState>) {
             "50",
             "-c",
             &cwd,
+            "/bin/bash",
+            "-l",
+            "-c",
+            &proc.command,
         ])
-        .arg(&shell_cmd)
         .env("HOME", "/home/agent");
 
         match cmd.output().await {
@@ -175,9 +177,6 @@ pub async fn create_tmux_session(
         return Err(AppError::BadRequest("command is required".into()));
     }
 
-    let escaped_cmd = req.command.replace('\'', "'\\''");
-    let shell_cmd = format!("/bin/bash -l -c '{escaped_cmd}'");
-
     let workspace = state.config.workspace_path.to_string_lossy();
     let cwd = req.working_dir.as_deref().unwrap_or(&workspace);
 
@@ -193,8 +192,11 @@ pub async fn create_tmux_session(
         "50",
         "-c",
         cwd,
+        "/bin/bash",
+        "-l",
+        "-c",
+        &req.command,
     ])
-    .arg(&shell_cmd)
     .env("HOME", "/home/agent");
 
     let output = cmd
@@ -204,11 +206,14 @@ pub async fn create_tmux_session(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        warn!(name = %req.name, command = %req.command, stderr = %stderr.trim(), "tmux new-session failed");
         return Err(AppError::Internal(anyhow::anyhow!(
             "tmux new-session failed: {}",
             stderr.trim()
         )));
     }
+
+    info!(name = %req.name, command = %req.command, persistent = req.persistent, "Created tmux session");
 
     if req.persistent {
         let mut procs = load_persistent(&state.config.home_path);
@@ -247,6 +252,7 @@ pub async fn list_tmux_sessions(
         .map_err(|e| AppError::Internal(anyhow::anyhow!("tmux not found: {}", e)))?;
 
     if !output.status.success() {
+        // tmux exits non-zero when there are no sessions — that's normal
         return Ok(Json(json!({ "sessions": [] })));
     }
 
@@ -275,6 +281,7 @@ pub async fn list_tmux_sessions(
         })
         .collect();
 
+    info!(count = sessions.len(), "Listed tmux sessions");
     Ok(Json(json!({ "sessions": sessions })))
 }
 
@@ -295,6 +302,7 @@ pub async fn kill_tmux_session(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        warn!(name = %name, stderr = %stderr.trim(), "tmux kill-session failed");
         return Err(AppError::NotFound(format!(
             "tmux session '{}' not found: {}",
             name,
@@ -310,6 +318,7 @@ pub async fn kill_tmux_session(
         save_persistent(&state.config.home_path, &procs);
     }
 
+    info!(name = %name, "Killed tmux session");
     Ok(Json(json!({ "killed": name })))
 }
 
@@ -349,6 +358,7 @@ pub async fn patch_tmux_session(
     } else {
         procs.retain(|p| p.name != name);
         save_persistent(&state.config.home_path, &procs);
+        info!(name = %name, "Unpinned tmux session (no longer persistent)");
     }
 
     Ok(Json(json!({ "name": name, "persistent": req.persistent })))
