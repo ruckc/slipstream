@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{
     http::{HeaderValue, Method},
     response::Json,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
     Extension, Router,
 };
 use serde_json::json;
@@ -86,6 +86,9 @@ async fn main() -> anyhow::Result<()> {
         idle,
     });
 
+    // 4a. Restore persistent processes from the previous run.
+    tmux::restore_persistent_processes(&state).await;
+
     // 5. CORS layer — restrict to APP_URL origin; CORS_ORIGIN is required.
     let allow_origin: AllowOrigin = match state.config.cors_origin.as_deref() {
         Some(origin) => match origin.parse::<HeaderValue>() {
@@ -126,6 +129,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/tmux", post(tmux::create_tmux_session))
         .route("/api/tmux", get(tmux::list_tmux_sessions))
         .route("/api/tmux/{name}", delete(tmux::kill_tmux_session))
+        .route("/api/tmux/{name}", patch(tmux::patch_tmux_session))
         // Filesystem (requires 'files:read' or 'files:write')
         .route("/api/fs", get(fs::list_dir))
         .route("/api/fs/download", get(fs::download_file))

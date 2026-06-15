@@ -12,6 +12,7 @@
     created: number
     activity: number
     windows: number
+    persistent: boolean
   }
 
   let sessions = $state<TmuxSession[]>([])
@@ -22,6 +23,7 @@
   let formName = $state('')
   let formCommand = $state('')
   let formWorkingDir = $state('')
+  let formPersistent = $state(false)
   let formError = $state<string | null>(null)
   let formBusy = $state(false)
 
@@ -59,6 +61,7 @@
           name: formName.trim(),
           command: formCommand.trim(),
           working_dir: formWorkingDir.trim() || undefined,
+          persistent: formPersistent,
         }),
       })
       if (!res.ok) {
@@ -68,6 +71,7 @@
       formName = ''
       formCommand = ''
       formWorkingDir = ''
+      formPersistent = false
       showForm = false
       await load()
     } catch (e) {
@@ -84,8 +88,25 @@
         ctx.namespaceSlug,
         ctx.projectSlug,
         `/tmux/${encodeURIComponent(name)}`,
+        { method: 'DELETE' }
+      )
+      await load()
+    } catch {
+      // best effort
+    }
+  }
+
+  async function unpin(name: string) {
+    try {
+      await podFetch(
+        ctx.projectId,
+        ctx.namespaceSlug,
+        ctx.projectSlug,
+        `/tmux/${encodeURIComponent(name)}`,
         {
-          method: 'DELETE',
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ persistent: false }),
         }
       )
       await load()
@@ -181,6 +202,10 @@
           onkeydown={(e) => e.key === 'Enter' && spawn()}
         />
       </div>
+      <label class="form-checkbox">
+        <input type="checkbox" bind:checked={formPersistent} />
+        <span>Restart on agent restart</span>
+      </label>
       {#if formError}
         <p class="form-error">{formError}</p>
       {/if}
@@ -219,7 +244,12 @@
         <tbody>
           {#each sessions as s (s.name)}
             <tr>
-              <td class="cell-name">{s.name}</td>
+              <td class="cell-name">
+                {s.name}
+                {#if s.persistent}
+                  <span class="pin-badge" title="Restarts on agent restart">⭐</span>
+                {/if}
+              </td>
               <td class="cell-windows">{s.windows}</td>
               <td class="cell-age">{formatAge(s.activity)}</td>
               <td class="cell-actions">
@@ -231,6 +261,16 @@
                   >
                     <Icon name="terminal" size={13} />
                   </button>
+                  {#if s.persistent}
+                    <button
+                      class="action-btn action-btn--unpin"
+                      title="Remove auto-restart"
+                      onclick={() => unpin(s.name)}
+                      aria-label="Remove auto-restart"
+                    >
+                      ⭐
+                    </button>
+                  {/if}
                   <button
                     class="action-btn action-btn--kill"
                     title="Kill session"
@@ -336,6 +376,20 @@
     border-color: var(--color-border-focus);
   }
 
+  .form-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    user-select: none;
+  }
+  .form-checkbox input {
+    cursor: pointer;
+    accent-color: var(--color-accent);
+  }
+
   .form-error {
     margin: 0;
     font-size: var(--font-size-xs);
@@ -427,6 +481,12 @@
     font-weight: 500;
   }
 
+  .pin-badge {
+    font-size: 10px;
+    margin-left: var(--space-1);
+    opacity: 0.7;
+  }
+
   .cell-windows,
   .cell-age {
     color: var(--color-text-muted);
@@ -455,6 +515,9 @@
     background: var(--color-bg-hover);
     border-color: var(--color-border);
     color: var(--color-text-primary);
+  }
+  .action-btn--unpin:hover {
+    color: var(--color-warning, #d97706);
   }
   .action-btn--kill:hover {
     color: var(--color-danger, #e53e3e);
