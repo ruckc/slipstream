@@ -86,7 +86,8 @@
   .app-root {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100vh; /* fallback for browsers without dvh support */
+    height: 100dvh; /* track the visible viewport so mobile browser chrome doesn't clip the keyboard */
   }
 
   .top-bar {
