@@ -218,6 +218,24 @@ pub async fn create_tmux_session(
 
     info!(name = %req.name, command = %req.command, persistent = req.persistent, "Created tmux session");
 
+    // Keep the pane open after the command exits so its output — including any
+    // startup failure — remains visible when the user attaches. Without this a
+    // command that fails instantly would close the session before it can be seen.
+    let remain = Command::new("tmux")
+        .args(["set-option", "-t", &req.name, "remain-on-exit", "on"])
+        .env("HOME", "/home/agent")
+        .output()
+        .await;
+    if let Ok(out) = &remain {
+        if !out.status.success() {
+            warn!(
+                name = %req.name,
+                stderr = %String::from_utf8_lossy(&out.stderr).trim(),
+                "failed to set remain-on-exit"
+            );
+        }
+    }
+
     // Wait until the session is visible via list-sessions (tmux server may need a moment to settle)
     for attempt in 0..20u32 {
         let visible = running_session_names().await;

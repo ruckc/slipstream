@@ -57,12 +57,13 @@
       return
     }
     formBusy = true
+    const name = formName.trim()
     try {
       const res = await podFetch(ctx.projectId, ctx.namespaceSlug, ctx.projectSlug, '/tmux', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: formName.trim(),
+          name,
           command: formCommand.trim(),
           working_dir: formWorkingDir.trim() || undefined,
           persistent: formPersistent,
@@ -78,6 +79,9 @@
       formPersistent = false
       showForm = false
       load()
+      // Jump straight to the process output so the user sees it running —
+      // and can spot it immediately if the command fails on startup.
+      await attach(name)
     } catch (e) {
       formError = e instanceof Error ? e.message : 'Failed to spawn process'
     } finally {
@@ -120,18 +124,14 @@
   }
 
   async function attach(name: string) {
-    try {
-      const res = await podFetch(ctx.projectId, ctx.namespaceSlug, ctx.projectSlug, '/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: ['tmux', 'attach-session', '-t', name] }),
-      })
-      if (!res.ok) throw new Error()
-      const { session_id } = (await res.json()) as { session_id: string }
-      ctx.openTmuxAttach(session_id, name)
-    } catch {
-      // best effort
-    }
+    const res = await podFetch(ctx.projectId, ctx.namespaceSlug, ctx.projectSlug, '/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: ['tmux', 'attach-session', '-t', name] }),
+    })
+    if (!res.ok) throw new Error(`Failed to attach to ${name} (HTTP ${res.status})`)
+    const { session_id } = (await res.json()) as { session_id: string }
+    ctx.openTmuxAttach(session_id, name)
   }
 
   function formatAge(unixSecs: number): string {
@@ -208,7 +208,7 @@
       </div>
       <label class="form-checkbox">
         <input type="checkbox" bind:checked={formPersistent} />
-        <span>Restart on agent restart</span>
+        <span>Autostart on agent restart</span>
       </label>
       {#if formError}
         <p class="form-error">{formError}</p>
@@ -251,7 +251,7 @@
               <td class="cell-name">
                 {s.name}
                 {#if s.persistent}
-                  <span class="pin-badge" title="Restarts on agent restart">⭐</span>
+                  <span class="pin-badge" title="Autostarts on agent restart">⭐</span>
                 {/if}
               </td>
               <td class="cell-windows">{s.windows}</td>
@@ -261,16 +261,16 @@
                   <button
                     class="action-btn action-btn--attach"
                     title="Attach in new terminal"
-                    onclick={() => attach(s.name)}
+                    onclick={() => attach(s.name).catch(() => {})}
                   >
                     <Icon name="terminal" size={13} />
                   </button>
                   {#if s.persistent}
                     <button
                       class="action-btn action-btn--unpin"
-                      title="Remove auto-restart"
+                      title="Remove autostart"
                       onclick={() => unpin(s.name)}
-                      aria-label="Remove auto-restart"
+                      aria-label="Remove autostart"
                     >
                       ⭐
                     </button>
