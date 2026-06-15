@@ -47,6 +47,13 @@ fn safe_path(workspace: &Path, user_path: &str) -> Result<PathBuf, AppError> {
         return Err(AppError::Forbidden("Path traversal not allowed".into()));
     }
 
+    // Accept absolute paths that already start with the workspace root
+    // (e.g. /workspace/subdir sent by OSC 7 CWD reporting).
+    let workspace_str = workspace.to_string_lossy();
+    let user_path = user_path
+        .strip_prefix(workspace_str.as_ref())
+        .unwrap_or(user_path);
+
     let trimmed = user_path.trim_start_matches('/');
     let joined = workspace.join(trimmed);
 

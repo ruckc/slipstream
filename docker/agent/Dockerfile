@@ -58,7 +58,7 @@ RUN printf '%s\n' \
     'alias grep="grep --color=auto"' \
     'alias ll="ls -lah --color=auto"' \
     '__osc7() { printf "\033]7;file://%s%s\007" "$HOSTNAME" "$PWD"; }' \
-    '__set_title() { printf "\033]2;%s\007" "${PWD/#$HOME/\~}"; }' \
+    '__set_title() { printf "\033]2;bash\007"; }' \
     '__ps=0' \
     'trap '\''(( __ps == 0 )) && printf "\033]2;%s\007" "$BASH_COMMAND"'\'' DEBUG' \
     'PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}__ps=1;__osc7;__set_title;__ps=0"' \
