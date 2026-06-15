@@ -469,10 +469,11 @@ jobs:
           # diverged (concurrent push during builds), which is the safe default.
           git push origin HEAD:refs/heads/main
 
-          git tag -a "${TAG}" -m "Release ${TAG}"
-          git push origin "${TAG}"
+          # Idempotent: skip if tag already exists (retry-safe).
+          git tag -a "${TAG}" -m "Release ${TAG}" 2>/dev/null || true
+          git push origin "${TAG}" || git ls-remote --exit-code origin "refs/tags/${TAG}"
 
-          git push origin --delete release-staging
+          git push origin --delete release-staging || true
 
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
         with:
