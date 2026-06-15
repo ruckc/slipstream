@@ -22,10 +22,6 @@ func pvcName(pe *v1alpha1.ProjectEnvironment) string {
 	return "pvc-" + pe.Spec.ProjectID
 }
 
-func homePvcName(pe *v1alpha1.ProjectEnvironment) string {
-	return "home-" + pe.Spec.ProjectID
-}
-
 func deploymentName(pe *v1alpha1.ProjectEnvironment) string {
 	name := "agent-" + pe.Spec.ProjectID
 	if len(name) > 63 {
@@ -75,6 +71,10 @@ func buildNamespace(pe *v1alpha1.ProjectEnvironment) *corev1.Namespace {
 
 func buildPVC(pe *v1alpha1.ProjectEnvironment, storageClass string) *corev1.PersistentVolumeClaim {
 	sc := storageClass
+	storageGB := pe.Spec.StorageGB
+	if storageGB < 1 {
+		storageGB = 10
+	}
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pvcName(pe),
@@ -91,32 +91,7 @@ func buildPVC(pe *v1alpha1.ProjectEnvironment, storageClass string) *corev1.Pers
 			}(),
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse("10Gi"),
-				},
-			},
-		},
-	}
-}
-
-func buildHomePVC(pe *v1alpha1.ProjectEnvironment, storageClass string) *corev1.PersistentVolumeClaim {
-	sc := storageClass
-	return &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      homePvcName(pe),
-			Namespace: projectNamespace(pe),
-			Labels:    projectLabels(pe),
-		},
-		Spec: corev1.PersistentVolumeClaimSpec{
-			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-			StorageClassName: func() *string {
-				if sc == "" {
-					return nil
-				}
-				return &sc
-			}(),
-			Resources: corev1.VolumeResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse("1Gi"),
+					corev1.ResourceStorage: resource.MustParse(fmt.Sprintf("%dGi", storageGB)),
 				},
 			},
 		},
@@ -145,9 +120,9 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 				{Name: "METRICS_TOKEN", Value: cfg.MetricsToken},
 			},
 			VolumeMounts: []corev1.VolumeMount{
-				{Name: "workspace", MountPath: "/workspace"},
+				{Name: "data", MountPath: "/workspace", SubPath: "workspace"},
+				{Name: "data", MountPath: "/home/agent", SubPath: "home"},
 				{Name: "tmp", MountPath: "/tmp"},
-				{Name: "home", MountPath: "/home/agent"},
 			},
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{
@@ -206,7 +181,7 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 					Containers: containers,
 					Volumes: []corev1.Volume{
 						{
-							Name: "workspace",
+							Name: "data",
 							VolumeSource: corev1.VolumeSource{
 								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 									ClaimName: pvcName(pe),
@@ -214,14 +189,6 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 							},
 						},
 						{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-						{
-							Name: "home",
-							VolumeSource: corev1.VolumeSource{
-								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-									ClaimName: homePvcName(pe),
-								},
-							},
-						},
 					},
 				},
 			},

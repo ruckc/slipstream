@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "storage_size_gb" integer DEFAULT 10 NOT NULL;

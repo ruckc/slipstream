@@ -15,6 +15,7 @@
   let projectNamespaceId = $state(userNamespace.id)
   let projectSlug = $state('')
   let projectDisplayName = $state('')
+  let projectStorageGb = $state(10)
 
   let orgSlug = $state('')
   let orgDisplayName = $state('')
@@ -93,6 +94,29 @@
           required
           error={createProjectForm.fields.displayName?.issues()?.[0]?.message}
         />
+
+        <div class="form-field">
+          <label class="form-label" for="project-storage">Storage size (GB)</label>
+          <input
+            id="project-storage"
+            name="storageSizeGb"
+            type="number"
+            min="1"
+            max="500"
+            class="form-input"
+            bind:value={projectStorageGb}
+            placeholder="10"
+            required
+          />
+          {#if createProjectForm.fields.storageSizeGb?.issues()?.[0]}
+            <p class="form-error">
+              {createProjectForm.fields.storageSizeGb?.issues()?.[0]?.message}
+            </p>
+          {/if}
+          <p class="field-hint">
+            Persistent disk size for /workspace and /home/agent. Can be increased later.
+          </p>
+        </div>
 
         {#if createProjectForm.fields.namespaceId?.issues()?.[0]}
           <div class="form-error" role="alert">
@@ -243,6 +267,22 @@
   }
 
   .select:focus {
+    border-color: var(--color-border-focus);
+    outline: none;
+  }
+
+  .form-input {
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-sans);
+    height: 28px;
+    width: 100%;
+  }
+  .form-input:focus {
     border-color: var(--color-border-focus);
     outline: none;
   }

@@ -29,6 +29,7 @@ func main() {
 		GatewayListenerHTTPS: getEnvOrDefault("GATEWAY_LISTENER_HTTPS", "https"),
 		Namespace:            resolveNamespace(),
 		MetricsToken:         os.Getenv("METRICS_TOKEN"),
+		StorageClass:         os.Getenv("AGENT_STORAGE_CLASS"),
 	}
 
 	restCfg, err := loadRestConfig()

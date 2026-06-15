@@ -12,6 +12,7 @@
     addProjectEgressRule,
     removeProjectEgressRule,
     toggleKubeDeployAccess,
+    expandStorage,
   } from '$lib/remote/project-settings.remote'
   import Button from '$lib/components/common/Button.svelte'
   import Input from '$lib/components/common/Input.svelte'
@@ -123,6 +124,33 @@
     goto(result.redirectTo)
   }
 
+  let newStorageGb = $state(data.project.storageSizeGb)
+  let storageExpandBusy = $state(false)
+  let storageExpandError = $state<string | null>(null)
+  let storageExpandSuccess = $state(false)
+
+  async function handleExpandStorage() {
+    storageExpandError = null
+    storageExpandSuccess = false
+    if (newStorageGb <= data.project.storageSizeGb) {
+      storageExpandError = 'New size must be larger than current size'
+      return
+    }
+    storageExpandBusy = true
+    try {
+      await expandStorage({
+        namespaceSlug: page.params.namespace!,
+        projectSlug: page.params.project!,
+        storageSizeGb: newStorageGb,
+      })
+      storageExpandSuccess = true
+    } catch (e) {
+      storageExpandError = e instanceof Error ? e.message : 'Failed to expand storage'
+    } finally {
+      storageExpandBusy = false
+    }
+  }
+
   let kubeDeployAccess = $state(data.project.kubeDeployAccess)
   let kubeDeployConfirmPending = $state<boolean | null>(null)
 
@@ -201,6 +229,47 @@
           <Button type="submit" variant="primary" loading={updateProject.pending > 0}>Save</Button>
         </div>
       </form>
+    </section>
+
+    <!-- Storage -->
+    <section class="settings-section">
+      <h2 class="section-title">Storage</h2>
+      <p class="section-desc">
+        Current size: <strong>{data.project.storageSizeGb} GB</strong>. Storage can only be
+        increased. The workspace (<code>/workspace</code>) and home (<code>/home/agent</code>)
+        directories share this volume.
+      </p>
+      <div class="storage-expand">
+        <div class="storage-input-row">
+          <label class="storage-label" for="new-storage-gb">New size (GB)</label>
+          <input
+            id="new-storage-gb"
+            type="number"
+            min={data.project.storageSizeGb + 1}
+            max="500"
+            class="storage-input"
+            bind:value={newStorageGb}
+          />
+        </div>
+        {#if storageExpandError}
+          <p class="form-error">{storageExpandError}</p>
+        {/if}
+        {#if storageExpandSuccess}
+          <p class="form-success">
+            Storage expansion requested. It may take a few minutes to apply.
+          </p>
+        {/if}
+        <div class="form-actions">
+          <Button
+            variant="primary"
+            loading={storageExpandBusy}
+            onclick={handleExpandStorage}
+            disabled={newStorageGb <= data.project.storageSizeGb}
+          >
+            Expand storage
+          </Button>
+        </div>
+      </div>
     </section>
 
     <!-- Permissions -->
@@ -544,6 +613,39 @@
   .form-actions {
     display: flex;
     justify-content: flex-start;
+  }
+
+  .storage-expand {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    max-width: 300px;
+  }
+
+  .storage-input-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .storage-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+  }
+
+  .storage-input {
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    width: 120px;
+  }
+  .storage-input:focus {
+    outline: none;
+    border-color: var(--color-border-focus);
   }
 
   .form-success {

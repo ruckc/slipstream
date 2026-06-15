@@ -12,6 +12,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -176,12 +177,9 @@ func (c *Controller) handleDelete(ctx context.Context, pe *v1alpha1.ProjectEnvir
 	ns := projectNamespace(pe)
 
 	if !pe.Spec.RetainStorage {
-		// Delete both PVCs explicitly before the namespace deletion.
-		for _, name := range []string{pvcName(pe), homePvcName(pe)} {
-			err := c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Delete(ctx, name, metav1.DeleteOptions{})
-			if err != nil && !errors.IsNotFound(err) {
-				return fmt.Errorf("delete PVC %s: %w", name, err)
-			}
+		err := c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Delete(ctx, pvcName(pe), metav1.DeleteOptions{})
+		if err != nil && !errors.IsNotFound(err) {
+			return fmt.Errorf("delete PVC %s: %w", pvcName(pe), err)
 		}
 	}
 
@@ -200,9 +198,6 @@ func (c *Controller) ensureResources(ctx context.Context, pe *v1alpha1.ProjectEn
 	}
 	if err := c.ensurePVC(ctx, pe); err != nil {
 		return "", fmt.Errorf("ensure PVC: %w", err)
-	}
-	if err := c.ensureHomePVC(ctx, pe); err != nil {
-		return "", fmt.Errorf("ensure home PVC: %w", err)
 	}
 	if err := c.ensureDeployment(ctx, pe); err != nil {
 		return "", fmt.Errorf("ensure deployment: %w", err)
@@ -251,21 +246,26 @@ func (c *Controller) ensureNamespace(ctx context.Context, pe *v1alpha1.ProjectEn
 func (c *Controller) ensurePVC(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
 	ns := projectNamespace(pe)
 	name := pvcName(pe)
-	_, err := c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Get(ctx, name, metav1.GetOptions{})
+	existing, err := c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		desired := buildPVC(pe, "")
+		desired := buildPVC(pe, c.cfg.StorageClass)
 		_, err = c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Create(ctx, desired, metav1.CreateOptions{})
+		return err
 	}
-	return err
-}
-
-func (c *Controller) ensureHomePVC(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
-	ns := projectNamespace(pe)
-	name := homePvcName(pe)
-	_, err := c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Get(ctx, name, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		desired := buildHomePVC(pe, "")
-		_, err = c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Create(ctx, desired, metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+	// Expand if the requested size is larger than what's already requested.
+	storageGB := pe.Spec.StorageGB
+	if storageGB < 1 {
+		storageGB = 10
+	}
+	desired := resource.MustParse(fmt.Sprintf("%dGi", storageGB))
+	current := existing.Spec.Resources.Requests[corev1.ResourceStorage]
+	if desired.Cmp(current) > 0 {
+		updated := existing.DeepCopy()
+		updated.Spec.Resources.Requests[corev1.ResourceStorage] = desired
+		_, err = c.kubeclient.CoreV1().PersistentVolumeClaims(ns).Update(ctx, updated, metav1.UpdateOptions{})
 	}
 	return err
 }

@@ -32,6 +32,7 @@ export interface ProjectEnvironmentSpec {
   retainStorage: boolean
   egressPolicy: EgressPolicySpec
   kubeDeployAccess: boolean
+  storageGB: number
 }
 
 export interface ProjectEnvironmentStatus {

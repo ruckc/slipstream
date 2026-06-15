@@ -28,13 +28,17 @@ export const getNewPageData = query(async () => {
 
 export const createProjectForm = form(
   'unchecked',
-  async (data: { namespaceId: string; slug: string; displayName: string }, issue) => {
+  async (
+    data: { namespaceId: string; slug: string; displayName: string; storageSizeGb: string },
+    issue
+  ) => {
     const { locals } = getRequestEvent()
     if (!locals.user) redirect(302, '/auth/login')
 
     const namespaceId = String(data.namespaceId ?? '').trim()
     const slug = String(data.slug ?? '').trim()
     const displayName = String(data.displayName ?? '').trim()
+    const storageSizeGb = parseInt(String(data.storageSizeGb ?? '10'), 10) || 10
 
     if (!namespaceId) invalid(issue.namespaceId('Namespace is required'))
     if (!slug) invalid(issue.slug('Project slug is required'))
@@ -42,9 +46,18 @@ export const createProjectForm = form(
       invalid(issue.slug('Slug must be lowercase letters, numbers, and hyphens only'))
     }
     if (!displayName) invalid(issue.displayName('Display name is required'))
+    if (storageSizeGb < 1 || storageSizeGb > 500) {
+      invalid(issue.storageSizeGb('Storage size must be between 1 and 500 GB'))
+    }
 
     try {
-      await createProject({ actorUserId: locals.user.id, namespaceId, slug, displayName })
+      await createProject({
+        actorUserId: locals.user.id,
+        namespaceId,
+        slug,
+        displayName,
+        storageSizeGb,
+      })
       const ns = await db
         .select({ slug: namespaces.slug })
         .from(namespaces)

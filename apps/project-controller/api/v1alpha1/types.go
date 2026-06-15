@@ -59,6 +59,12 @@ type ProjectEnvironmentSpec struct {
 	// own project namespace.
 	// +kubebuilder:default=false
 	KubeDeployAccess bool `json:"kubeDeployAccess"`
+
+	// StorageGB is the size of the project's single persistent volume in GiB.
+	// Defaults to 10. Can only be increased, not decreased.
+	// +kubebuilder:default=10
+	// +kubebuilder:validation:Minimum=1
+	StorageGB int `json:"storageGB,omitempty"`
 }
 
 type EgressPolicySpec struct {

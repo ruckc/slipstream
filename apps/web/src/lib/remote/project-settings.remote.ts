@@ -12,6 +12,7 @@ import {
   getProjectEnvironment,
   patchEgressPolicy,
   patchKubeDeployAccess,
+  patchProjectEnvironmentSpec,
   resolvedEgressToSpec,
 } from '$lib/server/k8s/cr'
 import * as v from 'valibot'
@@ -380,6 +381,35 @@ export const updateProjectEgressRulePorts = command(
       .where(and(eq(egressRules.id, arg.ruleId), eq(egressRules.ownerId, project.id)))
 
     await syncEgressPolicy(project.id, project.namespaceId)
+  }
+)
+
+export const expandStorage = command(
+  'unchecked',
+  async (arg: { namespaceSlug: string; projectSlug: string; storageSizeGb: number }) => {
+    const { locals } = getRequestEvent()
+    if (!locals.user) redirect(302, '/auth/login')
+
+    const project = await getProject({
+      namespaceSlug: arg.namespaceSlug,
+      projectSlug: arg.projectSlug,
+    })
+    if (!project) error(404)
+
+    const perms = await resolvePermissions(locals.user, project.id)
+    if (!perms.includes('project:manage')) error(403)
+
+    const newSize = Math.max(1, Math.min(arg.storageSizeGb, 500))
+    if (newSize <= project.storageSizeGb) {
+      error(400, 'Storage size can only be increased')
+    }
+
+    await db
+      .update(projects)
+      .set({ storageSizeGb: newSize, updatedAt: new Date() })
+      .where(eq(projects.id, project.id))
+
+    await patchProjectEnvironmentSpec(project.id, { storageGB: newSize })
   }
 )
 

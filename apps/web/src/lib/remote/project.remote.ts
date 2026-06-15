@@ -83,15 +83,18 @@ export const createProject = command(
     namespaceId: v.string(),
     slug: v.string(),
     displayName: v.string(),
+    storageSizeGb: v.optional(v.number()),
   }),
   async (arg: {
     actorUserId: string
     namespaceId: string
     slug: string
     displayName: string
+    storageSizeGb?: number
   }): Promise<Project> => {
     assertSlugAllowed(arg.slug)
     await assertNamespaceAccess(arg.actorUserId, arg.namespaceId)
+    const storageSizeGb = Math.max(1, Math.min(arg.storageSizeGb ?? 10, 500))
 
     const existing = await db
       .select({ id: projects.id })
@@ -115,6 +118,7 @@ export const createProject = command(
         namespaceId: arg.namespaceId,
         slug: arg.slug,
         displayName: arg.displayName,
+        storageSizeGb,
         k8sPvcName: 'managed-by-controller',
       })
       .returning()
@@ -135,6 +139,7 @@ export const createProject = command(
         retainStorage: true,
         egressPolicy: resolvedEgressToSpec(egressPolicy),
         kubeDeployAccess: false,
+        storageGB: storageSizeGb,
       })
     } catch (e) {
       await db.delete(projects).where(eq(projects.id, project.id))
