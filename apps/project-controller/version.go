@@ -1,4 +1,4 @@
 package main
 
 // Version is set at release time by the CI pipeline.
-const Version = "0.45.2"
+const Version = "0.45.3"
