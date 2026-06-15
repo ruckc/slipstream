@@ -20,7 +20,6 @@ import (
 func main() {
 	klog.InitFlags(nil)
 	showVersion := flag.Bool("version", false, "print version and exit")
-	flag.BoolVar(showVersion, "v", false, "print version and exit (shorthand)")
 	flag.Parse()
 
 	if *showVersion {
