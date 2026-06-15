@@ -7,6 +7,7 @@ settings:
 overrides:
   cookie@*: ^1.1.1
   esbuild@*: '>=0.28.1'
+  form-data@<4.0.6: '>=4.0.6'
 
 importers:
 
@@ -1274,8 +1275,8 @@ packages:
   flatted@3.4.2:
     resolution: {integrity: sha512-PjDse7RzhcPkIJwy5t7KPWQSZ9cAbzQXcafsetQoD7sOJRQlGikNbx7yZp2OotDnJyrDcbyRq3Ttb18iYOqkxA==}
 
-  form-data@4.0.5:
-    resolution: {integrity: sha512-8RipRLol37bNs2bhoV67fiTEvdTrbMUYcFTiy3+wuuOnUog2QBHCZWXDRijWQfAkhBj2Uf5UnVaiWwA5vdd82w==}
+  form-data@4.0.6:
+    resolution: {integrity: sha512-vKatAh4SlVfgbv+YtmhiRjhEMJsYpsG1Y2rMQtR+SVSbytsSD1YGzDIcrAJmdFec88u/+VoGmxnl+80gL1tRCQ==}
     engines: {node: '>= 6'}
 
   fsevents@2.3.2:
@@ -2211,7 +2212,7 @@ snapshots:
       '@types/node': 24.12.4
       '@types/node-fetch': 2.6.13
       '@types/stream-buffers': 3.0.8
-      form-data: 4.0.5
+      form-data: 4.0.6
       hpagent: 1.2.0
       isomorphic-ws: 5.0.0(ws@8.21.0)
       js-yaml: 4.1.1
@@ -2520,7 +2521,7 @@ snapshots:
   '@types/node-fetch@2.6.13':
     dependencies:
       '@types/node': 24.12.4
-      form-data: 4.0.5
+      form-data: 4.0.6
 
   '@types/node@24.12.4':
     dependencies:
@@ -2967,7 +2968,7 @@ snapshots:
 
   flatted@3.4.2: {}
 
-  form-data@4.0.5:
+  form-data@4.0.6:
     dependencies:
       asynckit: 0.4.0
       combined-stream: 1.0.8

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Audit web dependencies for high/critical advisories (matches CI)"
+
+# Mirrors the CI "Web — npm audit" job so dependency advisories are caught
+# locally before push. Runs at the workspace root (single lockfile).
+pnpm audit --audit-level=high

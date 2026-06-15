@@ -15,3 +15,7 @@ depends = ["format:web", "format:rust", "format:go"]
 [tasks.lint]
 description = "Run all linters across all projects"
 depends = ["lint:web", "typecheck:web", "lint:rust", "lint:go", "lint:helm"]
+
+[tasks.audit]
+description = "Audit dependencies for high/critical advisories (matches CI)"
+depends = ["audit:web"]

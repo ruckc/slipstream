@@ -12,3 +12,5 @@ minimumReleaseAgeExclude:
 overrides:
   "cookie@*": "^1.1.1"
   "esbuild@*": ">=0.28.1"
+  # GHSA-hmw2-7cc7-3qxx — CRLF injection; pulled transitively via @kubernetes/client-node
+  "form-data@<4.0.6": ">=4.0.6"

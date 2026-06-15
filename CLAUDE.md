@@ -50,6 +50,9 @@ mise run lint:rust       # cargo fmt --check + clippy (apps/agent)
 mise run lint:go         # gofmt check + go vet (apps/project-controller, apps/hubble-collector)
 mise run lint:helm       # helm lint
 
+# Dependency auditing (also run by the pre-commit hook)
+mise run audit           # pnpm audit --audit-level=high (matches CI npm-audit job)
+
 # Testing
 mise run test:e2e        # Playwright e2e tests against dev cluster (BASE_URL defaults to http://localhost)
 
