@@ -338,7 +338,6 @@
     background: #131313;
     border-top: 1px solid #3a3a3a;
     padding: 4px 3px;
-    padding-bottom: max(4px, env(safe-area-inset-bottom));
     user-select: none;
     -webkit-user-select: none;
     z-index: 10;
