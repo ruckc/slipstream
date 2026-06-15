@@ -30,6 +30,8 @@ func main() {
 		Namespace:            resolveNamespace(),
 		MetricsToken:         os.Getenv("METRICS_TOKEN"),
 		StorageClass:         os.Getenv("AGENT_STORAGE_CLASS"),
+		HarborNamespace:      os.Getenv("HARBOR_NAMESPACE"),
+		RegistryInsecure:     os.Getenv("REGISTRY_INSECURE"),
 	}
 
 	restCfg, err := loadRestConfig()

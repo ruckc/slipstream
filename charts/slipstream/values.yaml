@@ -146,6 +146,24 @@ agent:
   storageClass: standard
   idleTimeoutSeconds: 1800
 
+# Namespace-scoped container registry (Harbor). When enabled, each Slipstream
+# namespace maps to a private Harbor project; the web app provisions a robot
+# account per namespace and the controller mounts its credentials into pods so
+# in-pod builds can push/pull. Harbor itself is deployed out-of-band (its own
+# Helm release); these values just point Slipstream at it.
+registry:
+  enabled: false
+  # In-cluster Harbor API base URL used by the web app for admin calls.
+  harborUrl: "" # e.g. http://harbor-core.harbor.svc.cluster.local
+  # Registry host used in image references / docker login (host[:port]).
+  host: "" # e.g. harbor-core.harbor.svc.cluster.local
+  # Namespace where Harbor runs — pods are granted NetworkPolicy egress to it.
+  namespace: harbor
+  # Treat the registry as insecure (HTTP / self-signed). Dev only.
+  insecure: false
+  adminUsername: admin
+  adminPassword: "" # required when enabled; stored in the web Secret
+
 metricsCollector:
   replicas: 1
   scrapeIntervalSeconds: 30

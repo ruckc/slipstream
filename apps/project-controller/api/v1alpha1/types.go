@@ -65,6 +65,22 @@ type ProjectEnvironmentSpec struct {
 	// +kubebuilder:default=10
 	// +kubebuilder:validation:Minimum=1
 	StorageGB int `json:"storageGB,omitempty"`
+
+	// RegistryAuth holds the namespace's Harbor robot credentials. When set,
+	// the controller materializes a dockerconfigjson Secret in the project
+	// namespace so in-pod builds can push/pull without an interactive login.
+	RegistryAuth *RegistryAuthSpec `json:"registryAuth,omitempty"`
+}
+
+type RegistryAuthSpec struct {
+	// Server is the registry host (host[:port]) used in image references.
+	Server string `json:"server"`
+
+	// Username is the full Harbor robot login, e.g. robot$alpha+slipstream.
+	Username string `json:"username"`
+
+	// Password is the robot account secret.
+	Password string `json:"password"`
 }
 
 type EgressPolicySpec struct {

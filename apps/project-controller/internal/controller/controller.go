@@ -199,6 +199,9 @@ func (c *Controller) ensureResources(ctx context.Context, pe *v1alpha1.ProjectEn
 	if err := c.ensurePVC(ctx, pe); err != nil {
 		return "", fmt.Errorf("ensure PVC: %w", err)
 	}
+	if err := c.ensureRegistrySecret(ctx, pe); err != nil {
+		return "", fmt.Errorf("ensure registry secret: %w", err)
+	}
 	if err := c.ensureDeployment(ctx, pe); err != nil {
 		return "", fmt.Errorf("ensure deployment: %w", err)
 	}
@@ -305,6 +308,30 @@ func (c *Controller) ensureService(ctx context.Context, pe *v1alpha1.ProjectEnvi
 	if errors.IsNotFound(err) {
 		_, err = c.kubeclient.CoreV1().Services(ns).Create(ctx, desired, metav1.CreateOptions{})
 	}
+	return err
+}
+
+// ensureRegistrySecret materializes the namespace robot credentials as a
+// dockerconfigjson Secret in the project namespace. The password may rotate, so
+// we create-or-update. When the CR has no registryAuth (registry disabled), the
+// Secret is left absent — the pod's volume mount is optional.
+func (c *Controller) ensureRegistrySecret(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
+	if pe.Spec.RegistryAuth == nil {
+		return nil
+	}
+	ns := projectNamespace(pe)
+	desired := buildRegistrySecret(pe)
+	existing, err := c.kubeclient.CoreV1().Secrets(ns).Get(ctx, desired.Name, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		_, err = c.kubeclient.CoreV1().Secrets(ns).Create(ctx, desired, metav1.CreateOptions{})
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	existing.Type = desired.Type
+	existing.Data = desired.Data
+	_, err = c.kubeclient.CoreV1().Secrets(ns).Update(ctx, existing, metav1.UpdateOptions{})
 	return err
 }
 

@@ -66,6 +66,23 @@ spec:
                           ruleType:
                             type: string
                             enum: [allow, deny]
+                kubeDeployAccess:
+                  type: boolean
+                  default: false
+                storageGB:
+                  type: integer
+                  minimum: 1
+                  default: 10
+                registryAuth:
+                  type: object
+                  required: [server, username, password]
+                  properties:
+                    server:
+                      type: string
+                    username:
+                      type: string
+                    password:
+                      type: string
             status:
               type: object
               properties:

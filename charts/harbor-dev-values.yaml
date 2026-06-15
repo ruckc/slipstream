@@ -1,0 +1,48 @@
+# Harbor values for the local dev cluster (installed by `mise run dev:cluster`).
+# In-cluster only (ClusterIP, no TLS) with image blobs stored in rustfs (S3).
+# This is NOT a production configuration — admin password is fixed and the
+# registry is reached over plain HTTP inside the cluster.
+
+expose:
+  type: clusterIP
+  tls:
+    enabled: false
+
+externalURL: http://harbor-core.harbor.svc.cluster.local
+
+harborAdminPassword: Harbor12345
+
+# Keep the dev footprint small.
+trivy:
+  enabled: false
+notary:
+  enabled: false
+metrics:
+  enabled: false
+
+# Store image/chart blobs in rustfs (S3) instead of a registry PVC.
+persistence:
+  enabled: true
+  imageChartStorage:
+    disableredirect: true
+    type: s3
+    s3:
+      region: us-east-1
+      bucket: harbor
+      regionendpoint: http://rustfs.harbor.svc.cluster.local:9000
+      accesskey: rustfsadmin
+      secretkey: rustfsadmin
+      secure: false
+      v4auth: true
+  # Small PVCs for the stateful components Harbor still needs (db, redis,
+  # jobservice, registry metadata). rustfs only backs the image blobs.
+  persistentVolumeClaim:
+    registry:
+      size: 1Gi
+    jobservice:
+      jobLog:
+        size: 1Gi
+    database:
+      size: 1Gi
+    redis:
+      size: 1Gi

@@ -17,6 +17,7 @@ import { getCoreV1Api } from '$lib/server/k8s/client'
 import { resolveEgressPolicy } from '$lib/server/k8s/egress'
 import { resolvePermissions, resolveIdleTimeout } from '$lib/server/permissions'
 import { logServerError } from '$lib/server/error-log'
+import { provisionNamespaceRegistry } from '$lib/server/registry/harbor'
 
 async function getProjectById(projectId: string): Promise<Project> {
   const rows = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1)
@@ -128,6 +129,20 @@ export const createProject = command(
       resolveEgressPolicy(ns.id, project.id),
     ])
 
+    // Provision the namespace's Harbor project + robot (idempotent). Best
+    // effort: if the registry isn't configured or Harbor is unreachable, the
+    // project is still created — it just won't have registry credentials.
+    let registryAuth
+    try {
+      registryAuth = (await provisionNamespaceRegistry(ns.id, ns.slug)) ?? undefined
+    } catch (e) {
+      await logServerError((e as Error).message, {
+        route: 'createProject/registry',
+        stack: (e as Error).stack,
+        context: { namespaceId: ns.id, slug: ns.slug },
+      })
+    }
+
     try {
       await createProjectEnvironment({
         projectId: project.id,
@@ -140,6 +155,7 @@ export const createProject = command(
         egressPolicy: resolvedEgressToSpec(egressPolicy),
         kubeDeployAccess: false,
         storageGB: storageSizeGb,
+        registryAuth,
       })
     } catch (e) {
       await db.delete(projects).where(eq(projects.id, project.id))

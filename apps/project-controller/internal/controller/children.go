@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	"slipstream/project-controller/api/v1alpha1"
@@ -44,6 +45,32 @@ func networkPolicyName(pe *v1alpha1.ProjectEnvironment) string {
 
 func ciliumPolicyName(pe *v1alpha1.ProjectEnvironment) string {
 	return "cnp-" + pe.Spec.ProjectID
+}
+
+// registrySecretName is the dockerconfigjson Secret the controller materializes
+// from spec.registryAuth and the pod mounts at /etc/registry-auth.
+const registrySecretName = "slipstream-registry-auth"
+
+// buildRegistrySecret renders the namespace robot credentials as a
+// kubernetes.io/dockerconfigjson Secret in the project namespace.
+func buildRegistrySecret(pe *v1alpha1.ProjectEnvironment) *corev1.Secret {
+	auth := pe.Spec.RegistryAuth
+	token := base64.StdEncoding.EncodeToString([]byte(auth.Username + ":" + auth.Password))
+	dockercfg := fmt.Sprintf(
+		`{"auths":{%q:{"username":%q,"password":%q,"auth":%q}}}`,
+		auth.Server, auth.Username, auth.Password, token,
+	)
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      registrySecretName,
+			Namespace: projectNamespace(pe),
+			Labels:    projectLabels(pe),
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: []byte(dockercfg),
+		},
+	}
 }
 
 func desiredReplicas(pe *v1alpha1.ProjectEnvironment) int32 {
@@ -142,6 +169,47 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 		},
 	}
 
+	volumes := []corev1.Volume{
+		{
+			Name: "data",
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvcName(pe),
+				},
+			},
+		},
+		{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+	}
+
+	// When the namespace has registry credentials, mount them as a read-only
+	// dockerconfigjson so buildah/skopeo pick them up via REGISTRY_AUTH_FILE.
+	// The volume is optional so the pod still starts if the Secret lags behind.
+	if pe.Spec.RegistryAuth != nil {
+		containers[0].Env = append(containers[0].Env,
+			corev1.EnvVar{Name: "REGISTRY_AUTH_FILE", Value: "/etc/registry-auth/.dockerconfigjson"},
+			corev1.EnvVar{Name: "DOCKER_CONFIG", Value: "/etc/registry-auth"},
+			corev1.EnvVar{Name: "REGISTRY_HOST", Value: pe.Spec.RegistryAuth.Server},
+		)
+		if cfg.RegistryInsecure != "" {
+			containers[0].Env = append(containers[0].Env,
+				corev1.EnvVar{Name: "REGISTRY_INSECURE", Value: cfg.RegistryInsecure})
+		}
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      "registry-auth",
+			MountPath: "/etc/registry-auth",
+			ReadOnly:  true,
+		})
+		volumes = append(volumes, corev1.Volume{
+			Name: "registry-auth",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: registrySecretName,
+					Optional:   boolPtr(true),
+				},
+			},
+		})
+	}
+
 	podLabels := projectLabels(pe)
 	podLabels["app"] = name
 
@@ -179,17 +247,7 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 						FSGroup:      int64Ptr(1000),
 					},
 					Containers: containers,
-					Volumes: []corev1.Volume{
-						{
-							Name: "data",
-							VolumeSource: corev1.VolumeSource{
-								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-									ClaimName: pvcName(pe),
-								},
-							},
-						},
-						{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-					},
+					Volumes:    volumes,
 				},
 			},
 		},
@@ -214,6 +272,39 @@ func buildService(pe *v1alpha1.ProjectEnvironment) *corev1.Service {
 }
 
 func buildNetworkPolicy(pe *v1alpha1.ProjectEnvironment, cfg *Config) *networkingv1.NetworkPolicy {
+	egress := []networkingv1.NetworkPolicyEgressRule{
+		// Always allow DNS.
+		{
+			Ports: []networkingv1.NetworkPolicyPort{
+				{Port: intstrPtr(53), Protocol: protocolPtr(corev1.ProtocolUDP)},
+				{Port: intstrPtr(53), Protocol: protocolPtr(corev1.ProtocolTCP)},
+			},
+		},
+		// Allow egress to the web app (for JWKS).
+		{
+			To: []networkingv1.NetworkPolicyPeer{
+				{
+					NamespaceSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{"kubernetes.io/metadata.name": cfg.Namespace},
+					},
+				},
+			},
+		},
+	}
+
+	// Allow egress to Harbor so in-pod builds can push/pull images.
+	if cfg.HarborNamespace != "" {
+		egress = append(egress, networkingv1.NetworkPolicyEgressRule{
+			To: []networkingv1.NetworkPolicyPeer{
+				{
+					NamespaceSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{"kubernetes.io/metadata.name": cfg.HarborNamespace},
+					},
+				},
+			},
+		})
+	}
+
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      networkPolicyName(pe),
@@ -240,25 +331,7 @@ func buildNetworkPolicy(pe *v1alpha1.ProjectEnvironment, cfg *Config) *networkin
 					},
 				},
 			},
-			Egress: []networkingv1.NetworkPolicyEgressRule{
-				// Always allow DNS.
-				{
-					Ports: []networkingv1.NetworkPolicyPort{
-						{Port: intstrPtr(53), Protocol: protocolPtr(corev1.ProtocolUDP)},
-						{Port: intstrPtr(53), Protocol: protocolPtr(corev1.ProtocolTCP)},
-					},
-				},
-				// Allow egress to the web app (for JWKS).
-				{
-					To: []networkingv1.NetworkPolicyPeer{
-						{
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{"kubernetes.io/metadata.name": cfg.Namespace},
-							},
-						},
-					},
-				},
-			},
+			Egress: egress,
 		},
 	}
 }

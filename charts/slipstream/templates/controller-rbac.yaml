@@ -29,7 +29,7 @@ rules:
     verbs: [get, list, watch, create, update, patch, delete]
   # Core resources — namespaced (in project-* namespaces)
   - apiGroups: [""]
-    resources: [pods, persistentvolumeclaims, services, serviceaccounts]
+    resources: [pods, persistentvolumeclaims, services, serviceaccounts, secrets]
     verbs: [get, list, watch, create, update, patch, delete]
   # Deployments
   - apiGroups: [apps]

@@ -276,6 +276,28 @@ export type ServerError = InferSelectModel<typeof serverErrors>
 export type NewServerError = InferInsertModel<typeof serverErrors>
 
 // ---------------------------------------------------------------------------
+// namespace_registry — per-namespace Harbor project + robot account
+// ---------------------------------------------------------------------------
+// Each Slipstream namespace maps to one private Harbor project (named after the
+// slug). A project-scoped robot account (push+pull) is provisioned once and its
+// credentials reused across all projects in the namespace. Harbor robot secrets
+// are only returned at creation time, so we persist them here to rebuild the
+// per-project dockerconfigjson the pods mount.
+export const namespaceRegistry = pgTable('namespace_registry', {
+  namespaceId: uuid('namespace_id')
+    .primaryKey()
+    .references(() => namespaces.id, { onDelete: 'cascade' }),
+  harborProject: text('harbor_project').notNull(), // = namespace slug
+  robotName: text('robot_name').notNull(), // full Harbor robot login, e.g. robot$alpha+slipstream
+  robotSecret: text('robot_secret').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export type NamespaceRegistry = InferSelectModel<typeof namespaceRegistry>
+export type NewNamespaceRegistry = InferInsertModel<typeof namespaceRegistry>
+
+// ---------------------------------------------------------------------------
 // network_flows — egress flow log from Hubble collector
 // ---------------------------------------------------------------------------
 export const networkFlows = pgTable(

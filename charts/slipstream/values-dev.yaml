@@ -45,6 +45,17 @@ web:
 agent:
   idleTimeoutSeconds: 300
 
+# Dev registry: Harbor (namespace "harbor") backed by rustfs S3, both installed
+# by `mise run dev:cluster`. Reached in-cluster over HTTP, so insecure=true.
+registry:
+  enabled: true
+  harborUrl: http://harbor-core.harbor.svc.cluster.local
+  host: harbor-core.harbor.svc.cluster.local
+  namespace: harbor
+  insecure: true
+  adminUsername: admin
+  adminPassword: Harbor12345
+
 postgresql:
   enabled: true
   storage: 2Gi

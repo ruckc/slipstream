@@ -168,12 +168,27 @@ Each project pod has three volume mounts:
 Current `/etc/profile.d/` scripts in the agent image:
 - `/etc/profile.d/mise.sh` — activates mise for all bash login shells
 - `/etc/profile.d/slipstream.sh` — color prompt, ls/grep aliases, OSC 7 CWD reporting, terminal title updates
+- `/etc/profile.d/containers.sh` — when `REGISTRY_INSECURE=true`, writes `~/.config/containers/registries.conf` marking `REGISTRY_HOST` insecure (dev)
+
+The agent image also ships **buildah** + **skopeo** for rootless image builds (`BUILDAH_ISOLATION=chroot`, `STORAGE_DRIVER=vfs`). Container storage lives under `/tmp/containers` (the pod's `tmp` emptyDir) so it stays writable under the read-only rootfs; the cache is ephemeral and `vfs` is disk-heavy. Typical flow in a pod terminal: `buildah bud -t $REGISTRY_HOST/<namespace>/<img>:<tag> .` then `buildah push $REGISTRY_HOST/<namespace>/<img>:<tag>`.
 
 ### Egress policy
 
 Each project has an egress policy embedded in its `ProjectEnvironment` CR spec (`spec.egressPolicy`). The policy is resolved from DB rules (namespace-level allow/deny rules + project-level allow rules) by `src/lib/server/k8s/egress.ts` and written to the CR when the project is created or its policy is updated. The project-controller enforces the policy via Cilium `NetworkPolicy` resources in the project namespace.
 
 The **hubble-collector** (`apps/hubble-collector/`) connects to Cilium's Hubble Relay gRPC API and writes observed DNS, HTTP, and L4 flows to Postgres. This powers the network activity view in the project UI.
+
+### Container registry
+
+Users build container images inside their project pods (rootless **Buildah** — `vfs` storage driver + `chroot` isolation, so it runs under the locked-down pod securityContext) and push them to a **Harbor** registry with **namespace-scoped isolation**: images pushed under namespace `alpha` can only be pulled by `alpha`.
+
+Each Slipstream namespace maps to one **private Harbor project** (named after the slug). The web app provisions the project plus a project-scoped **robot account** (push+pull) on first project creation in that namespace (`src/lib/server/registry/harbor.ts`), persisting the robot credentials in the `namespace_registry` DB table (Harbor only returns a robot secret once). Harbor itself enforces isolation — a namespace's robot can only access its own private project.
+
+Credential delivery to pods avoids granting the internet-facing web app any new cluster powers: the web app writes the robot credentials into the cluster-scoped `ProjectEnvironment` CR spec (`spec.registryAuth`), and the **project-controller** materializes them as a `kubernetes.io/dockerconfigjson` Secret (`slipstream-registry-auth`) in the project namespace, mounted read-only at `/etc/registry-auth` with `REGISTRY_AUTH_FILE`/`DOCKER_CONFIG` env so `buildah push`/`pull` work with no interactive login. The pod NetworkPolicy is extended with egress to the Harbor namespace. (Storing the robot secret in the cluster-scoped CR spec is an accepted v1 tradeoff; encryption-at-rest is a hardening follow-up.)
+
+Registry support is **optional** — it activates only when `registry.enabled` is set in the Helm values (env `HARBOR_URL` + `REGISTRY_HOST` present). When unset, projects are created without registry credentials and everything else works unchanged.
+
+In local dev, `mise run dev:cluster` installs **rustfs** (a Rust S3 server) in the `harbor` namespace and deploys Harbor backed by it (`charts/harbor-dev-values.yaml`), reached in-cluster over HTTP (`REGISTRY_INSECURE=true`).
 
 ### JWT issuance
 
@@ -254,9 +269,12 @@ Key variables the web app reads at runtime:
 | `K8S_JWT_PRIVATE_KEY` | no | Base64 PKCS8 PEM; generate ephemeral key if absent |
 | `DEFAULT_IDLE_TIMEOUT_SECONDS` | no | Default 1800 |
 | `AGENT_STORAGE_CLASS` | no | PVC storage class (default: `standard`) |
-The Rust agent reads: `PORT`, `JWKS_URL` (required; must be http/https URL), `PROJECT_ID`, `WORKSPACE_PATH`, `HOME_PATH`, `IDLE_TIMEOUT_SECONDS`, `CORS_ORIGIN` (required — agent exits at startup if unset), `METRICS_TOKEN` (optional; if set, `/metrics` requires `Authorization: Bearer <token>`; if unset, `/metrics` returns 403).
+| `HARBOR_URL` | no | Harbor API base URL; enables the registry integration when set (with `REGISTRY_HOST`) |
+| `HARBOR_ADMIN_USERNAME` / `HARBOR_ADMIN_PASSWORD` | no | Harbor admin creds for provisioning projects/robots (`_PASSWORD` is a Secret) |
+| `REGISTRY_HOST` | no | Registry host (host[:port]) used in image references and the pods' docker config |
+The Rust agent reads: `PORT`, `JWKS_URL` (required; must be http/https URL), `PROJECT_ID`, `WORKSPACE_PATH`, `HOME_PATH`, `IDLE_TIMEOUT_SECONDS`, `CORS_ORIGIN` (required — agent exits at startup if unset), `METRICS_TOKEN` (optional; if set, `/metrics` requires `Authorization: Bearer <token>`; if unset, `/metrics` returns 403). Registry-related env injected into pods by the controller (only when the namespace has registry credentials): `REGISTRY_AUTH_FILE`, `DOCKER_CONFIG`, `REGISTRY_HOST`, and `REGISTRY_INSECURE` (dev).
 
-The project-controller additionally reads: `USAGE_REPORT_URL` (optional, for usage telemetry), `KUBECONFIG` (optional, falls back to in-cluster config).
+The project-controller additionally reads: `USAGE_REPORT_URL` (optional, for usage telemetry), `KUBECONFIG` (optional, falls back to in-cluster config), `HARBOR_NAMESPACE` (grants pods egress to Harbor), `REGISTRY_INSECURE` (`true` in dev so buildah treats the registry as insecure).
 
 The hubble-collector reads: `HUBBLE_RELAY_ADDRESS` (default: `hubble-relay.kube-system.svc.cluster.local:4245`; must be `host:port` format, no URL scheme), `DATABASE_URL`.
 

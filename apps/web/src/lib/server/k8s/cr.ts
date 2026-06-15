@@ -22,6 +22,15 @@ export interface EgressPolicySpec {
   }>
 }
 
+// Robot credentials for the namespace's Harbor project. The controller
+// materializes these into a dockerconfigjson Secret in the project namespace
+// so in-pod builds can push/pull without an interactive login.
+export interface RegistryAuthSpec {
+  server: string
+  username: string
+  password: string
+}
+
 export interface ProjectEnvironmentSpec {
   projectId: string
   namespaceId: string
@@ -33,6 +42,7 @@ export interface ProjectEnvironmentSpec {
   egressPolicy: EgressPolicySpec
   kubeDeployAccess: boolean
   storageGB: number
+  registryAuth?: RegistryAuthSpec
 }
 
 export interface ProjectEnvironmentStatus {

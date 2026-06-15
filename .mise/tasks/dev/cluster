@@ -190,6 +190,99 @@ for node in $(kind get nodes --name "${CLUSTER_NAME}"); do
   docker exec "${node}" iptables -t nat -I PREROUTING -p tcp -d "${node_ip}" --dport 443 -j REDIRECT --to-port 10443 2>/dev/null || true
 done
 
+# ── rustfs (S3 object storage backing Harbor) ───────────────────────────────
+echo "→ Installing rustfs (S3 storage) in namespace 'harbor'..."
+kubectl create namespace harbor --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rustfs-data
+  namespace: harbor
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rustfs
+  namespace: harbor
+  labels: { app: rustfs }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: rustfs }
+  template:
+    metadata:
+      labels: { app: rustfs }
+    spec:
+      containers:
+        - name: rustfs
+          image: rustfs/rustfs:latest
+          args: ["/data"]
+          env:
+            - { name: RUSTFS_ACCESS_KEY, value: rustfsadmin }
+            - { name: RUSTFS_SECRET_KEY, value: rustfsadmin }
+          ports:
+            - { containerPort: 9000 }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: rustfs-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs
+  namespace: harbor
+spec:
+  selector: { app: rustfs }
+  ports:
+    - { name: s3, port: 9000, targetPort: 9000 }
+EOF
+
+echo "→ Waiting for rustfs to be ready..."
+kubectl rollout status deployment/rustfs -n harbor --timeout=120s
+
+echo "→ Ensuring 'harbor' bucket exists in rustfs..."
+kubectl delete job rustfs-mkbucket -n harbor --ignore-not-found
+kubectl apply -f - <<'EOF'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rustfs-mkbucket
+  namespace: harbor
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until mc alias set r http://rustfs.harbor.svc.cluster.local:9000 rustfsadmin rustfsadmin; do sleep 2; done
+              mc mb -p r/harbor || true
+EOF
+kubectl wait --for=condition=complete job/rustfs-mkbucket -n harbor --timeout=120s || true
+
+# ── Harbor (namespace-scoped container registry) ────────────────────────────
+echo "→ Installing Harbor (S3-backed by rustfs)..."
+helm repo add harbor https://helm.goharbor.io 2>/dev/null || true
+helm repo update harbor 2>/dev/null || true
+helm upgrade --install harbor harbor/harbor \
+  --namespace harbor \
+  -f charts/harbor-dev-values.yaml \
+  --wait --timeout 10m || \
+  echo "⚠ Harbor install did not complete in time — check 'kubectl get pods -n harbor'."
+
 echo ""
 echo "Cluster ready. Next:"
 echo "  mise run dev:build   # build and push images"
