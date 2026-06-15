@@ -31,10 +31,15 @@
   let statusMessage = $state<string | null>(null)
   let reconnectAttempt = $state(0)
   let mobileKeyboardVisible = $state(false)
+  let mobileKeyboardHeight = $state(0)
   let mobileSelectMode = $state(false)
   let xtermTextarea = $state<HTMLTextAreaElement | undefined>(undefined)
   // Keys typed while WS is not OPEN are queued and flushed on reconnect
   let inputQueue: string[] = []
+
+  $effect(() => {
+    if (mobileKeyboardHeight >= 0) requestAnimationFrame(() => fitAddon?.fit())
+  })
 
   const ARROW_SEQS: Record<string, [string, string]> = {
     ArrowUp: ['\x1b[A', '\x1bOA'],
@@ -384,11 +389,15 @@
     </div>
   {/if}
   {#if mobileKeyboardVisible && !mobileSelectMode}
+    <!-- Spacer pushes the terminal content up so it isn't hidden behind the
+         absolutely-positioned keyboard anchored to the pane bottom. -->
+    <div style:height="{mobileKeyboardHeight}px" style:flex-shrink="0"></div>
     <MobileTerminalKeyboard
       onSend={sendInput}
       onKey={dispatchKey}
       onToggleSelect={toggleSelectMode}
       onClose={hideKeyboard}
+      bind:height={mobileKeyboardHeight}
     />
   {/if}
 </div>
@@ -401,6 +410,7 @@
     min-height: 0;
     background: #1e1e1e;
     overflow: hidden;
+    position: relative;
   }
 
   .terminal-container {

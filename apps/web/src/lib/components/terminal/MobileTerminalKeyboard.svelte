@@ -4,11 +4,13 @@
     onKey,
     onToggleSelect,
     onClose,
+    height = $bindable(0),
   }: {
     onSend: (data: string) => void
     onKey: (init: KeyboardEventInit) => void
     onToggleSelect?: () => void
     onClose?: () => void
+    height?: number
   } = $props()
 
   let shiftActive = $state(false)
@@ -160,6 +162,7 @@
   class="mkb"
   role="toolbar"
   aria-label="Terminal keyboard"
+  bind:clientHeight={height}
   ontouchstart={(e) => {
     // Prevent touch from stealing focus away from the xterm textarea
     const target = e.target as HTMLElement
@@ -206,6 +209,17 @@
       }}
       aria-label="Right">→</button
     >
+    {#if onToggleSelect}
+      <button
+        tabindex="-1"
+        class="mkb-key mkb-key--action mkb-key--sel"
+        onpointerdown={(e) => {
+          e.preventDefault()
+          onToggleSelect()
+        }}
+        title="Select text">⌗</button
+      >
+    {/if}
     {#if onClose}
       <button
         tabindex="-1"
@@ -309,22 +323,15 @@
       class="mkb-key mkb-key--action mkb-key--enter"
       onpointerdown={(e) => tap(e, ENTER)}>↵</button
     >
-    {#if onToggleSelect}
-      <button
-        tabindex="-1"
-        class="mkb-key mkb-key--mod mkb-key--sm"
-        onpointerdown={(e) => {
-          e.preventDefault()
-          onToggleSelect()
-        }}
-        title="Select text">⌗</button
-      >
-    {/if}
   </div>
 </div>
 
 <style>
   .mkb {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
     display: flex;
     flex-direction: column;
     gap: 3px;
@@ -334,7 +341,7 @@
     padding-bottom: max(4px, env(safe-area-inset-bottom));
     user-select: none;
     -webkit-user-select: none;
-    flex-shrink: 0;
+    z-index: 10;
   }
 
   .mkb-row {
