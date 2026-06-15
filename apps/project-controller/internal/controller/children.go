@@ -219,6 +219,14 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 	serviceAccountName := ""
 	if pe.Spec.KubeDeployAccess {
 		serviceAccountName = projectSAName
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      "varrun",
+			MountPath: "/var/run",
+		})
+		volumes = append(volumes, corev1.Volume{
+			Name:         "varrun",
+			VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+		})
 	}
 
 	return &appsv1.Deployment{
