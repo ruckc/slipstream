@@ -42,7 +42,7 @@ export async function fetchMetricsForProjects(
       value::float8 AS value
     FROM usage_samples
     WHERE project_id = ANY(${projectIds}::uuid[])
-      AND metric = ANY(${SNAPSHOT_METRICS}::text[])
+      AND metric = ANY(${[...SNAPSHOT_METRICS]}::text[])
     ORDER BY project_id, metric, sampled_at DESC
   `)
 
