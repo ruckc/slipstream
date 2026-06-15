@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/base64"
 	"fmt"
+	"strconv"
 
 	"slipstream/project-controller/api/v1alpha1"
 
@@ -309,6 +310,27 @@ func buildNetworkPolicy(pe *v1alpha1.ProjectEnvironment, cfg *Config) *networkin
 						MatchLabels: map[string]string{"kubernetes.io/metadata.name": cfg.HarborNamespace},
 					},
 				},
+			},
+		})
+	}
+
+	// Allow egress to the Kubernetes API server when kubeDeployAccess is enabled.
+	if pe.Spec.KubeDeployAccess && cfg.KubeAPIServerHost != "" {
+		apiPort := cfg.KubeAPIServerPort
+		if apiPort == "" {
+			apiPort = "443"
+		}
+		portNum, err := strconv.Atoi(apiPort)
+		if err != nil || portNum == 0 {
+			portNum = 443
+		}
+		port := intstrPtr(portNum)
+		egress = append(egress, networkingv1.NetworkPolicyEgressRule{
+			To: []networkingv1.NetworkPolicyPeer{
+				{IPBlock: &networkingv1.IPBlock{CIDR: cfg.KubeAPIServerHost + "/32"}},
+			},
+			Ports: []networkingv1.NetworkPolicyPort{
+				{Port: port, Protocol: protocolPtr(corev1.ProtocolTCP)},
 			},
 		})
 	}

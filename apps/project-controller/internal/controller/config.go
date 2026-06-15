@@ -13,6 +13,8 @@ type Config struct {
 	StorageClass         string // PVC storage class; empty string uses the cluster default
 	HarborNamespace      string // namespace where Harbor runs; pods get egress to it for push/pull
 	RegistryInsecure     string // "true" in dev so buildah treats REGISTRY_HOST as insecure (HTTP/self-signed)
+	KubeAPIServerHost    string // KUBERNETES_SERVICE_HOST — used to build the egress CIDR for kubeDeployAccess pods
+	KubeAPIServerPort    string // KUBERNETES_SERVICE_PORT — port for the same egress rule
 }
 
 func (c *Config) JWKSUrl() string {

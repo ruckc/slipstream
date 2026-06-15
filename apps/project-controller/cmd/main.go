@@ -40,6 +40,8 @@ func main() {
 		StorageClass:         os.Getenv("AGENT_STORAGE_CLASS"),
 		HarborNamespace:      os.Getenv("HARBOR_NAMESPACE"),
 		RegistryInsecure:     os.Getenv("REGISTRY_INSECURE"),
+		KubeAPIServerHost:    os.Getenv("KUBERNETES_SERVICE_HOST"),
+		KubeAPIServerPort:    os.Getenv("KUBERNETES_SERVICE_PORT"),
 	}
 
 	restCfg, err := loadRestConfig()
