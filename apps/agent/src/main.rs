@@ -13,6 +13,8 @@ use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 mod auth;
 mod config;
 mod error;
@@ -47,12 +49,20 @@ async fn health() -> Json<serde_json::Value> {
     Json(json!({"status": "ok"}))
 }
 
+async fn version() -> Json<serde_json::Value> {
+    Json(json!({"version": VERSION}))
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    if std::env::args().any(|a| a == "-v" || a == "--version") {
+        println!("{VERSION}");
+        return Ok(());
+    }
     eprintln!("agent binary started");
     // Initialize structured tracing.
     tracing_subscriber::registry()
@@ -121,6 +131,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         // Unauthenticated — not reachable via the gateway (HTTPRoute only forwards /api/*)
         .route("/health", get(health))
+        .route("/version", get(version))
         .route("/metrics", get(metrics::metrics_handler))
         // Session management (requires 'shell' permission)
         .route("/api/sessions", post(shell::create_session))

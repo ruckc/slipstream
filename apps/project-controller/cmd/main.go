@@ -19,7 +19,16 @@ import (
 
 func main() {
 	klog.InitFlags(nil)
+	showVersion := flag.Bool("version", false, "print version and exit")
+	flag.BoolVar(showVersion, "v", false, "print version and exit (shorthand)")
 	flag.Parse()
+
+	if *showVersion {
+		klog.Infof("project-controller %s", Version)
+		os.Exit(0)
+	}
+
+	klog.Infof("project-controller %s starting", Version)
 
 	cfg := &controller.Config{
 		AgentImage:           requireEnv("AGENT_IMAGE"),

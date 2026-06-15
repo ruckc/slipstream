@@ -84,6 +84,14 @@ func (c *Controller) Run(ctx context.Context) {
 		return
 	}
 
+	// Explicitly enqueue all existing CRs so a fresh controller deployment
+	// reconciles every project immediately rather than waiting for the next
+	// CR update or resync period.
+	for _, obj := range c.informer.GetStore().List() {
+		c.enqueue(obj)
+	}
+	klog.Infof("Enqueued %d existing ProjectEnvironments for reconciliation", len(c.informer.GetStore().List()))
+
 	for i := 0; i < workers; i++ {
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
 	}

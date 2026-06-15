@@ -169,7 +169,7 @@ jobs:
           import os
           ver = os.environ['VERSION']
           content = f'package main\n\n// Version is set at release time by the CI pipeline.\nconst Version = "{ver}"\n'
-          open('apps/project-controller/version.go', 'w').write(content)
+          open('apps/project-controller/cmd/version.go', 'w').write(content)
           PYEOF
 
           python3 - << 'PYEOF'
@@ -236,7 +236,7 @@ jobs:
           echo "package.json:                     $(node -p "require('./apps/web/package.json').version")"
           echo "agent/Cargo.toml:                 $(grep '^version' apps/agent/Cargo.toml | head -1)"
           echo "metrics-collector/Cargo.toml:     $(grep '^version' apps/metrics-collector/Cargo.toml | head -1)"
-          echo "controller/version.go:            $(grep Version apps/project-controller/version.go)"
+          echo "controller/version.go:            $(grep Version apps/project-controller/cmd/version.go)"
           echo "hubble-collector/version.go:      $(grep Version apps/hubble-collector/version.go)"
           echo "Chart.yaml:                       $(grep '^version:' charts/slipstream/Chart.yaml)"
 
@@ -256,7 +256,7 @@ jobs:
                   apps/agent/Cargo.lock \
                   apps/metrics-collector/Cargo.toml \
                   apps/metrics-collector/Cargo.lock \
-                  apps/project-controller/version.go \
+                  apps/project-controller/cmd/version.go \
                   apps/hubble-collector/version.go \
                   charts/slipstream/Chart.yaml
 
