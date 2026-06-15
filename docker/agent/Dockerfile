@@ -52,7 +52,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN groupadd -g 1000 agent && useradd -u 1000 -g agent -s /bin/bash -m agent
 # /home/agent is a PVC mount at runtime — put shell config in /etc/profile.d
 # so it is sourced by interactive bash regardless of the home volume contents.
-RUN printf 'force_color_prompt=yes\nalias ls="ls --color=auto"\nalias grep="grep --color=auto"\nalias ll="ls -lah --color=auto"\n__osc7() { printf "\033]7;file://%s%s\007" "$HOSTNAME" "$PWD"; }\n__set_title() { printf "\033]2;%s: %s\007" "${USER:-agent}" "$PWD"; }\ntrap '"'"'printf "\033]2;%s\007" "$BASH_COMMAND"'"'"' DEBUG\nPROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}__osc7;__set_title"\n' > /etc/profile.d/slipstream.sh
+RUN printf '%s\n' \
+    'force_color_prompt=yes' \
+    'alias ls="ls --color=auto"' \
+    'alias grep="grep --color=auto"' \
+    'alias ll="ls -lah --color=auto"' \
+    '__osc7() { printf "\033]7;file://%s%s\007" "$HOSTNAME" "$PWD"; }' \
+    '__set_title() { printf "\033]2;%s\007" "${PWD/#$HOME/\~}"; }' \
+    '__ps=0' \
+    'trap '\''(( __ps == 0 )) && printf "\033]2;%s\007" "$BASH_COMMAND"'\'' DEBUG' \
+    'PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}__ps=1;__osc7;__set_title;__ps=0"' \
+    > /etc/profile.d/slipstream.sh
 RUN mkdir -p /workspace && chown agent:agent /workspace
 USER 1000
 WORKDIR /workspace
