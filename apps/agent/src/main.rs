@@ -36,6 +36,7 @@ pub struct AppState {
     pub jwks: Arc<JwksCache>,
     pub sessions: Arc<SessionStore>,
     pub idle: Arc<IdleTracker>,
+    pub disk_cache: metrics::DiskUsageCache,
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +85,7 @@ async fn main() -> anyhow::Result<()> {
         jwks: jwks.clone(),
         sessions,
         idle,
+        disk_cache: metrics::DiskUsageCache::new(),
     });
 
     // 4a. Restore persistent processes from the previous run.

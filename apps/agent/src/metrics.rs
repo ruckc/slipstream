@@ -1,11 +1,54 @@
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use axum::{extract::State, http::StatusCode, response::Response};
 use tokio::process::Command;
+use tokio::sync::Mutex;
 use tracing::warn;
 
 use crate::AppState;
+
+/// How long a computed disk-usage value is served before recomputing.
+const DISK_USAGE_TTL: Duration = Duration::from_secs(120);
+/// A `du` walk slower than this is logged so silent CPU spikes become visible.
+const SLOW_DU_THRESHOLD: Duration = Duration::from_secs(5);
+
+/// Caches `du` results per path so a full-tree walk runs at most once per TTL,
+/// regardless of how many scrapers hit `/metrics` or how often. The lock is
+/// held across the (slow) walk so concurrent scrapes coalesce into one walk
+/// instead of stacking up and pegging the CPU.
+#[derive(Default)]
+pub struct DiskUsageCache {
+    inner: Mutex<HashMap<PathBuf, (Instant, u64)>>,
+}
+
+impl DiskUsageCache {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    async fn bytes(&self, path: &Path) -> anyhow::Result<u64> {
+        let mut guard = self.inner.lock().await;
+        if let Some((at, val)) = guard.get(path) {
+            if at.elapsed() < DISK_USAGE_TTL {
+                return Ok(*val);
+            }
+        }
+        match read_disk_bytes(path).await {
+            Ok(bytes) => {
+                guard.insert(path.to_path_buf(), (Instant::now(), bytes));
+                Ok(bytes)
+            }
+            // Serve the last known value (if any) rather than failing the scrape.
+            Err(e) => match guard.get(path) {
+                Some((_, val)) => Ok(*val),
+                None => Err(e),
+            },
+        }
+    }
+}
 
 pub async fn metrics_handler(
     State(state): State<Arc<AppState>>,
@@ -54,12 +97,12 @@ pub async fn metrics_handler(
         Err(e) => warn!("metrics: memory read error: {e}"),
     }
 
-    match read_disk_bytes(&state.config.workspace_path).await {
+    match state.disk_cache.bytes(&state.config.workspace_path).await {
         Ok(bytes) => out.push_str(&format!("slipstream_disk_bytes{label} {bytes}\n")),
         Err(e) => warn!("metrics: disk read error: {e}"),
     }
 
-    match read_disk_bytes(&state.config.home_path).await {
+    match state.disk_cache.bytes(&state.config.home_path).await {
         Ok(bytes) => out.push_str(&format!("slipstream_home_disk_bytes{label} {bytes}\n")),
         Err(e) => warn!("metrics: home disk read error: {e}"),
     }
@@ -107,10 +150,20 @@ fn read_memory_bytes() -> anyhow::Result<u64> {
 }
 
 async fn read_disk_bytes(workspace_path: &Path) -> anyhow::Result<u64> {
+    let started = Instant::now();
     let output = Command::new("du")
         .args(["-sb", workspace_path.to_str().unwrap_or("/workspace")])
         .output()
         .await?;
+    let elapsed = started.elapsed();
+    if elapsed >= SLOW_DU_THRESHOLD {
+        // Surfaces the otherwise-silent CPU cost of walking a large tree.
+        warn!(
+            path = %workspace_path.display(),
+            elapsed_ms = elapsed.as_millis() as u64,
+            "metrics: slow disk-usage walk"
+        );
+    }
     if !output.status.success() {
         anyhow::bail!("du exited with {}", output.status);
     }
