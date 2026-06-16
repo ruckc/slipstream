@@ -4,6 +4,7 @@
   import type { WorkspaceCtx } from './WorkspaceTypes.js'
   import { WORKSPACE_CTX } from './WorkspaceTypes.js'
   import type { NamespaceRegistryData } from '$lib/remote/registry.remote'
+  import Icon from '$lib/components/common/Icon.svelte'
 
   const ctx = getContext<WorkspaceCtx>(WORKSPACE_CTX)
 
@@ -52,59 +53,78 @@
 </script>
 
 <div class="registry-pane">
-  {#if loading}
-    <div class="registry-loading">Loading…</div>
-  {:else if loadError}
-    <div class="registry-error">{loadError}</div>
-  {:else if data && !data.enabled}
-    <div class="registry-empty">
-      <p class="registry-empty__title">Registry not configured</p>
-      <p class="registry-empty__sub">
-        No container registry is connected to this cluster. Contact your administrator.
-      </p>
-    </div>
-  {:else if data}
-    {#if data.repos.length === 0}
+  <div class="registry-toolbar">
+    <span class="registry-title">Container Registry</span>
+    <button class="toolbar-btn" onclick={load} title="Refresh" aria-label="Refresh">
+      <Icon name="refresh" size={14} />
+    </button>
+  </div>
+
+  <div class="registry-body">
+    {#if loading}
+      <div class="registry-empty">Loading…</div>
+    {:else if loadError}
+      <div class="registry-empty registry-empty--error">{loadError}</div>
+    {:else if data && !data.enabled}
       <div class="registry-empty">
-        <p class="registry-empty__title">No images pushed yet</p>
-        <p class="registry-empty__sub">Build and push your first image from the terminal:</p>
+        <p class="registry-empty__title">Registry not configured</p>
+        <p class="registry-empty__sub">
+          No container registry is connected to this cluster. Contact your administrator.
+        </p>
+      </div>
+    {:else if data}
+      {#if data.repos.length === 0}
+        <div class="registry-empty">
+          <p class="registry-empty__title">No images pushed yet</p>
+          <p class="registry-empty__sub">Build and push your first image from the terminal:</p>
+          <pre class="registry-cmd">{data.pushExample}</pre>
+        </div>
+      {:else}
+        <div class="registry-list">
+          {#each data.repos as repo (repo.repoName)}
+            <div class="repo-card">
+              <div class="repo-header">
+                <span class="repo-name">{repo.shortName}</span>
+                <span class="repo-meta">{formatSize(repo.totalSize)}</span>
+              </div>
+              <table class="artifact-table">
+                <thead>
+                  <tr>
+                    <th>Digest</th>
+                    <th>Tags</th>
+                    <th>Size</th>
+                    <th>Pushed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each repo.artifacts as artifact (artifact.digest)}
+                    <tr>
+                      <td class="cell-digest">{shortDigest(artifact.digest)}</td>
+                      <td class="cell-tags">
+                        {#each artifact.tags as tag (tag)}
+                          <span class="tag-badge">{tag}</span>
+                        {/each}
+                        {#if artifact.tags.length === 0}
+                          <span class="tag-badge tag-badge--untagged">untagged</span>
+                        {/if}
+                      </td>
+                      <td class="cell-size">{formatSize(artifact.size)}</td>
+                      <td class="cell-time">{formatTime(artifact.pushTime)}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/each}
+        </div>
+      {/if}
+
+      <div class="push-instructions">
+        <p class="push-instructions__label">Push an image</p>
         <pre class="registry-cmd">{data.pushExample}</pre>
       </div>
-    {:else}
-      <div class="registry-list">
-        {#each data.repos as repo (repo.repoName)}
-          <div class="repo-card">
-            <div class="repo-header">
-              <span class="repo-name">{repo.shortName}</span>
-              <span class="repo-size">{formatSize(repo.totalSize)}</span>
-            </div>
-            <div class="artifact-list">
-              {#each repo.artifacts as artifact (artifact.digest)}
-                <div class="artifact-row">
-                  <span class="artifact-digest">{shortDigest(artifact.digest)}</span>
-                  <span class="artifact-tags">
-                    {#each artifact.tags as tag (tag)}
-                      <span class="tag-badge">{tag}</span>
-                    {/each}
-                    {#if artifact.tags.length === 0}
-                      <span class="tag-badge tag-badge--untagged">untagged</span>
-                    {/if}
-                  </span>
-                  <span class="artifact-size">{formatSize(artifact.size)}</span>
-                  <span class="artifact-time">{formatTime(artifact.pushTime)}</span>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/each}
-      </div>
     {/if}
-
-    <div class="push-instructions">
-      <p class="push-instructions__label">Push an image</p>
-      <pre class="registry-cmd">{data.pushExample}</pre>
-    </div>
-  {/if}
+  </div>
 </div>
 
 <style>
@@ -112,30 +132,72 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    overflow-y: auto;
-    padding: var(--space-4);
-    gap: var(--space-4);
-    font-size: var(--font-size-sm);
+    background: var(--color-bg-base);
     color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    overflow: hidden;
   }
 
-  .registry-loading,
-  .registry-error {
-    padding: var(--space-6);
-    text-align: center;
+  /* ── Toolbar ── matches .processes-toolbar */
+  .registry-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+
+  .registry-title {
+    flex: 1;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
     color: var(--color-text-muted);
   }
 
-  .registry-error {
-    color: var(--color-danger, #d93025);
+  .toolbar-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+  }
+  .toolbar-btn:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
   }
 
+  /* ── Scrollable body ── matches .processes-body */
+  .registry-body {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  /* ── Empty / error states ── matches .processes-empty */
   .registry-empty {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-2);
-    padding: var(--space-4);
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    flex: 1;
+    padding: var(--space-8);
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+  .registry-empty--error {
+    color: var(--color-danger);
   }
 
   .registry-empty__title {
@@ -149,19 +211,23 @@
     color: var(--color-text-muted);
   }
 
+  /* ── Command block ── */
   .registry-cmd {
     margin: 0;
     padding: var(--space-3) var(--space-4);
-    background: var(--color-bg-muted, #f1f3f4);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
     font-size: var(--font-size-xs);
     white-space: pre-wrap;
     word-break: break-all;
     color: var(--color-text-primary);
-    border: 1px solid var(--color-border);
+    width: 100%;
+    box-sizing: border-box;
   }
 
+  /* ── Repository list ── */
   .registry-list {
     display: flex;
     flex-direction: column;
@@ -180,46 +246,60 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--space-2) var(--space-3);
-    background: var(--color-bg-elevated, var(--color-bg-surface));
+    background: var(--color-bg-elevated);
     border-bottom: 1px solid var(--color-border);
-    font-weight: 600;
-    font-size: var(--font-size-xs);
   }
 
   .repo-name {
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-primary);
   }
 
-  .repo-size {
+  .repo-meta {
+    font-size: var(--font-size-xs);
     color: var(--color-text-muted);
-    font-weight: 400;
   }
 
-  .artifact-list {
-    display: flex;
-    flex-direction: column;
+  /* ── Artifact table ── matches .sessions-table */
+  .artifact-table {
+    width: 100%;
+    border-collapse: collapse;
   }
 
-  .artifact-row {
-    display: grid;
-    grid-template-columns: 100px 1fr auto auto;
-    gap: var(--space-3);
-    align-items: center;
+  .artifact-table th {
     padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+    text-align: left;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+  }
+
+  .artifact-table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+    vertical-align: middle;
     font-size: var(--font-size-xs);
   }
 
-  .artifact-row:last-child {
+  .artifact-table tbody tr:last-child td {
     border-bottom: none;
   }
 
-  .artifact-digest {
-    font-family: var(--font-mono, monospace);
-    color: var(--color-text-muted);
+  .artifact-table tbody tr:hover {
+    background: var(--color-bg-hover);
   }
 
-  .artifact-tags {
+  .cell-digest {
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+
+  .cell-tags {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-1);
@@ -229,27 +309,26 @@
     display: inline-block;
     padding: 1px 6px;
     border-radius: var(--radius-sm);
-    background: var(--color-accent-subtle, #e8f0fe);
-    color: var(--color-accent, #1a73e8);
+    background: var(--color-bg-selection);
+    color: var(--color-text-primary);
     font-size: var(--font-size-xs);
     font-weight: 500;
+    border: 1px solid var(--color-border);
   }
 
   .tag-badge--untagged {
-    background: var(--color-bg-muted, #f1f3f4);
+    background: var(--color-bg-elevated);
     color: var(--color-text-muted);
+    font-style: italic;
   }
 
-  .artifact-size {
-    color: var(--color-text-muted);
-    white-space: nowrap;
-  }
-
-  .artifact-time {
+  .cell-size,
+  .cell-time {
     color: var(--color-text-muted);
     white-space: nowrap;
   }
 
+  /* ── Push instructions footer ── */
   .push-instructions {
     padding: var(--space-3);
     border: 1px solid var(--color-border);
@@ -266,6 +345,6 @@
     font-weight: 600;
     color: var(--color-text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
   }
 </style>
