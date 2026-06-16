@@ -41,7 +41,7 @@ RUN --mount=type=secret,id=actions_cache_url \
 
 FROM debian:13.5-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    bash build-essential ca-certificates curl docker.io dnsutils git git-lfs gpg htop iproute2 lsof procps tini tmux \
+    bash build-essential ca-certificates curl dnsutils git git-lfs gpg htop iproute2 lsof procps tini tmux \
     && install -dm 755 /etc/apt/keyrings \
     && curl -fSs --retry 5 --retry-delay 2 https://mise.jdx.dev/gpg-key.pub | tee /etc/apt/keyrings/mise-archive-keyring.asc > /dev/null \
     && echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.asc] https://mise.jdx.dev/deb stable main" > /etc/apt/sources.list.d/mise.list \
@@ -50,8 +50,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
        | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg \
     && echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${KUBECTL_MINOR}/deb/ /" \
        > /etc/apt/sources.list.d/kubernetes.list \
+    # Docker CE apt repo — provides docker-ce-cli + the buildx plugin (not the
+    # Debian-packaged docker.io). The CLI talks to the moby/buildkit sidecar via
+    # DOCKER_HOST, so only the client + buildx plugin are needed (no daemon).
+    && curl -fsSL --retry 5 --retry-delay 2 https://download.docker.com/linux/debian/gpg \
+       | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+       > /etc/apt/sources.list.d/docker.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends kubectl mise \
+    && apt-get install -y --no-install-recommends kubectl mise docker-ce-cli docker-buildx-plugin \
     && rm -rf /var/lib/apt/lists/* \
     && mise activate bash > /etc/profile.d/mise.sh
 RUN groupadd -g 1000 agent && useradd -u 1000 -g agent -s /bin/bash -m agent
