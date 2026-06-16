@@ -205,6 +205,20 @@
         role="menuitem"
         onclick={(e) => {
           e.stopPropagation()
+          ctx.openRegistry()
+          menuOpen = false
+        }}
+      >
+        <Icon name="box" size={14} />
+        <span>Registry</span>
+      </button>
+
+      <button
+        class="dropdown-item"
+        type="button"
+        role="menuitem"
+        onclick={(e) => {
+          e.stopPropagation()
           ctx.openPodLogs()
           menuOpen = false
         }}

@@ -1,0 +1,23 @@
+[package]
+name = "slipstream-harbor-collector"
+version = "0.50.0"
+edition = "2021"
+
+[[bin]]
+name = "harbor-collector"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.8", features = ["macros"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "json"] }
+rustls = { version = "0.23", features = ["ring"] }
+sqlx = { version = "0.9.0", features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid", "chrono"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+base64 = "0.22"

@@ -70,6 +70,11 @@ func (in *ProjectEnvironmentSpec) DeepCopyInto(out *ProjectEnvironmentSpec) {
 		*out = new(RegistryAuthSpec)
 		**out = **in
 	}
+	if in.RegistryPullAuth != nil {
+		in, out := &in.RegistryPullAuth, &out.RegistryPullAuth
+		*out = new(RegistryAuthSpec)
+		**out = **in
+	}
 }
 
 func (in *RegistryAuthSpec) DeepCopyInto(out *RegistryAuthSpec) {

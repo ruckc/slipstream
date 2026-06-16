@@ -206,6 +206,17 @@ jobs:
           PYEOF
 
           python3 - << 'PYEOF'
+          import tomlkit, os
+          path = 'apps/harbor-collector/Cargo.toml'
+          ver  = os.environ['VERSION']
+          with open(path) as f:
+              doc = tomlkit.load(f)
+          doc['package']['version'] = ver
+          with open(path, 'w') as f:
+              f.write(tomlkit.dumps(doc))
+          PYEOF
+
+          python3 - << 'PYEOF'
           import re, os
           ver  = os.environ['VERSION']
           path = 'apps/metrics-collector/Cargo.lock'
@@ -236,6 +247,7 @@ jobs:
           echo "package.json:                     $(node -p "require('./apps/web/package.json').version")"
           echo "agent/Cargo.toml:                 $(grep '^version' apps/agent/Cargo.toml | head -1)"
           echo "metrics-collector/Cargo.toml:     $(grep '^version' apps/metrics-collector/Cargo.toml | head -1)"
+          echo "harbor-collector/Cargo.toml:      $(grep '^version' apps/harbor-collector/Cargo.toml | head -1)"
           echo "controller/version.go:            $(grep Version apps/project-controller/cmd/version.go)"
           echo "hubble-collector/version.go:      $(grep Version apps/hubble-collector/version.go)"
           echo "Chart.yaml:                       $(grep '^version:' charts/slipstream/Chart.yaml)"
@@ -256,6 +268,7 @@ jobs:
                   apps/agent/Cargo.lock \
                   apps/metrics-collector/Cargo.toml \
                   apps/metrics-collector/Cargo.lock \
+                  apps/harbor-collector/Cargo.toml \
                   apps/project-controller/cmd/version.go \
                   apps/hubble-collector/version.go \
                   charts/slipstream/Chart.yaml
@@ -286,6 +299,9 @@ jobs:
           - name: metrics-collector
             dockerfile: docker/metrics-collector/Dockerfile
             platforms: linux/amd64
+          - name: harbor-collector
+            dockerfile: docker/harbor-collector/Dockerfile
+            platforms: linux/amd64
           - name: project-controller
             dockerfile: docker/project-controller/Dockerfile
             platforms: linux/amd64
@@ -300,7 +316,7 @@ jobs:
       - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       - name: Set up sccache
-        if: matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector'
+        if: matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector' || matrix.image.name == 'harbor-collector'
         uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
 
       - name: Log in to GHCR
@@ -335,8 +351,8 @@ jobs:
             type=gha,scope=release-${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=release-${{ matrix.image.name }}
           secrets: |
-            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector') && format('actions_cache_url={0}', env.ACTIONS_CACHE_URL) || '' }}
-            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector') && format('actions_runtime_token={0}', env.ACTIONS_RUNTIME_TOKEN) || '' }}
+            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector' || matrix.image.name == 'harbor-collector') && format('actions_cache_url={0}', env.ACTIONS_CACHE_URL) || '' }}
+            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector' || matrix.image.name == 'harbor-collector') && format('actions_runtime_token={0}', env.ACTIONS_RUNTIME_TOKEN) || '' }}
 
       - name: Install cosign
         uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
@@ -372,6 +388,8 @@ jobs:
             dockerfile: docker/agent/Dockerfile
           - name: metrics-collector
             dockerfile: docker/metrics-collector/Dockerfile
+          - name: harbor-collector
+            dockerfile: docker/harbor-collector/Dockerfile
           - name: project-controller
             dockerfile: docker/project-controller/Dockerfile
           - name: hubble-collector
@@ -382,7 +400,7 @@ jobs:
       - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       - name: Set up sccache
-        if: matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector'
+        if: matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector' || matrix.image.name == 'harbor-collector'
         uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
 
       - name: Build (no push)
@@ -397,8 +415,8 @@ jobs:
             type=gha,scope=release-${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=main-${{ matrix.image.name }}
           secrets: |
-            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector') && format('actions_cache_url={0}', env.ACTIONS_CACHE_URL) || '' }}
-            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector') && format('actions_runtime_token={0}', env.ACTIONS_RUNTIME_TOKEN) || '' }}
+            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector' || matrix.image.name == 'harbor-collector') && format('actions_cache_url={0}', env.ACTIONS_CACHE_URL) || '' }}
+            ${{ (matrix.image.name == 'agent' || matrix.image.name == 'metrics-collector' || matrix.image.name == 'harbor-collector') && format('actions_runtime_token={0}', env.ACTIONS_RUNTIME_TOKEN) || '' }}
 
   # ── Kind integration test: schema validation against live API server ────────
   # Runs in parallel with build against the staging commit. Both must pass
@@ -543,6 +561,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/slipstream-web:${{ needs.version.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/slipstream-agent:${{ needs.version.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/slipstream-metrics-collector:${{ needs.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/slipstream-harbor-collector:${{ needs.version.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/slipstream-project-controller:${{ needs.version.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/slipstream-hubble-collector:${{ needs.version.outputs.version }}
             ```

@@ -240,6 +240,16 @@
           <Icon name="info" size={13} />
         </button>
       </Tooltip>
+      <Tooltip text="Registry" position="bottom" delay={300}>
+        <button
+          class="tab-action-btn"
+          type="button"
+          aria-label="Registry"
+          onclick={() => ctx.openRegistry()}
+        >
+          <Icon name="box" size={13} />
+        </button>
+      </Tooltip>
     </div>
   </div>
 

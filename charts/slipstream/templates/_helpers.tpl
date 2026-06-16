@@ -76,6 +76,13 @@ Full image reference for the hubble-collector container.
 {{- end }}
 
 {{/*
+Full image reference for the harbor-collector container.
+*/}}
+{{- define "slipstream.harborCollectorImage" -}}
+{{- printf "%s:%s" .Values.image.harborCollector.repository (.Values.image.harborCollector.tag | default .Chart.AppVersion) }}
+{{- end }}
+
+{{/*
 Public app URL — used for APP_URL and SvelteKit ORIGIN.
 Derived from gateway.hostname when web.appUrl is not set.
 */}}

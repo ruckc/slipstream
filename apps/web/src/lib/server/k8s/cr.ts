@@ -43,6 +43,7 @@ export interface ProjectEnvironmentSpec {
   kubeDeployAccess: boolean
   storageGB: number
   registryAuth?: RegistryAuthSpec
+  registryPullAuth?: RegistryAuthSpec
 }
 
 export interface ProjectEnvironmentStatus {

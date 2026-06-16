@@ -290,6 +290,8 @@ export const namespaceRegistry = pgTable('namespace_registry', {
   harborProject: text('harbor_project').notNull(), // = namespace slug
   robotName: text('robot_name').notNull(), // full Harbor robot login, e.g. robot$alpha+slipstream
   robotSecret: text('robot_secret').notNull(),
+  pullRobotName: text('pull_robot_name'), // pull-only robot for workspace namespace
+  pullRobotSecret: text('pull_robot_secret'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })

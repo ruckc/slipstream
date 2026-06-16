@@ -236,6 +236,25 @@
     activeGroupId = target.id
   }
 
+  export function openRegistry() {
+    const target = getTargetGroup()
+    const existing = groups.flatMap((g) => g.panes).find((p) => p.kind === 'registry')
+    if (existing) {
+      for (const g of groups) {
+        if (g.panes.some((p) => p.id === existing.id)) {
+          g.activeId = existing.id
+          activeGroupId = g.id
+        }
+      }
+      return
+    }
+    const id: string = crypto.randomUUID()
+    const pane = { kind: 'registry' as const, id, label: 'Registry' }
+    target.panes = [...target.panes, pane]
+    target.activeId = id
+    activeGroupId = target.id
+  }
+
   function openTmuxAttach(sessionId: string, tmuxName: string) {
     const target = getTargetGroup()
     const id: string = crypto.randomUUID()
@@ -453,6 +472,7 @@
     openPodLogs,
     openPodDescribe,
     openProcesses,
+    openRegistry,
     openTmuxAttach,
     registerTerminalActions: (paneId, actions) => terminalActionsMap.set(paneId, actions),
     unregisterTerminalActions: (paneId) => terminalActionsMap.delete(paneId),

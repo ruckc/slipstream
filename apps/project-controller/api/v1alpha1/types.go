@@ -66,10 +66,15 @@ type ProjectEnvironmentSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	StorageGB int `json:"storageGB,omitempty"`
 
-	// RegistryAuth holds the namespace's Harbor robot credentials. When set,
+	// RegistryAuth holds the namespace's Harbor push+pull robot credentials. When set,
 	// the controller materializes a dockerconfigjson Secret in the project
 	// namespace so in-pod builds can push/pull without an interactive login.
 	RegistryAuth *RegistryAuthSpec `json:"registryAuth,omitempty"`
+
+	// RegistryPullAuth holds pull-only Harbor robot credentials for the workspace
+	// namespace. When set, the controller materializes a dockerconfigjson Secret
+	// in workspace-{projectId} so user workloads can pull images without push access.
+	RegistryPullAuth *RegistryAuthSpec `json:"registryPullAuth,omitempty"`
 }
 
 type RegistryAuthSpec struct {

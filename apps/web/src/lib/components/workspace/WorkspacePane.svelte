@@ -7,6 +7,7 @@
   import PodLogsPane from './PodLogsPane.svelte'
   import PodDescribePane from './PodDescribePane.svelte'
   import ProcessesPane from './ProcessesPane.svelte'
+  import RegistryPane from './RegistryPane.svelte'
 
   let { pane, active }: { pane: PaneData; active: boolean } = $props()
 
@@ -35,6 +36,8 @@
     <PodDescribePane {pane} onRefresh={() => ctx.refreshPodDescribe(pane.id)} />
   {:else if pane.kind === 'processes'}
     <ProcessesPane />
+  {:else if pane.kind === 'registry'}
+    <RegistryPane />
   {/if}
 </div>
 

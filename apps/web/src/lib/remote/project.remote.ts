@@ -129,12 +129,15 @@ export const createProject = command(
       resolveEgressPolicy(ns.id, project.id),
     ])
 
-    // Provision the namespace's Harbor project + robot (idempotent). Best
+    // Provision the namespace's Harbor project + both robots (idempotent). Best
     // effort: if the registry isn't configured or Harbor is unreachable, the
     // project is still created — it just won't have registry credentials.
     let registryAuth
+    let registryPullAuth
     try {
-      registryAuth = (await provisionNamespaceRegistry(ns.id, ns.slug)) ?? undefined
+      const registryResult = (await provisionNamespaceRegistry(ns.id, ns.slug)) ?? undefined
+      registryAuth = registryResult?.pushPull
+      registryPullAuth = registryResult?.pullOnly
     } catch (e) {
       await logServerError((e as Error).message, {
         route: 'createProject/registry',
@@ -156,6 +159,7 @@ export const createProject = command(
         kubeDeployAccess: false,
         storageGB: storageSizeGb,
         registryAuth,
+        registryPullAuth,
       })
     } catch (e) {
       await db.delete(projects).where(eq(projects.id, project.id))

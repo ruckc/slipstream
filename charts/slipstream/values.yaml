@@ -24,6 +24,11 @@ image:
     tag: "" # defaults to chart appVersion
     pullPolicy: IfNotPresent
 
+  harborCollector:
+    repository: ghcr.io/ruckc/slipstream-harbor-collector
+    tag: "" # defaults to chart appVersion
+    pullPolicy: IfNotPresent
+
 hubbleCollector:
   # Address of the Hubble Relay gRPC endpoint.
   hubbleRelayAddress: "hubble-relay.kube-system.svc.cluster.local:4245"
@@ -163,6 +168,16 @@ registry:
   insecure: false
   adminUsername: admin
   adminPassword: "" # required when enabled; stored in the web Secret
+
+harborCollector:
+  enabled: true
+  scrapeIntervalSeconds: 300
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
 
 metricsCollector:
   replicas: 1

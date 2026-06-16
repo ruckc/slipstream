@@ -56,15 +56,21 @@ func ciliumPolicyName(pe *v1alpha1.ProjectEnvironment) string {
 // from spec.registryAuth and the pod mounts at /etc/registry-auth.
 const registrySecretName = "slipstream-registry-auth"
 
+// registryPullSecretName is the pull-only dockerconfigjson Secret materialized
+// in the workspace namespace from spec.registryPullAuth.
+const registryPullSecretName = "slipstream-registry-pull-auth"
+
+func buildDockerConfigJSON(auth *v1alpha1.RegistryAuthSpec) []byte {
+	token := base64.StdEncoding.EncodeToString([]byte(auth.Username + ":" + auth.Password))
+	return []byte(fmt.Sprintf(
+		`{"auths":{%q:{"username":%q,"password":%q,"auth":%q}}}`,
+		auth.Server, auth.Username, auth.Password, token,
+	))
+}
+
 // buildRegistrySecret renders the namespace robot credentials as a
 // kubernetes.io/dockerconfigjson Secret in the project namespace.
 func buildRegistrySecret(pe *v1alpha1.ProjectEnvironment) *corev1.Secret {
-	auth := pe.Spec.RegistryAuth
-	token := base64.StdEncoding.EncodeToString([]byte(auth.Username + ":" + auth.Password))
-	dockercfg := fmt.Sprintf(
-		`{"auths":{%q:{"username":%q,"password":%q,"auth":%q}}}`,
-		auth.Server, auth.Username, auth.Password, token,
-	)
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      registrySecretName,
@@ -73,7 +79,23 @@ func buildRegistrySecret(pe *v1alpha1.ProjectEnvironment) *corev1.Secret {
 		},
 		Type: corev1.SecretTypeDockerConfigJson,
 		Data: map[string][]byte{
-			corev1.DockerConfigJsonKey: []byte(dockercfg),
+			corev1.DockerConfigJsonKey: buildDockerConfigJSON(pe.Spec.RegistryAuth),
+		},
+	}
+}
+
+// buildRegistryPullSecret renders the pull-only robot credentials as a
+// kubernetes.io/dockerconfigjson Secret in the workspace namespace.
+func buildRegistryPullSecret(pe *v1alpha1.ProjectEnvironment) *corev1.Secret {
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      registryPullSecretName,
+			Namespace: workspaceNamespace(pe),
+			Labels:    projectLabels(pe),
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: buildDockerConfigJSON(pe.Spec.RegistryPullAuth),
 		},
 	}
 }

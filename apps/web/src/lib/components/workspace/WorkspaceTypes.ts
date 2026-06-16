@@ -37,12 +37,19 @@ export type ProcessesPaneData = {
   label: string
 }
 
+export type RegistryPaneData = {
+  kind: 'registry'
+  id: string
+  label: string
+}
+
 export type PaneData =
   | FilePaneData
   | TerminalPaneData
   | PodLogsPaneData
   | PodDescribePaneData
   | ProcessesPaneData
+  | RegistryPaneData
 
 export interface Group {
   id: string
@@ -79,6 +86,7 @@ export interface WorkspaceCtx {
   openPodLogs(): void
   openPodDescribe(): void
   openProcesses(): void
+  openRegistry(): void
   openTmuxAttach(sessionId: string, tmuxName: string): void
   registerTerminalActions(paneId: string, actions: TerminalActions): void
   unregisterTerminalActions(paneId: string): void

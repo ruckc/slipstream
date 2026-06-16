@@ -1,0 +1,48 @@
+{{- if and .Values.registry.enabled .Values.harborCollector.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slipstream-harbor-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+    app.kubernetes.io/component: harbor-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: slipstream-harbor-collector
+  template:
+    metadata:
+      annotations:
+        helm.sh/revision: {{ .Release.Revision | quote }}
+      labels:
+        app: slipstream-harbor-collector
+        {{- include "slipstream.labels" . | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: harbor-collector
+          image: {{ include "slipstream.harborCollectorImage" . }}
+          imagePullPolicy: {{ .Values.image.harborCollector.pullPolicy }}
+          env:
+            - name: SCRAPE_INTERVAL_SECONDS
+              value: {{ .Values.harborCollector.scrapeIntervalSeconds | quote }}
+            {{- include "slipstream.databaseEnv" . | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: slipstream-web-configmap
+            {{- if not .Values.database.pgopSecret.secretName }}
+            - secretRef:
+                name: {{ include "slipstream.secretName" . }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.harborCollector.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+{{- end }}
