@@ -46,8 +46,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && install -dm 755 /etc/apt/keyrings \
     && curl -fSs https://mise.en.dev/gpg-key.pub | tee /etc/apt/keyrings/mise-archive-keyring.asc > /dev/null \
     && echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.asc] https://mise.en.dev/deb stable main" > /etc/apt/sources.list.d/mise.list \
+    && KUBECTL_MINOR=$(curl -fsSL https://dl.k8s.io/release/stable.txt | grep -oP 'v\d+\.\d+') \
+    && curl -fsSL "https://pkgs.k8s.io/core:/stable:/${KUBECTL_MINOR}/deb/Release.key" \
+       | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${KUBECTL_MINOR}/deb/ /" \
+       > /etc/apt/sources.list.d/kubernetes.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends mise \
+    && apt-get install -y --no-install-recommends kubectl mise \
     && rm -rf /var/lib/apt/lists/* \
     && mise activate bash > /etc/profile.d/mise.sh
 RUN groupadd -g 1000 agent && useradd -u 1000 -g agent -s /bin/bash -m agent
