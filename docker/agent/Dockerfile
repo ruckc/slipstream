@@ -93,6 +93,13 @@ ENV BUILDAH_ISOLATION=chroot \
 # generate a per-user registries.conf marking the registry insecure so
 # buildah push/pull works without --tls-verify. No-op when secure (prod TLS).
 RUN printf '%s\n' \
+    'if [ -n "${WORKSPACE_NAMESPACE:-}" ] && [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then' \
+    '  mkdir -p "$HOME/.kube"' \
+    '  printf "apiVersion: v1\nkind: Config\nclusters:\n- name: in-cluster\n  cluster:\n    server: https://%s:%s\n    certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt\ncontexts:\n- name: default\n  context:\n    cluster: in-cluster\n    user: sa\n    namespace: %s\ncurrent-context: default\nusers:\n- name: sa\n  user:\n    tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token\n" \' \
+    '    "$KUBERNETES_SERVICE_HOST" "$KUBERNETES_SERVICE_PORT" "$WORKSPACE_NAMESPACE" > "$HOME/.kube/config"' \
+    'fi' \
+    > /etc/profile.d/kubectl.sh
+RUN printf '%s\n' \
     'if [ "${REGISTRY_INSECURE:-}" = "true" ] && [ -n "${REGISTRY_HOST:-}" ]; then' \
     '  mkdir -p "$HOME/.config/containers"' \
     '  printf "[[registry]]\nlocation = \"%s\"\ninsecure = true\n" "$REGISTRY_HOST" \' \
