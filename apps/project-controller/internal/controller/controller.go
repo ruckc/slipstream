@@ -471,7 +471,7 @@ func (c *Controller) ensureCiliumPolicy(ctx context.Context, pe *v1alpha1.Projec
 	ns := projectNamespace(pe)
 	name := ciliumPolicyName(pe)
 
-	desired := buildCiliumNetworkPolicy(pe)
+	desired := buildCiliumNetworkPolicy(pe, c.cfg)
 	existing, err := c.dynClient.Resource(ciliumPolicyGVR).Namespace(ns).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		// CRD not installed (e.g. dev cluster without Cilium) — skip gracefully.

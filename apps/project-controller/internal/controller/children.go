@@ -432,10 +432,33 @@ func buildHTTPRoute(pe *v1alpha1.ProjectEnvironment, cfg *Config) map[string]int
 // buildCiliumNetworkPolicy returns the unstructured map for a CiliumNetworkPolicy.
 // When egress filtering is disabled, allows all non-RFC1918 egress (internet access).
 // When egress filtering is enabled, restricts egress to the declared FQDN allow-rules.
-func buildCiliumNetworkPolicy(pe *v1alpha1.ProjectEnvironment) map[string]interface{} {
+// In both modes, kubeDeployAccess adds an explicit allow for the kube API server IP
+// so kubectl works even though it's in the RFC1918 block.
+func buildCiliumNetworkPolicy(pe *v1alpha1.ProjectEnvironment, cfg *Config) map[string]interface{} {
 	labels := projectLabels(pe)
 
 	var egressRules []interface{}
+
+	// Allow kube API server egress when kubeDeployAccess is enabled.
+	// This must be listed before any deny rules so Cilium's first-match wins.
+	if pe.Spec.KubeDeployAccess && cfg.KubeAPIServerHost != "" {
+		port := cfg.KubeAPIServerPort
+		if port == "" {
+			port = "443"
+		}
+		egressRules = append(egressRules, map[string]interface{}{
+			"toCIDRSet": []interface{}{
+				map[string]interface{}{"cidr": cfg.KubeAPIServerHost + "/32"},
+			},
+			"toPorts": []interface{}{
+				map[string]interface{}{
+					"ports": []interface{}{
+						map[string]interface{}{"port": port, "protocol": "TCP"},
+					},
+				},
+			},
+		})
+	}
 
 	if !pe.Spec.EgressPolicy.Enabled {
 		// Allow internet (non-RFC1918) egress while blocking private address space.
