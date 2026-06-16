@@ -68,6 +68,10 @@ rules:
   - apiGroups: [cilium.io]
     resources: [ciliumnetworkpolicies]
     verbs: [get, list, watch, create, update, patch, delete]
+  # pgop CRDs — controller must hold these to grant them to project Roles
+  - apiGroups: [pgop.ruck.io]
+    resources: [clusters, databases, roles, backups, backupruns]
+    verbs: [get, list, watch, create, update, patch, delete]
   # Lease for potential future leader election
   - apiGroups: [coordination.k8s.io]
     resources: [leases]

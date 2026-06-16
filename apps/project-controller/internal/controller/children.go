@@ -611,6 +611,11 @@ func buildProjectRole(pe *v1alpha1.ProjectEnvironment) *rbacv1.Role {
 				ResourceNames: []string{workspaceNamespace(pe)},
 				Verbs:         []string{"get"},
 			},
+			{
+				APIGroups: []string{"pgop.ruck.io"},
+				Resources: []string{"clusters", "databases", "roles", "backups", "backupruns"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
 		},
 	}
 }
