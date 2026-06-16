@@ -34,10 +34,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: slipstream-web-config
-            {{- if not .Values.database.pgopSecret.secretName }}
             - secretRef:
                 name: {{ include "slipstream.secretName" . }}
-            {{- end }}
           resources:
             {{- toYaml .Values.harborCollector.resources | nindent 12 }}
           securityContext:
