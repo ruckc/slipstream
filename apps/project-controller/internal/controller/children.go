@@ -222,17 +222,13 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 	}
 
 	// When the namespace has registry credentials, mount the dockerconfigjson
-	// Secret read-only (kaniko reads DOCKER_CONFIG) and provide a writable
-	// /kaniko emptyDir so the executor can unpack image layers during builds.
+	// Secret into both the agent and the buildkit sidecar, and wire up a shared
+	// Unix socket so `docker buildx build` in the agent connects to buildkitd.
 	if pe.Spec.RegistryAuth != nil {
 		containers[0].Env = append(containers[0].Env,
-			corev1.EnvVar{Name: "DOCKER_CONFIG", Value: "/etc/registry-auth"},
 			corev1.EnvVar{Name: "REGISTRY_HOST", Value: pe.Spec.RegistryAuth.Server},
 		)
-		if cfg.RegistryInsecure != "" {
-			containers[0].Env = append(containers[0].Env,
-				corev1.EnvVar{Name: "REGISTRY_INSECURE", Value: cfg.RegistryInsecure})
-		}
+		// Mount the registry auth secret and the buildkit socket dir into the agent.
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts,
 			corev1.VolumeMount{
 				Name:      "registry-auth",
@@ -240,10 +236,45 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 				ReadOnly:  true,
 			},
 			corev1.VolumeMount{
-				Name:      "kaniko",
-				MountPath: "/kaniko",
+				Name:      "buildkit",
+				MountPath: "/var/run/buildkit",
 			},
 		)
+
+		// buildkit sidecar: rootless BuildKit daemon. The agent image sets
+		// DOCKER_HOST=unix:///var/run/buildkit/buildkitd.sock so `docker buildx`
+		// talks to this sidecar without any additional configuration.
+		// The registry is always accessed via its public FQDN (e.g. harbor.ruck.io)
+		// which has a valid TLS certificate, so no insecure config is needed.
+		buildkitPrivileged := false
+		buildkitSidecar := corev1.Container{
+			Name:  "buildkit",
+			Image: cfg.BuildkitImage,
+			Args: []string{
+				"--addr", "unix:///var/run/buildkit/buildkitd.sock",
+				"--oci-worker-no-process-sandbox",
+			},
+			SecurityContext: &corev1.SecurityContext{
+				Privileged:               &buildkitPrivileged,
+				AllowPrivilegeEscalation: boolPtr(false),
+				SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeUnconfined},
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "buildkit", MountPath: "/var/run/buildkit"},
+				{Name: "registry-auth", MountPath: "/home/user/.docker", ReadOnly: true},
+			},
+			ReadinessProbe: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					Exec: &corev1.ExecAction{
+						Command: []string{"buildctl", "debug", "workers"},
+					},
+				},
+				InitialDelaySeconds: 5,
+				PeriodSeconds:       10,
+			},
+		}
+		containers = append(containers, buildkitSidecar)
+
 		volumes = append(volumes,
 			corev1.Volume{
 				Name: "registry-auth",
@@ -254,10 +285,7 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 					},
 				},
 			},
-			corev1.Volume{
-				Name:         "kaniko",
-				VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
-			},
+			corev1.Volume{Name: "buildkit", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		)
 	}
 

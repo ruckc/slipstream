@@ -16,4 +16,5 @@ data:
   {{- if .Values.registry.enabled }}
   HARBOR_NAMESPACE: {{ .Values.registry.namespace | quote }}
   REGISTRY_INSECURE: {{ .Values.registry.insecure | quote }}
+  BUILDKIT_IMAGE: {{ include "slipstream.buildkitImage" . | quote }}
   {{- end }}

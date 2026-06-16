@@ -48,6 +48,7 @@ func main() {
 
 	cfg := &controller.Config{
 		AgentImage:           requireEnv("AGENT_IMAGE"),
+		BuildkitImage:        getEnvOrDefault("BUILDKIT_IMAGE", "moby/buildkit:v0.20.2-rootless@sha256:cb5bb371545222c430528556acfdf424144b69897f5deaad391bd227187e90df"),
 		GatewayName:          requireEnv("GATEWAY_NAME"),
 		GatewayNamespace:     requireEnv("GATEWAY_NAMESPACE"),
 		GatewayHostname:      requireEnv("GATEWAY_HOSTNAME"),

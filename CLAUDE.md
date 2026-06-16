@@ -171,9 +171,7 @@ Each project pod has three volume mounts:
 Current `/etc/profile.d/` scripts in the agent image:
 - `/etc/profile.d/mise.sh` — activates mise for all bash login shells
 - `/etc/profile.d/slipstream.sh` — color prompt, ls/grep aliases, OSC 7 CWD reporting, terminal title updates
-- `/etc/profile.d/kaniko.sh` — when `REGISTRY_INSECURE=true`, exports `KANIKO_INSECURE_REGISTRY=$REGISTRY_HOST` so the executor skips TLS verification (dev)
-
-The agent image ships the **kaniko executor** (`/kaniko/executor`) for rootless image builds. Kaniko builds images by unpacking layers into snapshots and pushing directly to the registry — no user namespaces, no Linux capabilities, no privileged mode required. It works under the pod's locked-down securityContext (UID 1000, `readOnlyRootFilesystem`, `capabilities: drop: ALL`). The controller mounts a writable `/kaniko` emptyDir when a namespace has registry credentials, giving the executor scratch space for layer snapshots. Typical flow in a pod terminal: `/kaniko/executor --dockerfile=Dockerfile --context=dir:///workspace --destination=$REGISTRY_HOST/<namespace>/<project>/<img>:<tag>`.
+Container images are built inside project pods using the **Docker CLI** (`docker buildx build`) talking to a **moby/buildkit rootless sidecar** container. The sidecar runs BuildKit in rootless mode (`--oci-worker-no-process-sandbox`) and exposes a Unix socket at `/var/run/buildkit/buildkitd.sock`, shared with the agent container via an emptyDir volume. The agent image sets `DOCKER_HOST=unix:///var/run/buildkit/buildkitd.sock` so `docker buildx build --push` works without any daemon in the agent itself. The registry is always accessed via its public FQDN (`harbor.ruck.io`) which has a valid TLS certificate — no insecure configuration is needed. Typical flow in a pod terminal: `docker buildx build -t $REGISTRY_HOST/<namespace>/<project>/<img>:<tag> --push /workspace`.
 
 ### Egress policy
 
@@ -183,11 +181,11 @@ The **hubble-collector** (`apps/hubble-collector/`) connects to Cilium's Hubble 
 
 ### Container registry
 
-Users build container images inside their project pods using the **kaniko executor** and push them to a **Harbor** registry with **namespace-scoped isolation**: images pushed under namespace `alpha` can only be pulled by `alpha`.
+Users build container images inside their project pods using **`docker buildx build`** (Docker CLI + moby/buildkit rootless sidecar) and push them to a **Harbor** registry with **namespace-scoped isolation**: images pushed under namespace `alpha` can only be pulled by `alpha`.
 
 Each Slipstream namespace maps to one **private Harbor project** (named after the slug). The web app provisions the project plus a project-scoped **robot account** (push+pull) on first project creation in that namespace (`src/lib/server/registry/harbor.ts`), persisting the robot credentials in the `namespace_registry` DB table (Harbor only returns a robot secret once). Harbor itself enforces isolation — a namespace's robot can only access its own private project.
 
-Credential delivery to pods avoids granting the internet-facing web app any new cluster powers: the web app writes the robot credentials into the cluster-scoped `ProjectEnvironment` CR spec (`spec.registryAuth`), and the **project-controller** materializes them as a `kubernetes.io/dockerconfigjson` Secret (`slipstream-registry-auth`) in the project namespace, mounted read-only at `/etc/registry-auth` with `DOCKER_CONFIG` env so kaniko picks up credentials with no interactive login. The pod NetworkPolicy is extended with egress to the Harbor namespace. (Storing the robot secret in the cluster-scoped CR spec is an accepted v1 tradeoff; encryption-at-rest is a hardening follow-up.)
+Credential delivery to pods avoids granting the internet-facing web app any new cluster powers: the web app writes the robot credentials into the cluster-scoped `ProjectEnvironment` CR spec (`spec.registryAuth`), and the **project-controller** materializes them as a `kubernetes.io/dockerconfigjson` Secret (`slipstream-registry-auth`) in the project namespace, mounted read-only at `/etc/registry-auth` (and at `/home/user/.docker` in the buildkit sidecar) so both the Docker CLI and BuildKit pick up credentials without an interactive login. The pod NetworkPolicy is extended with egress to the Harbor namespace. (Storing the robot secret in the cluster-scoped CR spec is an accepted v1 tradeoff; encryption-at-rest is a hardening follow-up.)
 
 Registry support is **optional** — it activates only when `registry.enabled` is set in the Helm values (env `HARBOR_URL` + `REGISTRY_HOST` present). When unset, projects are created without registry credentials and everything else works unchanged.
 
@@ -275,9 +273,9 @@ Key variables the web app reads at runtime:
 | `HARBOR_URL` | no | Harbor API base URL; enables the registry integration when set (with `REGISTRY_HOST`) |
 | `HARBOR_ADMIN_USERNAME` / `HARBOR_ADMIN_PASSWORD` | no | Harbor admin creds for provisioning projects/robots (`_PASSWORD` is a Secret) |
 | `REGISTRY_HOST` | no | Registry host (host[:port]) used in image references and the pods' docker config |
-The Rust agent reads: `PORT`, `JWKS_URL` (required; must be http/https URL), `PROJECT_ID`, `WORKSPACE_PATH`, `HOME_PATH`, `IDLE_TIMEOUT_SECONDS`, `CORS_ORIGIN` (required — agent exits at startup if unset), `METRICS_TOKEN` (optional; if set, `/metrics` requires `Authorization: Bearer <token>`; if unset, `/metrics` returns 403). Registry-related env injected into pods by the controller (only when the namespace has registry credentials): `REGISTRY_AUTH_FILE`, `DOCKER_CONFIG`, `REGISTRY_HOST`, and `REGISTRY_INSECURE` (dev).
+The Rust agent reads: `PORT`, `JWKS_URL` (required; must be http/https URL), `PROJECT_ID`, `WORKSPACE_PATH`, `HOME_PATH`, `IDLE_TIMEOUT_SECONDS`, `CORS_ORIGIN` (required — agent exits at startup if unset), `METRICS_TOKEN` (optional; if set, `/metrics` requires `Authorization: Bearer <token>`; if unset, `/metrics` returns 403). Registry-related env injected into pods by the controller (only when the namespace has registry credentials): `REGISTRY_HOST`, `REGISTRY_INSECURE` (dev), and `DOCKER_HOST` (baked into image, points at buildkit sidecar socket).
 
-The project-controller additionally reads: `USAGE_REPORT_URL` (optional, for usage telemetry), `KUBECONFIG` (optional, falls back to in-cluster config), `HARBOR_NAMESPACE` (grants pods egress to Harbor), `REGISTRY_INSECURE` (`true` in dev so kaniko skips TLS verification).
+The project-controller additionally reads: `USAGE_REPORT_URL` (optional, for usage telemetry), `KUBECONFIG` (optional, falls back to in-cluster config), `HARBOR_NAMESPACE` (grants pods egress to Harbor), `REGISTRY_INSECURE` (`true` in dev so docker buildx treats REGISTRY_HOST as insecure), `BUILDKIT_IMAGE` (defaults to pinned moby/buildkit digest).
 
 The hubble-collector reads: `HUBBLE_RELAY_ADDRESS` (default: `hubble-relay.kube-system.svc.cluster.local:4245`; must be `host:port` format, no URL scheme), `DATABASE_URL`.
 

@@ -83,6 +83,18 @@ Full image reference for the harbor-collector container.
 {{- end }}
 
 {{/*
+Full image reference for the buildkit rootless sidecar injected into project pods.
+Pinned by default; overridable via image.buildkit.repository / image.buildkit.tag.
+*/}}
+{{- define "slipstream.buildkitImage" -}}
+{{- if .Values.image.buildkit.tag -}}
+{{- printf "%s:%s" .Values.image.buildkit.repository .Values.image.buildkit.tag }}
+{{- else -}}
+{{- printf "%s@%s" .Values.image.buildkit.repository .Values.image.buildkit.digest }}
+{{- end }}
+{{- end }}
+
+{{/*
 Public app URL — used for APP_URL and SvelteKit ORIGIN.
 Derived from gateway.hostname when web.appUrl is not set.
 */}}

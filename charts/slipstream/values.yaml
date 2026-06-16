@@ -29,6 +29,13 @@ image:
     tag: "" # defaults to chart appVersion
     pullPolicy: IfNotPresent
 
+  # Rootless BuildKit sidecar injected into project pods when registry is enabled.
+  # Pinned by digest; override tag to use a different version.
+  buildkit:
+    repository: moby/buildkit
+    tag: "" # when empty, digest is used instead
+    digest: "sha256:cb5bb371545222c430528556acfdf424144b69897f5deaad391bd227187e90df" # v0.20.2-rootless
+
 hubbleCollector:
   # Address of the Hubble Relay gRPC endpoint.
   hubbleRelayAddress: "hubble-relay.kube-system.svc.cluster.local:4245"
