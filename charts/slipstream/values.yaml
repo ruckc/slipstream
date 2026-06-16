@@ -41,7 +41,7 @@ image:
   # The tag MUST match the running Cilium version so the BPF map layout matches.
   cilium:
     repository: quay.io/cilium/cilium
-    tag: "v1.19.4"
+    tag: "v1.19.5"
 
 hubbleCollector:
   # Path to Cilium's Hubble static flow-log export file (per-node, under the
