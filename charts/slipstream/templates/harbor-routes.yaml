@@ -1,0 +1,73 @@
+{{- if and .Values.registry.enabled .Values.registry.hostname }}
+---
+# HTTP → HTTPS redirect for Harbor
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: slipstream-harbor-redirect
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      sectionName: {{ .Values.gateway.listeners.http }}
+  hostnames:
+    - {{ .Values.registry.hostname | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# HTTPS route for Harbor — forwards to harbor-core in the harbor namespace.
+# TLS is terminated by the gateway listener; traffic inside the cluster is plain HTTP.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: slipstream-harbor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      sectionName: {{ .Values.gateway.listeners.https }}
+  hostnames:
+    - {{ .Values.registry.hostname | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ .Values.registry.coreService }}
+          namespace: {{ .Values.registry.namespace }}
+          port: {{ .Values.registry.corePort }}
+---
+# ReferenceGrant allows the HTTPRoute in {{ .Release.Namespace }} to use
+# the harbor-core Service in {{ .Values.registry.namespace }} as a backend.
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: slipstream-harbor-route
+  namespace: {{ .Values.registry.namespace }}
+  labels:
+    {{- include "slipstream.labels" . | nindent 4 }}
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: {{ .Release.Namespace }}
+  to:
+    - group: ""
+      kind: Service
+      name: {{ .Values.registry.coreService }}
+{{- end }}

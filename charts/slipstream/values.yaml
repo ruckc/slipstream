@@ -168,6 +168,12 @@ registry:
   insecure: false
   adminUsername: admin
   adminPassword: "" # required when enabled; stored in the web Secret
+  # External hostname for the Harbor UI/API (e.g. harbor.example.com).
+  # When set, HTTPRoutes are created to expose Harbor through the Gateway.
+  hostname: ""
+  # In-cluster service name for the Harbor core component.
+  coreService: harbor-core
+  corePort: 80
 
 harborCollector:
   enabled: true
