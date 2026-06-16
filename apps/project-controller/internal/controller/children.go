@@ -20,6 +20,10 @@ func projectNamespace(pe *v1alpha1.ProjectEnvironment) string {
 	return "project-" + pe.Spec.ProjectID
 }
 
+func workspaceNamespace(pe *v1alpha1.ProjectEnvironment) string {
+	return "workspace-" + pe.Spec.ProjectID
+}
+
 func pvcName(pe *v1alpha1.ProjectEnvironment) string {
 	return "pvc-" + pe.Spec.ProjectID
 }
@@ -92,6 +96,19 @@ func buildNamespace(pe *v1alpha1.ProjectEnvironment) *corev1.Namespace {
 	return &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   projectNamespace(pe),
+			Labels: labels,
+		},
+	}
+}
+
+func buildWorkspaceNamespace(pe *v1alpha1.ProjectEnvironment) *corev1.Namespace {
+	labels := projectLabels(pe)
+	labels["slipstream.io/managed"] = "true"
+	labels["pod-security.kubernetes.io/enforce"] = "baseline"
+	labels["pod-security.kubernetes.io/enforce-version"] = "latest"
+	return &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   workspaceNamespace(pe),
 			Labels: labels,
 		},
 	}
@@ -220,6 +237,9 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 	serviceAccountName := ""
 	if pe.Spec.KubeDeployAccess {
 		serviceAccountName = projectSAName
+		containers[0].Env = append(containers[0].Env,
+			corev1.EnvVar{Name: "WORKSPACE_NAMESPACE", Value: workspaceNamespace(pe)},
+		)
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
 			Name:      "varrun",
 			MountPath: "/var/run",
@@ -536,25 +556,20 @@ func buildProjectRole(pe *v1alpha1.ProjectEnvironment) *rbacv1.Role {
 	return &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      projectRoleName,
-			Namespace: projectNamespace(pe),
+			Namespace: workspaceNamespace(pe),
 			Labels:    projectLabels(pe),
 		},
 		Rules: []rbacv1.PolicyRule{
-			// Deployments and StatefulSets — primary workload management.
 			{
 				APIGroups: []string{"apps"},
 				Resources: []string{"deployments", "statefulsets"},
 				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
 			},
-			// Pods — read + create/delete; no update/patch to prevent modifying the
-			// controller-managed agent pod's spec. Deletion is still possible but the
-			// Deployment controller will recreate the agent pod immediately.
 			{
 				APIGroups: []string{""},
 				Resources: []string{"pods"},
-				Verbs:     []string{"get", "list", "watch", "create", "delete"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
 			},
-			// Pod sub-resources: log (read-only) and exec (for kubectl exec into user pods).
 			{
 				APIGroups: []string{""},
 				Resources: []string{"pods/log"},
@@ -565,35 +580,35 @@ func buildProjectRole(pe *v1alpha1.ProjectEnvironment) *rbacv1.Role {
 				Resources: []string{"pods/exec"},
 				Verbs:     []string{"create"},
 			},
-			// Services — needed to expose user workloads.
 			{
 				APIGroups: []string{""},
 				Resources: []string{"services"},
 				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
 			},
-			// ConfigMaps — application configuration.
 			{
 				APIGroups: []string{""},
 				Resources: []string{"configmaps"},
 				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
 			},
-			// Jobs and CronJobs — run one-off and scheduled tasks.
+			{
+				APIGroups: []string{""},
+				Resources: []string{"secrets"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
 			{
 				APIGroups: []string{"batch"},
 				Resources: []string{"jobs", "cronjobs"},
 				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
 			},
-			// Events — read-only, useful for debugging workload failures.
 			{
 				APIGroups: []string{""},
 				Resources: []string{"events"},
 				Verbs:     []string{"get", "list", "watch"},
 			},
-			// Own namespace — read-only metadata access (labels, annotations, status).
 			{
 				APIGroups:     []string{""},
 				Resources:     []string{"namespaces"},
-				ResourceNames: []string{projectNamespace(pe)},
+				ResourceNames: []string{workspaceNamespace(pe)},
 				Verbs:         []string{"get"},
 			},
 		},
@@ -604,7 +619,7 @@ func buildProjectRoleBinding(pe *v1alpha1.ProjectEnvironment) *rbacv1.RoleBindin
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      projectRoleName,
-			Namespace: projectNamespace(pe),
+			Namespace: workspaceNamespace(pe),
 			Labels:    projectLabels(pe),
 		},
 		RoleRef: rbacv1.RoleRef{

@@ -346,14 +346,15 @@ func (c *Controller) ensureRegistrySecret(ctx context.Context, pe *v1alpha1.Proj
 // --- KubeDeployAccess (SA + Role + RoleBinding) ---
 
 func (c *Controller) ensureKubeDeployAccess(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
-	ns := projectNamespace(pe)
+	projectNS := projectNamespace(pe)
+	workspaceNS := workspaceNamespace(pe)
 
 	if !pe.Spec.KubeDeployAccess {
-		// Delete all three resources if they exist; ignore not-found.
 		errs := []error{
-			ignoreNotFound(c.kubeclient.CoreV1().ServiceAccounts(ns).Delete(ctx, projectSAName, metav1.DeleteOptions{})),
-			ignoreNotFound(c.kubeclient.RbacV1().Roles(ns).Delete(ctx, projectRoleName, metav1.DeleteOptions{})),
-			ignoreNotFound(c.kubeclient.RbacV1().RoleBindings(ns).Delete(ctx, projectRoleName, metav1.DeleteOptions{})),
+			ignoreNotFound(c.kubeclient.CoreV1().ServiceAccounts(projectNS).Delete(ctx, projectSAName, metav1.DeleteOptions{})),
+			ignoreNotFound(c.kubeclient.RbacV1().Roles(workspaceNS).Delete(ctx, projectRoleName, metav1.DeleteOptions{})),
+			ignoreNotFound(c.kubeclient.RbacV1().RoleBindings(workspaceNS).Delete(ctx, projectRoleName, metav1.DeleteOptions{})),
+			ignoreNotFound(c.kubeclient.CoreV1().Namespaces().Delete(ctx, workspaceNS, metav1.DeleteOptions{})),
 		}
 		for _, err := range errs {
 			if err != nil {
@@ -363,33 +364,47 @@ func (c *Controller) ensureKubeDeployAccess(ctx context.Context, pe *v1alpha1.Pr
 		return nil
 	}
 
-	// ServiceAccount
-	_, err := c.kubeclient.CoreV1().ServiceAccounts(ns).Get(ctx, projectSAName, metav1.GetOptions{})
+	// Workspace namespace — isolated from the agent pod namespace.
+	desiredWsNS := buildWorkspaceNamespace(pe)
+	existingWsNS, err := c.kubeclient.CoreV1().Namespaces().Get(ctx, workspaceNS, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		_, err = c.kubeclient.CoreV1().ServiceAccounts(ns).Create(ctx, buildProjectServiceAccount(pe), metav1.CreateOptions{})
+		_, err = c.kubeclient.CoreV1().Namespaces().Create(ctx, desiredWsNS, metav1.CreateOptions{})
+	} else if err == nil {
+		updated := existingWsNS.DeepCopy()
+		updated.Labels = desiredWsNS.Labels
+		_, err = c.kubeclient.CoreV1().Namespaces().Update(ctx, updated, metav1.UpdateOptions{})
+	}
+	if err != nil {
+		return fmt.Errorf("workspace namespace: %w", err)
+	}
+
+	// ServiceAccount lives in the project namespace (where the agent pod runs).
+	_, err = c.kubeclient.CoreV1().ServiceAccounts(projectNS).Get(ctx, projectSAName, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		_, err = c.kubeclient.CoreV1().ServiceAccounts(projectNS).Create(ctx, buildProjectServiceAccount(pe), metav1.CreateOptions{})
 	}
 	if err != nil {
 		return fmt.Errorf("service account: %w", err)
 	}
 
-	// Role
+	// Role in workspace namespace.
 	desiredRole := buildProjectRole(pe)
-	existingRole, err := c.kubeclient.RbacV1().Roles(ns).Get(ctx, projectRoleName, metav1.GetOptions{})
+	existingRole, err := c.kubeclient.RbacV1().Roles(workspaceNS).Get(ctx, projectRoleName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		_, err = c.kubeclient.RbacV1().Roles(ns).Create(ctx, desiredRole, metav1.CreateOptions{})
+		_, err = c.kubeclient.RbacV1().Roles(workspaceNS).Create(ctx, desiredRole, metav1.CreateOptions{})
 	} else if err == nil {
 		updated := existingRole.DeepCopy()
 		updated.Rules = desiredRole.Rules
-		_, err = c.kubeclient.RbacV1().Roles(ns).Update(ctx, updated, metav1.UpdateOptions{})
+		_, err = c.kubeclient.RbacV1().Roles(workspaceNS).Update(ctx, updated, metav1.UpdateOptions{})
 	}
 	if err != nil {
 		return fmt.Errorf("role: %w", err)
 	}
 
-	// RoleBinding
-	_, err = c.kubeclient.RbacV1().RoleBindings(ns).Get(ctx, projectRoleName, metav1.GetOptions{})
+	// RoleBinding in workspace namespace — binds the SA from the project namespace.
+	_, err = c.kubeclient.RbacV1().RoleBindings(workspaceNS).Get(ctx, projectRoleName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		_, err = c.kubeclient.RbacV1().RoleBindings(ns).Create(ctx, buildProjectRoleBinding(pe), metav1.CreateOptions{})
+		_, err = c.kubeclient.RbacV1().RoleBindings(workspaceNS).Create(ctx, buildProjectRoleBinding(pe), metav1.CreateOptions{})
 	}
 	if err != nil {
 		return fmt.Errorf("role binding: %w", err)
