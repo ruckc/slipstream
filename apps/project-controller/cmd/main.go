@@ -59,20 +59,26 @@ func main() {
 		RegistryInsecure:     os.Getenv("REGISTRY_INSECURE"),
 	}
 
-	// Resolve the Kubernetes API server ClusterIP from the well-known
-	// "kubernetes" Service in the default namespace so the NetworkPolicy
-	// egress rule is always correct regardless of cluster configuration.
-	if svc, err := kubeclient.CoreV1().Services("default").Get(context.Background(), "kubernetes", metav1.GetOptions{}); err != nil {
-		klog.Warningf("could not resolve kubernetes service ClusterIP: %v — kubeDeployAccess egress rule will be skipped", err)
+	// Resolve the actual Kubernetes API server endpoint IP and port from the
+	// "kubernetes" Endpoints in the default namespace. Cilium (in kube-proxy
+	// replacement mode) enforces egress policy on the post-DNAT destination, so
+	// we must allow the real server IP, not the ClusterIP virtual address.
+	if ep, err := kubeclient.CoreV1().Endpoints("default").Get(context.Background(), "kubernetes", metav1.GetOptions{}); err != nil {
+		klog.Warningf("could not resolve kubernetes endpoint: %v — kubeDeployAccess egress rule will be skipped", err)
 	} else {
-		cfg.KubeAPIServerHost = svc.Spec.ClusterIP
-		for _, port := range svc.Spec.Ports {
-			if port.Name == "https" || port.Port == 443 || port.Port == 6443 {
-				cfg.KubeAPIServerPort = fmt.Sprintf("%d", port.Port)
+		for _, subset := range ep.Subsets {
+			if len(subset.Addresses) > 0 {
+				cfg.KubeAPIServerHost = subset.Addresses[0].IP
+				for _, port := range subset.Ports {
+					if port.Name == "https" || port.Port == 443 || port.Port == 6443 {
+						cfg.KubeAPIServerPort = fmt.Sprintf("%d", port.Port)
+						break
+					}
+				}
 				break
 			}
 		}
-		klog.Infof("Kubernetes API server ClusterIP: %s:%s", cfg.KubeAPIServerHost, cfg.KubeAPIServerPort)
+		klog.Infof("Kubernetes API server endpoint: %s:%s", cfg.KubeAPIServerHost, cfg.KubeAPIServerPort)
 	}
 
 	ctrl := controller.New(cfg, kubeclient, dynClient)
