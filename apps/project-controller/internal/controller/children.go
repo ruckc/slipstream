@@ -440,16 +440,15 @@ func buildCiliumNetworkPolicy(pe *v1alpha1.ProjectEnvironment, cfg *Config) map[
 	var egressRules []interface{}
 
 	// Allow kube API server egress when kubeDeployAccess is enabled.
-	// This must be listed before any deny rules so Cilium's first-match wins.
-	if pe.Spec.KubeDeployAccess && cfg.KubeAPIServerHost != "" {
+	// The API server runs on the host network, so Cilium resolves it as the
+	// "host" entity rather than a CIDR identity. Use toEntities+toPorts.
+	if pe.Spec.KubeDeployAccess {
 		port := cfg.KubeAPIServerPort
 		if port == "" {
-			port = "443"
+			port = "6443"
 		}
 		egressRules = append(egressRules, map[string]interface{}{
-			"toCIDRSet": []interface{}{
-				map[string]interface{}{"cidr": cfg.KubeAPIServerHost + "/32"},
-			},
+			"toEntities": []interface{}{"host"},
 			"toPorts": []interface{}{
 				map[string]interface{}{
 					"ports": []interface{}{
