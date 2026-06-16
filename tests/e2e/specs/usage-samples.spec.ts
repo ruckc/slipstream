@@ -22,9 +22,11 @@ test.describe('usage_samples billing', () => {
   test('usage_samples appear in the admin billing report after a scrape cycle', async ({
     authedPage: page,
   }) => {
-    // The metrics-collector scrapes every 30 s. Wait 70 s to guarantee at least
-    // two full scrape cycles so rows exist in usage_samples for this project.
-    await page.waitForTimeout(70_000)
+    // The metrics-collector DaemonSet scrapes every 60 s (chart default). Wait
+    // 130 s to guarantee at least two full scrape cycles so rows exist in
+    // usage_samples for this project regardless of where the pod's creation
+    // falls relative to the collector's tick schedule.
+    await page.waitForTimeout(130_000)
 
     // The billing page auto-runs the report on load with a date range of
     // start-of-month to today, which covers the newly created project.
