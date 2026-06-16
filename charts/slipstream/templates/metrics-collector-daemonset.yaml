@@ -22,9 +22,32 @@ spec:
     spec:
       serviceAccountName: slipstream-metrics-collector
       automountServiceAccountToken: true
+      {{- if .Values.metricsCollector.egressAccounting.enabled }}
+      # Reading Cilium's pinned BPF policy maps requires root + CAP_BPF and a
+      # bind-mount of bpffs (mode 700, files owned by root). Scoped to this
+      # node-local collector only when egress accounting is enabled.
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+      initContainers:
+        # Copy the version-matched cilium-dbg binary out of the Cilium image so
+        # the collector reads policy maps with a CLI that matches the running
+        # agent's map layout (no struct coupling in our own code).
+        - name: copy-cilium-dbg
+          image: {{ include "slipstream.ciliumImage" . }}
+          command: ["sh", "-c", "cp /usr/bin/cilium-dbg /cilium-bin/cilium-dbg"]
+          volumeMounts:
+            - name: cilium-bin
+              mountPath: /cilium-bin
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      {{- else }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
+      {{- end }}
       containers:
         - name: metrics-collector
           image: {{ include "slipstream.metricsCollectorImage" . }}
@@ -45,6 +68,24 @@ spec:
                 secretKeyRef:
                   name: slipstream-web-secret
                   key: METRICS_TOKEN
+            {{- if .Values.metricsCollector.egressAccounting.enabled }}
+            - name: EGRESS_ACCOUNTING_ENABLED
+              value: "true"
+            - name: CILIUM_DBG_PATH
+              value: /cilium-bin/cilium-dbg
+            {{- end }}
+          volumeMounts:
+            {{- if .Values.metricsCollector.egressAccounting.enabled }}
+            - name: cilium-bin
+              mountPath: /cilium-bin
+              readOnly: true
+            - name: bpf-maps
+              mountPath: /sys/fs/bpf
+              readOnly: true
+            - name: cilium-run
+              mountPath: /var/run/cilium
+              readOnly: true
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /metrics
@@ -57,4 +98,22 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
+              {{- if .Values.metricsCollector.egressAccounting.enabled }}
               drop: ["ALL"]
+              add: ["BPF", "PERFMON"]
+              {{- else }}
+              drop: ["ALL"]
+              {{- end }}
+      volumes:
+        {{- if .Values.metricsCollector.egressAccounting.enabled }}
+        - name: cilium-bin
+          emptyDir: {}
+        - name: bpf-maps
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+        - name: cilium-run
+          hostPath:
+            path: /var/run/cilium
+            type: Directory
+        {{- end }}

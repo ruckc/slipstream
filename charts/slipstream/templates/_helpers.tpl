@@ -83,6 +83,14 @@ Full image reference for the harbor-collector container.
 {{- end }}
 
 {{/*
+Cilium image, used only as the source of the cilium-dbg binary for the
+metrics-collector's egress accounting. Tag must match the running Cilium.
+*/}}
+{{- define "slipstream.ciliumImage" -}}
+{{- printf "%s:%s" .Values.image.cilium.repository .Values.image.cilium.tag }}
+{{- end }}
+
+{{/*
 Full image reference for the buildkit rootless sidecar injected into project pods.
 Pinned by default; overridable via image.buildkit.repository / image.buildkit.tag.
 */}}

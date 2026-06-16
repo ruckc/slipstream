@@ -13,6 +13,10 @@ export type ProjectMetricsSnapshot = {
   disk: number
   ingress: number
   egress: number
+  externalEgress: number
+  internalEgress: number
+  externalIngress: number
+  internalIngress: number
 }
 
 // Map from usage_samples.metric → snapshot field
@@ -22,6 +26,10 @@ const SNAPSHOT_METRICS = [
   'disk_bytes',
   'ingress_bytes',
   'egress_bytes',
+  'external_egress_bytes',
+  'internal_egress_bytes',
+  'external_ingress_bytes',
+  'internal_ingress_bytes',
 ] as const
 type SnapshotMetric = (typeof SNAPSHOT_METRICS)[number]
 
@@ -48,7 +56,18 @@ export async function fetchMetricsForProjects(
 
   const result = new Map<string, ProjectMetricsSnapshot>()
   for (const id of projectIds) {
-    result.set(id, { projectId: id, cpu: 0, memory: 0, disk: 0, ingress: 0, egress: 0 })
+    result.set(id, {
+      projectId: id,
+      cpu: 0,
+      memory: 0,
+      disk: 0,
+      ingress: 0,
+      egress: 0,
+      externalEgress: 0,
+      internalEgress: 0,
+      externalIngress: 0,
+      internalIngress: 0,
+    })
   }
 
   for (const row of rows) {
@@ -71,6 +90,18 @@ export async function fetchMetricsForProjects(
       case 'egress_bytes':
         snap.egress = v
         break
+      case 'external_egress_bytes':
+        snap.externalEgress = v
+        break
+      case 'internal_egress_bytes':
+        snap.internalEgress = v
+        break
+      case 'external_ingress_bytes':
+        snap.externalIngress = v
+        break
+      case 'internal_ingress_bytes':
+        snap.internalIngress = v
+        break
     }
   }
 
@@ -84,6 +115,10 @@ const RANGE_METRIC_MAP: Record<string, SnapshotMetric> = {
   slipstream_disk_bytes: 'disk_bytes',
   slipstream_network_ingress_bytes_total: 'ingress_bytes',
   slipstream_network_egress_bytes_total: 'egress_bytes',
+  slipstream_external_egress_bytes_total: 'external_egress_bytes',
+  slipstream_internal_egress_bytes_total: 'internal_egress_bytes',
+  slipstream_external_ingress_bytes_total: 'external_ingress_bytes',
+  slipstream_internal_ingress_bytes_total: 'internal_ingress_bytes',
 }
 
 /**

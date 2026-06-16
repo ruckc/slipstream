@@ -19,6 +19,7 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use uuid::Uuid;
 
 mod cadvisor;
+mod cilium;
 mod k8s;
 mod scrape;
 mod store;
@@ -57,9 +58,20 @@ async fn main() -> Result<()> {
         .parse()
         .context("Invalid PORT")?;
 
+    // Cilium policy-map egress accounting (M2). When enabled, the collector
+    // reads per-project external/internal byte counters from the node-local
+    // Cilium agent's BPF policy maps via cilium-dbg.
+    let egress_cilium_dbg = if env::var("EGRESS_ACCOUNTING_ENABLED").as_deref() == Ok("true") {
+        Some(env::var("CILIUM_DBG_PATH").unwrap_or_else(|_| "cilium-dbg".to_string()))
+    } else {
+        None
+    };
+
     info!(
         node_name,
-        scrape_interval_secs, "metrics-collector starting (node-local DaemonSet)"
+        scrape_interval_secs,
+        egress_accounting = egress_cilium_dbg.is_some(),
+        "metrics-collector starting (node-local DaemonSet)"
     );
 
     let pool = PgPool::connect(&database_url)
@@ -85,6 +97,7 @@ async fn main() -> Result<()> {
         node_name,
         scrape_interval_secs,
         metrics_token,
+        egress_cilium_dbg,
         loop_state,
     ));
 
@@ -115,6 +128,7 @@ async fn shutdown_signal() {
 // Scrape loop — node-local, no sharding
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::too_many_arguments)]
 async fn scrape_loop(
     pool: PgPool,
     k8s_client: Client,
@@ -122,6 +136,7 @@ async fn scrape_loop(
     node_name: String,
     interval_secs: u64,
     metrics_token: String,
+    egress_cilium_dbg: Option<String>,
     state: Arc<CollectorState>,
 ) {
     let mut ticker = time::interval(Duration::from_secs(interval_secs));
@@ -197,6 +212,48 @@ async fn scrape_loop(
                 }
                 Ok(_) => {}
                 Err(e) => tracing::debug!("pvc capacity failed for {namespace}: {e}"),
+            }
+        }
+
+        // External/internal egress accounting from Cilium policy maps (M2).
+        if let Some(cilium_dbg) = &egress_cilium_dbg {
+            match cilium::read_egress_bytes(cilium_dbg).await {
+                Ok(by_project) => {
+                    for (project_id, b) in by_project {
+                        let Ok(project_uuid) = Uuid::parse_str(&project_id) else {
+                            continue;
+                        };
+                        push(
+                            &mut samples,
+                            project_uuid,
+                            "external_egress_bytes",
+                            b.external_egress,
+                            now,
+                        );
+                        push(
+                            &mut samples,
+                            project_uuid,
+                            "internal_egress_bytes",
+                            b.internal_egress,
+                            now,
+                        );
+                        push(
+                            &mut samples,
+                            project_uuid,
+                            "external_ingress_bytes",
+                            b.external_ingress,
+                            now,
+                        );
+                        push(
+                            &mut samples,
+                            project_uuid,
+                            "internal_ingress_bytes",
+                            b.internal_ingress,
+                            now,
+                        );
+                    }
+                }
+                Err(e) => warn!("egress accounting failed: {e}"),
             }
         }
 

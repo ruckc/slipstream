@@ -36,6 +36,13 @@ image:
     tag: "" # when empty, digest is used instead
     digest: "sha256:cb5bb371545222c430528556acfdf424144b69897f5deaad391bd227187e90df" # v0.20.2-rootless
 
+  # Cilium image used only as the source of the cilium-dbg binary for the
+  # metrics-collector when metricsCollector.egressAccounting.enabled is true.
+  # The tag MUST match the running Cilium version so the BPF map layout matches.
+  cilium:
+    repository: quay.io/cilium/cilium
+    tag: "v1.19.4"
+
 hubbleCollector:
   # Address of the Hubble Relay gRPC endpoint.
   hubbleRelayAddress: "hubble-relay.kube-system.svc.cluster.local:4245"
@@ -204,3 +211,9 @@ metricsCollector:
       memory: 64Mi
     limits:
       memory: 256Mi
+  # External/internal egress byte accounting read from Cilium's BPF policy maps
+  # (reserved:world identity = external egress, the billable number). Requires a
+  # Cilium CNI; when enabled the collector runs as root with CAP_BPF and mounts
+  # bpffs + the Cilium agent socket. Leave disabled on non-Cilium clusters.
+  egressAccounting:
+    enabled: false
