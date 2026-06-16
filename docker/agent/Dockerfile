@@ -45,10 +45,10 @@ FROM debian:13.5-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash build-essential ca-certificates curl dnsutils git git-lfs gpg htop iproute2 lsof procps tini tmux \
     && install -dm 755 /etc/apt/keyrings \
-    && curl -fSs https://mise.en.dev/gpg-key.pub | tee /etc/apt/keyrings/mise-archive-keyring.asc > /dev/null \
-    && echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.asc] https://mise.en.dev/deb stable main" > /etc/apt/sources.list.d/mise.list \
-    && KUBECTL_MINOR=$(curl -fsSL https://dl.k8s.io/release/stable.txt | grep -oP 'v\d+\.\d+') \
-    && curl -fsSL "https://pkgs.k8s.io/core:/stable:/${KUBECTL_MINOR}/deb/Release.key" \
+    && curl -fSs --retry 5 --retry-delay 2 https://mise.jdx.dev/gpg-key.pub | tee /etc/apt/keyrings/mise-archive-keyring.asc > /dev/null \
+    && echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.asc] https://mise.jdx.dev/deb stable main" > /etc/apt/sources.list.d/mise.list \
+    && KUBECTL_MINOR=$(curl -fsSL --retry 5 --retry-delay 2 https://dl.k8s.io/release/stable.txt | grep -oP 'v\d+\.\d+') \
+    && curl -fsSL --retry 5 --retry-delay 2 "https://pkgs.k8s.io/core:/stable:/${KUBECTL_MINOR}/deb/Release.key" \
        | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg \
     && echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${KUBECTL_MINOR}/deb/ /" \
        > /etc/apt/sources.list.d/kubernetes.list \
