@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"slipstream/project-controller/internal/controller"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -29,21 +31,6 @@ func main() {
 
 	klog.Infof("project-controller %s starting", Version)
 
-	cfg := &controller.Config{
-		AgentImage:           requireEnv("AGENT_IMAGE"),
-		GatewayName:          requireEnv("GATEWAY_NAME"),
-		GatewayNamespace:     requireEnv("GATEWAY_NAMESPACE"),
-		GatewayHostname:      requireEnv("GATEWAY_HOSTNAME"),
-		GatewayListenerHTTPS: getEnvOrDefault("GATEWAY_LISTENER_HTTPS", "https"),
-		Namespace:            resolveNamespace(),
-		MetricsToken:         os.Getenv("METRICS_TOKEN"),
-		StorageClass:         os.Getenv("AGENT_STORAGE_CLASS"),
-		HarborNamespace:      os.Getenv("HARBOR_NAMESPACE"),
-		RegistryInsecure:     os.Getenv("REGISTRY_INSECURE"),
-		KubeAPIServerHost:    os.Getenv("KUBERNETES_SERVICE_HOST"),
-		KubeAPIServerPort:    os.Getenv("KUBERNETES_SERVICE_PORT"),
-	}
-
 	restCfg, err := loadRestConfig()
 	if err != nil {
 		klog.Fatalf("failed to build REST config: %v", err)
@@ -57,6 +44,35 @@ func main() {
 	dynClient, err := dynamic.NewForConfig(restCfg)
 	if err != nil {
 		klog.Fatalf("failed to build dynamic client: %v", err)
+	}
+
+	cfg := &controller.Config{
+		AgentImage:           requireEnv("AGENT_IMAGE"),
+		GatewayName:          requireEnv("GATEWAY_NAME"),
+		GatewayNamespace:     requireEnv("GATEWAY_NAMESPACE"),
+		GatewayHostname:      requireEnv("GATEWAY_HOSTNAME"),
+		GatewayListenerHTTPS: getEnvOrDefault("GATEWAY_LISTENER_HTTPS", "https"),
+		Namespace:            resolveNamespace(),
+		MetricsToken:         os.Getenv("METRICS_TOKEN"),
+		StorageClass:         os.Getenv("AGENT_STORAGE_CLASS"),
+		HarborNamespace:      os.Getenv("HARBOR_NAMESPACE"),
+		RegistryInsecure:     os.Getenv("REGISTRY_INSECURE"),
+	}
+
+	// Resolve the Kubernetes API server ClusterIP from the well-known
+	// "kubernetes" Service in the default namespace so the NetworkPolicy
+	// egress rule is always correct regardless of cluster configuration.
+	if svc, err := kubeclient.CoreV1().Services("default").Get(context.Background(), "kubernetes", metav1.GetOptions{}); err != nil {
+		klog.Warningf("could not resolve kubernetes service ClusterIP: %v — kubeDeployAccess egress rule will be skipped", err)
+	} else {
+		cfg.KubeAPIServerHost = svc.Spec.ClusterIP
+		for _, port := range svc.Spec.Ports {
+			if port.Name == "https" || port.Port == 443 || port.Port == 6443 {
+				cfg.KubeAPIServerPort = fmt.Sprintf("%d", port.Port)
+				break
+			}
+		}
+		klog.Infof("Kubernetes API server ClusterIP: %s:%s", cfg.KubeAPIServerHost, cfg.KubeAPIServerPort)
 	}
 
 	ctrl := controller.New(cfg, kubeclient, dynClient)
