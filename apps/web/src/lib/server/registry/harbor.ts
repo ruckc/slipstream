@@ -30,9 +30,14 @@ function harborUrl(): string | null {
   return url ? url.replace(/\/+$/, '') : null
 }
 
-/** Public host (host[:port]) used in image references, e.g. registry.example.com. */
+/** In-cluster host (host[:port]) used in image references injected into pods. */
 export function registryHost(): string | null {
   return process.env.REGISTRY_HOST?.trim() || null
+}
+
+/** Public-facing hostname shown to users in push commands (falls back to REGISTRY_HOST). */
+export function registryPublicHost(): string | null {
+  return process.env.REGISTRY_HOSTNAME?.trim() || registryHost()
 }
 
 /** True when Harbor + registry host are configured. When false, registry

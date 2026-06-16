@@ -5,7 +5,7 @@ import { eq, and } from 'drizzle-orm'
 import { resolvePermissions } from '$lib/server/permissions'
 import {
   isRegistryEnabled,
-  registryHost,
+  registryPublicHost,
   listRepositories,
   listArtifacts,
   type HarborRepository,
@@ -56,7 +56,7 @@ export const getNamespaceRegistry = query(
     const permissions = await resolvePermissions(locals.user, project.id)
     if (permissions.length === 0) error(403, 'Access denied')
 
-    const host = registryHost()
+    const host = registryPublicHost()
     const pushExample = host
       ? `docker buildx build -t ${host}/${namespace.slug}/${project.slug}/<repo>:<tag> --push /workspace`
       : ''
@@ -102,7 +102,7 @@ export const getNamespaceRegistry = query(
 
     return {
       enabled: true,
-      registryHost: host,
+      registryHost: registryPublicHost(),
       namespace: namespace.slug,
       project: project.slug,
       repos: reposWithArtifacts,

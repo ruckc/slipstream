@@ -77,6 +77,7 @@ gateway:
   listeners:
     http: http # sectionName of the HTTP listener (port 80, for redirect + ACME)
     https: https # sectionName of the HTTPS listener (port 443, Terminate mode)
+    harborHttps: harbor-https # sectionName of the Harbor HTTPS listener (port 443, registry.hostname)
   # Gateway data-plane proxy pod selector for NetworkPolicy ingress rules.
   # When proxyNamespace is set, ingress to project pods is restricted to the
   # proxy pod in that namespace. Leave empty on clusters where the gateway
@@ -178,8 +179,8 @@ registry:
   # External hostname for the Harbor UI/API (e.g. harbor.example.com).
   # When set, HTTPRoutes are created to expose Harbor through the Gateway.
   hostname: ""
-  # In-cluster service name for the Harbor core component.
-  coreService: harbor-core
+  # In-cluster service name for the Harbor nginx frontend (routes to portal, core, and registry).
+  coreService: harbor
   corePort: 80
 
 harborCollector:

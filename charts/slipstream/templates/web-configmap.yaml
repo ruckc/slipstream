@@ -16,4 +16,7 @@ data:
   HARBOR_URL: {{ .Values.registry.harborUrl | quote }}
   HARBOR_ADMIN_USERNAME: {{ .Values.registry.adminUsername | quote }}
   REGISTRY_HOST: {{ .Values.registry.host | quote }}
+  {{- if .Values.registry.hostname }}
+  REGISTRY_HOSTNAME: {{ .Values.registry.hostname | quote }}
+  {{- end }}
   {{- end }}
