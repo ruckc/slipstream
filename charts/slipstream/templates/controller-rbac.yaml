@@ -27,6 +27,10 @@ rules:
   - apiGroups: [""]
     resources: [namespaces]
     verbs: [get, list, watch, create, update, patch, delete]
+  # Endpoints in default namespace — to resolve the API server's real IP for Cilium egress rules
+  - apiGroups: [""]
+    resources: [endpoints]
+    verbs: [get]
   # Core resources — namespaced (in project-* namespaces)
   - apiGroups: [""]
     resources: [pods, persistentvolumeclaims, services, serviceaccounts, secrets]
