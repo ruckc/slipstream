@@ -198,7 +198,10 @@ async fn collect_once(harbor: &HarborClient, pool: &PgPool) -> Result<usize> {
 
         for proj in &projects {
             let prefix = format!("{}/{}/", ns.namespace_slug, proj.project_slug);
-            let project_repos: Vec<_> = all_repos.iter().filter(|r| r.name.starts_with(&prefix)).collect();
+            let project_repos: Vec<_> = all_repos
+                .iter()
+                .filter(|r| r.name.starts_with(&prefix))
+                .collect();
 
             if project_repos.is_empty() {
                 continue;
@@ -206,7 +209,10 @@ async fn collect_once(harbor: &HarborClient, pool: &PgPool) -> Result<usize> {
 
             let mut total_bytes: i64 = 0;
             for repo in &project_repos {
-                match harbor.sum_artifact_sizes(&ns.namespace_slug, &repo.name).await {
+                match harbor
+                    .sum_artifact_sizes(&ns.namespace_slug, &repo.name)
+                    .await
+                {
                     Ok(bytes) => total_bytes += bytes,
                     Err(e) => warn!(repo = %repo.name, "artifact size failed: {e}"),
                 }

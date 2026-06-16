@@ -13,6 +13,7 @@ mise run audit
 git diff --quiet apps/agent/Cargo.lock || git add apps/agent/Cargo.lock
 git diff --quiet apps/agent/src       || git add apps/agent/src
 git diff --quiet apps/metrics-collector/src || git add apps/metrics-collector/src
+git diff --quiet apps/harbor-collector/src  || git add apps/harbor-collector/src
 git diff --quiet apps/project-controller   || git add apps/project-controller
 git diff --quiet apps/hubble-collector     || git add apps/hubble-collector
 git diff --quiet apps/web || git -C apps/web add -u .
@@ -20,6 +21,7 @@ git diff --quiet apps/web || git -C apps/web add -u .
 # Rust tests (matches CI check-rust job)
 cargo test --manifest-path "$REPO_ROOT/apps/agent/Cargo.toml"
 cargo test --manifest-path "$REPO_ROOT/apps/metrics-collector/Cargo.toml"
+cargo test --manifest-path "$REPO_ROOT/apps/harbor-collector/Cargo.toml"
 
 # Go build (matches CI check-go job)
 (cd "$REPO_ROOT/apps/project-controller" && go build -o /dev/null ./cmd/...)

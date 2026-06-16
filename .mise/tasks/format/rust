@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-#MISE description="Format the Rust agent with rustfmt"
-#MISE dir="apps/agent"
+#MISE description="Format all Rust crates with rustfmt"
 
-cargo fmt
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+for crate in apps/agent apps/metrics-collector apps/harbor-collector; do
+  (cd "$REPO_ROOT/$crate" && cargo fmt)
+done
