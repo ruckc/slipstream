@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: slipstream-hubble-collector
   namespace: {{ .Release.Namespace }}
@@ -7,7 +7,8 @@ metadata:
     {{- include "slipstream.labels" . | nindent 4 }}
     app.kubernetes.io/component: hubble-collector
 spec:
-  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app: slipstream-hubble-collector
@@ -28,8 +29,8 @@ spec:
           image: {{ include "slipstream.hubbleCollectorImage" . }}
           imagePullPolicy: {{ .Values.image.hubbleCollector.pullPolicy }}
           env:
-            - name: HUBBLE_RELAY_ADDRESS
-              value: {{ .Values.hubbleCollector.hubbleRelayAddress | quote }}
+            - name: HUBBLE_EXPORT_FILE
+              value: {{ .Values.hubbleCollector.exportFile | quote }}
             {{- include "slipstream.databaseEnv" . | nindent 12 }}
           {{- if .Values.database.pgopSecret.secretName }}
           envFrom: []
@@ -38,6 +39,13 @@ spec:
             - secretRef:
                 name: {{ include "slipstream.secretName" . }}
           {{- end }}
+          volumeMounts:
+            # Cilium's Hubble static export file, written per-node under the
+            # cilium-run hostPath. Read-only; the file is world-readable so the
+            # collector stays non-root.
+            - name: hubble-export
+              mountPath: /var/run/cilium/hubble
+              readOnly: true
           resources:
             {{- toYaml .Values.hubbleCollector.resources | nindent 12 }}
           securityContext:
@@ -45,3 +53,8 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
+      volumes:
+        - name: hubble-export
+          hostPath:
+            path: /var/run/cilium/hubble
+            type: Directory

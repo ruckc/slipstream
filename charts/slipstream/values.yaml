@@ -44,8 +44,10 @@ image:
     tag: "v1.19.4"
 
 hubbleCollector:
-  # Address of the Hubble Relay gRPC endpoint.
-  hubbleRelayAddress: "hubble-relay.kube-system.svc.cluster.local:4245"
+  # Path to Cilium's Hubble static flow-log export file (per-node, under the
+  # cilium-run hostPath). Requires hubble.export.static enabled in the Cilium
+  # CNI with an allowlist on the slipstream.io/project-id source label.
+  exportFile: "/var/run/cilium/hubble/events.log"
   resources:
     requests:
       cpu: 50m

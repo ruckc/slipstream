@@ -10,9 +10,9 @@ Monorepo managed with pnpm workspaces (`pnpm-workspace.yaml`).
 apps/
   web/                  # SvelteKit 5 + Svelte 5 — the main web application
   agent/                # Rust — HTTP service that runs inside each project pod
-  metrics-collector/    # Rust — scrapes /metrics from each agent pod, stores usage samples in Postgres
+  metrics-collector/    # Rust — node-local DaemonSet: cAdvisor + PVC API + Cilium policy maps → usage samples in Postgres
   project-controller/   # Go — Kubernetes operator that reconciles ProjectEnvironment CRs
-  hubble-collector/     # Go — reads Cilium/Hubble network flows, writes to Postgres
+  hubble-collector/     # Go — node-local DaemonSet: tails Cilium Hubble flow-log export file, writes flows to Postgres
 charts/
   slipstream/           # Helm chart for the full stack
 docker/
@@ -177,7 +177,16 @@ Container images are built inside project pods using the **Docker CLI** (`docker
 
 Each project has an egress policy embedded in its `ProjectEnvironment` CR spec (`spec.egressPolicy`). The policy is resolved from DB rules (namespace-level allow/deny rules + project-level allow rules) by `src/lib/server/k8s/egress.ts` and written to the CR when the project is created or its policy is updated. The project-controller enforces the policy via Cilium `NetworkPolicy` resources in the project namespace.
 
-The **hubble-collector** (`apps/hubble-collector/`) connects to Cilium's Hubble Relay gRPC API and writes observed DNS, HTTP, and L4 flows to Postgres. This powers the network activity view in the project UI.
+The **hubble-collector** (`apps/hubble-collector/`) is a node-local DaemonSet that tails Cilium's **Hubble static flow-log export file** (`/var/run/cilium/hubble/events.log`, newline-delimited JSON, filtered by an allowlist on the `slipstream.io/project-id` source label) and writes observed DNS, HTTP, and L4 flows to Postgres. This powers the network activity view in the project UI. It handles file rotation (inode change / truncation) and starts at EOF on restart to avoid replaying stored flows.
+
+### Usage metering
+
+The **metrics-collector** (`apps/metrics-collector/`) is a node-local DaemonSet (one pod per node, selecting its own node's project pods via a `spec.nodeName` field selector — no sharding). Per tick (default 60 s) it writes `usage_samples` rows:
+
+- **CPU / memory / total network** from the kubelet cAdvisor endpoint via the API-server proxy (`nodes/proxy` RBAC), summed per pod
+- **PVC allocated capacity** (`disk_bytes`) from the Kubernetes API — billing is on allocated size
+- **`last_activity_at`** scraped from each on-node agent pod's `/metrics` (the only metric the agent still exposes)
+- **External/internal egress + ingress bytes** (`external_egress_bytes` etc.) read from Cilium's BPF **policy maps** via `cilium-dbg` — the `reserved:world` security identity is external egress (the billable number), accumulating and zero-loss. Gated behind `metricsCollector.egressAccounting.enabled`; when on, the collector runs as root with `CAP_BPF`, mounts bpffs + the Cilium agent socket, and an initContainer copies the version-matched `cilium-dbg` from the Cilium image.
 
 ### Container registry
 
@@ -277,7 +286,9 @@ The Rust agent reads: `PORT`, `JWKS_URL` (required; must be http/https URL), `PR
 
 The project-controller additionally reads: `USAGE_REPORT_URL` (optional, for usage telemetry), `KUBECONFIG` (optional, falls back to in-cluster config), `HARBOR_NAMESPACE` (grants pods egress to Harbor), `REGISTRY_INSECURE` (`true` in dev so docker buildx treats REGISTRY_HOST as insecure), `BUILDKIT_IMAGE` (defaults to pinned moby/buildkit digest).
 
-The hubble-collector reads: `HUBBLE_RELAY_ADDRESS` (default: `hubble-relay.kube-system.svc.cluster.local:4245`; must be `host:port` format, no URL scheme), `DATABASE_URL`.
+The metrics-collector reads: `DATABASE_URL`, `METRICS_TOKEN`, `NODE_NAME` (downward API, required), `SCRAPE_INTERVAL_SECONDS` (default 60), `PORT` (default 8080), `EGRESS_ACCOUNTING_ENABLED` (optional; enables Cilium policy-map egress reads), `CILIUM_DBG_PATH` (default `cilium-dbg`).
+
+The hubble-collector reads: `HUBBLE_EXPORT_FILE` (default `/var/run/cilium/hubble/events.log`), `DATABASE_URL`.
 
 ## Security notes
 
