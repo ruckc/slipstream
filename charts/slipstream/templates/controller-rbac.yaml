@@ -33,11 +33,19 @@ rules:
     verbs: [get]
   # Core resources — namespaced (in project-* namespaces)
   - apiGroups: [""]
-    resources: [pods, persistentvolumeclaims, services, serviceaccounts, secrets]
+    resources: [pods, persistentvolumeclaims, services, serviceaccounts, secrets, configmaps, events]
     verbs: [get, list, watch, create, update, patch, delete]
+  # Pod sub-resources granted to project-agent; controller must hold them to escalate
+  - apiGroups: [""]
+    resources: [pods/log, pods/exec]
+    verbs: [get, create]
   # Deployments
   - apiGroups: [apps]
     resources: [deployments, statefulsets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Jobs and CronJobs
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
     verbs: [get, list, watch, create, update, patch, delete]
   # Services — controller grants project-agent access to these; must hold them itself
   - apiGroups: [""]

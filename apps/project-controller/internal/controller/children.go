@@ -540,15 +540,61 @@ func buildProjectRole(pe *v1alpha1.ProjectEnvironment) *rbacv1.Role {
 			Labels:    projectLabels(pe),
 		},
 		Rules: []rbacv1.PolicyRule{
+			// Deployments and StatefulSets — primary workload management.
 			{
 				APIGroups: []string{"apps"},
 				Resources: []string{"deployments", "statefulsets"},
 				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
 			},
+			// Pods — read + create/delete; no update/patch to prevent modifying the
+			// controller-managed agent pod's spec. Deletion is still possible but the
+			// Deployment controller will recreate the agent pod immediately.
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+				Verbs:     []string{"get", "list", "watch", "create", "delete"},
+			},
+			// Pod sub-resources: log (read-only) and exec (for kubectl exec into user pods).
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods/log"},
+				Verbs:     []string{"get"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods/exec"},
+				Verbs:     []string{"create"},
+			},
+			// Services — needed to expose user workloads.
 			{
 				APIGroups: []string{""},
 				Resources: []string{"services"},
 				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			// ConfigMaps — application configuration.
+			{
+				APIGroups: []string{""},
+				Resources: []string{"configmaps"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			// Jobs and CronJobs — run one-off and scheduled tasks.
+			{
+				APIGroups: []string{"batch"},
+				Resources: []string{"jobs", "cronjobs"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
+			// Events — read-only, useful for debugging workload failures.
+			{
+				APIGroups: []string{""},
+				Resources: []string{"events"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			// Own namespace — read-only metadata access (labels, annotations, status).
+			{
+				APIGroups:     []string{""},
+				Resources:     []string{"namespaces"},
+				ResourceNames: []string{projectNamespace(pe)},
+				Verbs:         []string{"get"},
 			},
 		},
 	}
