@@ -39,7 +39,7 @@ RUN --mount=type=secret,id=actions_cache_url \
     ACTIONS_RUNTIME_TOKEN=$(cat /run/secrets/actions_runtime_token 2>/dev/null || true) \
     cargo build --release
 
-FROM gcr.io/kaniko-project/executor:v1.25.0 AS kaniko
+FROM gcr.io/kaniko-project/executor:v1.24.0@sha256:7cf94e02d5648080da34bec09de3a73326acde033cb2ca4f6fcd9ebefd6c1a6d AS kaniko
 
 FROM debian:13.5-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e
 RUN apt-get update && apt-get install -y --no-install-recommends \
