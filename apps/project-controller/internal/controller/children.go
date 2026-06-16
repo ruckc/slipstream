@@ -462,24 +462,21 @@ func buildCiliumNetworkPolicy(pe *v1alpha1.ProjectEnvironment, cfg *Config) map[
 
 	if !pe.Spec.EgressPolicy.Enabled {
 		// Allow internet (non-RFC1918) egress while blocking private address space.
-		egressRules = []interface{}{
-			map[string]interface{}{
-				"toCIDRSet": []interface{}{
-					map[string]interface{}{
-						"cidr": "0.0.0.0/0",
-						"except": []interface{}{
-							"10.0.0.0/8",
-							"172.16.0.0/12",
-							"192.168.0.0/16",
-							"127.0.0.0/8",
-							"169.254.0.0/16",
-						},
+		egressRules = append(egressRules, map[string]interface{}{
+			"toCIDRSet": []interface{}{
+				map[string]interface{}{
+					"cidr": "0.0.0.0/0",
+					"except": []interface{}{
+						"10.0.0.0/8",
+						"172.16.0.0/12",
+						"192.168.0.0/16",
+						"127.0.0.0/8",
+						"169.254.0.0/16",
 					},
 				},
 			},
-		}
+		})
 	} else {
-		egressRules = []interface{}{}
 		for _, rule := range pe.Spec.EgressPolicy.Rules {
 			if rule.RuleType != "allow" {
 				continue
