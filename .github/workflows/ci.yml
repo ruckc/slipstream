@@ -483,13 +483,20 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Fast-forward main to the staging commit, or skip if main already
-          # contains this SHA (e.g. a concurrent push landed on main during
-          # the build). Fail loudly only if main has truly diverged.
+          # Fast-forward main to the staging commit.
+          #
+          # Three possible states after fetching origin/main:
+          #   1. staging is already in main  → someone else promoted it; skip.
+          #   2. main is an ancestor of staging → normal fast-forward; push.
+          #   3. main has diverged (new commit arrived during the build) →
+          #      the new push will produce its own release run; skip here to
+          #      avoid a non-fast-forward rejection.
           STAGING_SHA=$(git rev-parse HEAD)
           git fetch origin main
           if git merge-base --is-ancestor "$STAGING_SHA" origin/main; then
             echo "main already contains staging SHA $STAGING_SHA — skipping push"
+          elif ! git merge-base --is-ancestor origin/main "$STAGING_SHA"; then
+            echo "main has diverged from staging parent (a commit arrived during the build) — the new push will release itself; skipping"
           else
             git push origin HEAD:refs/heads/main
           fi
