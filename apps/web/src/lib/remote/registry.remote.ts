@@ -58,7 +58,7 @@ export const getNamespaceRegistry = query(
 
     const host = registryHost()
     const pushExample = host
-      ? `buildah bud -t ${host}/${namespace.slug}/${project.slug}/<repo>:<tag> .\nbuildah push ${host}/${namespace.slug}/${project.slug}/<repo>:<tag>`
+      ? `/kaniko/executor --dockerfile=Dockerfile --context=dir:///workspace --destination=${host}/${namespace.slug}/${project.slug}/<repo>:<tag>`
       : ''
 
     if (!isRegistryEnabled()) {

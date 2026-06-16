@@ -39,10 +39,11 @@ RUN --mount=type=secret,id=actions_cache_url \
     ACTIONS_RUNTIME_TOKEN=$(cat /run/secrets/actions_runtime_token 2>/dev/null || true) \
     cargo build --release
 
+FROM gcr.io/kaniko-project/executor:v1.25.0 AS kaniko
+
 FROM debian:13.5-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    bash buildah build-essential ca-certificates curl dnsutils git git-lfs gpg htop iproute2 lsof procps skopeo tini tmux \
-    netavark aardvark-dns passt slirp4netns \
+    bash build-essential ca-certificates curl dnsutils git git-lfs gpg htop iproute2 lsof procps tini tmux \
     && install -dm 755 /etc/apt/keyrings \
     && curl -fSs https://mise.en.dev/gpg-key.pub | tee /etc/apt/keyrings/mise-archive-keyring.asc > /dev/null \
     && echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.asc] https://mise.en.dev/deb stable main" > /etc/apt/sources.list.d/mise.list \
@@ -55,6 +56,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get install -y --no-install-recommends kubectl mise \
     && rm -rf /var/lib/apt/lists/* \
     && mise activate bash > /etc/profile.d/mise.sh
+COPY --from=kaniko /kaniko/executor /kaniko/executor
+COPY --from=kaniko /kaniko/ssl /kaniko/ssl
 RUN groupadd -g 1000 agent && useradd -u 1000 -g agent -s /bin/bash -m agent
 # /home/agent is a PVC mount at runtime — put shell config in /etc/profile.d
 # so it is sourced by interactive bash regardless of the home volume contents.
@@ -69,29 +72,6 @@ RUN printf '%s\n' \
     'trap '\''(( __ps == 0 )) && printf "\033]2;%s\007" "$BASH_COMMAND"'\'' DEBUG' \
     'PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}__ps=1;__osc7;__set_title;__ps=0"' \
     > /etc/profile.d/slipstream.sh
-# Rootless container builds with Buildah. The pod runs as a single unprivileged
-# UID with a read-only rootfs and no capabilities, so we use the vfs storage
-# driver (no fuse/overlay) and chroot isolation (no user-namespace setup).
-# Storage lives under /tmp (an emptyDir in the pod) so it stays writable under
-# the read-only rootfs; the cache is ephemeral and vfs is disk-heavy.
-RUN mkdir -p /etc/containers \
-    && printf '%s\n' \
-       '[storage]' \
-       'driver = "vfs"' \
-       'runroot = "/tmp/containers/run"' \
-       'graphroot = "/tmp/containers/storage"' \
-    > /etc/containers/storage.conf
-RUN printf '%s\n' \
-       '[engine]' \
-       'helper_binaries_dir = ["/usr/lib/podman", "/usr/libexec/podman", "/usr/bin"]' \
-       '[network]' \
-       'default_rootless_network_cmd = "pasta"' \
-    > /etc/containers/containers.conf
-ENV BUILDAH_ISOLATION=chroot \
-    STORAGE_DRIVER=vfs
-# When REGISTRY_INSECURE=true (dev: in-cluster Harbor over HTTP / self-signed),
-# generate a per-user registries.conf marking the registry insecure so
-# buildah push/pull works without --tls-verify. No-op when secure (prod TLS).
 RUN printf '%s\n' \
     'if [ -n "${WORKSPACE_NAMESPACE:-}" ] && [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then' \
     '  mkdir -p "$HOME/.kube"' \
@@ -99,17 +79,18 @@ RUN printf '%s\n' \
     '    "$KUBERNETES_SERVICE_HOST" "$KUBERNETES_SERVICE_PORT" "$WORKSPACE_NAMESPACE" > "$HOME/.kube/config"' \
     'fi' \
     > /etc/profile.d/kubectl.sh
+# When REGISTRY_INSECURE=true (dev), set KANIKO_INSECURE_REGISTRY so the
+# executor skips TLS verification for pushes to the local Harbor instance.
 RUN printf '%s\n' \
     'if [ "${REGISTRY_INSECURE:-}" = "true" ] && [ -n "${REGISTRY_HOST:-}" ]; then' \
-    '  mkdir -p "$HOME/.config/containers"' \
-    '  printf "[[registry]]\nlocation = \"%s\"\ninsecure = true\n" "$REGISTRY_HOST" \' \
-    '    > "$HOME/.config/containers/registries.conf"' \
+    '  export KANIKO_INSECURE_REGISTRY="$REGISTRY_HOST"' \
     'fi' \
-    > /etc/profile.d/containers.sh
+    > /etc/profile.d/kaniko.sh
 RUN mkdir -p /workspace && chown agent:agent /workspace
 USER 1000
 WORKDIR /workspace
 COPY --from=builder /build/target/release/agent /usr/local/bin/agent
-ENV WORKSPACE_PATH=/workspace
+ENV WORKSPACE_PATH=/workspace \
+    SSL_CERT_DIR=/kaniko/ssl/certs
 EXPOSE 8080
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/agent"]

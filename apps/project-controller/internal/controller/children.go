@@ -221,12 +221,11 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 		{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 	}
 
-	// When the namespace has registry credentials, mount them as a read-only
-	// dockerconfigjson so buildah/skopeo pick them up via REGISTRY_AUTH_FILE.
-	// The volume is optional so the pod still starts if the Secret lags behind.
+	// When the namespace has registry credentials, mount the dockerconfigjson
+	// Secret read-only (kaniko reads DOCKER_CONFIG) and provide a writable
+	// /kaniko emptyDir so the executor can unpack image layers during builds.
 	if pe.Spec.RegistryAuth != nil {
 		containers[0].Env = append(containers[0].Env,
-			corev1.EnvVar{Name: "REGISTRY_AUTH_FILE", Value: "/etc/registry-auth/.dockerconfigjson"},
 			corev1.EnvVar{Name: "DOCKER_CONFIG", Value: "/etc/registry-auth"},
 			corev1.EnvVar{Name: "REGISTRY_HOST", Value: pe.Spec.RegistryAuth.Server},
 		)
@@ -234,20 +233,32 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 			containers[0].Env = append(containers[0].Env,
 				corev1.EnvVar{Name: "REGISTRY_INSECURE", Value: cfg.RegistryInsecure})
 		}
-		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
-			Name:      "registry-auth",
-			MountPath: "/etc/registry-auth",
-			ReadOnly:  true,
-		})
-		volumes = append(volumes, corev1.Volume{
-			Name: "registry-auth",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: registrySecretName,
-					Optional:   boolPtr(true),
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts,
+			corev1.VolumeMount{
+				Name:      "registry-auth",
+				MountPath: "/etc/registry-auth",
+				ReadOnly:  true,
+			},
+			corev1.VolumeMount{
+				Name:      "kaniko",
+				MountPath: "/kaniko",
+			},
+		)
+		volumes = append(volumes,
+			corev1.Volume{
+				Name: "registry-auth",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: registrySecretName,
+						Optional:   boolPtr(true),
+					},
 				},
 			},
-		})
+			corev1.Volume{
+				Name:         "kaniko",
+				VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+			},
+		)
 	}
 
 	podLabels := projectLabels(pe)
