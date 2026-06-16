@@ -616,6 +616,11 @@ func buildProjectRole(pe *v1alpha1.ProjectEnvironment) *rbacv1.Role {
 				Resources: []string{"clusters", "databases", "roles", "backups", "backupruns"},
 				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
 			},
+			{
+				APIGroups: []string{"helm.cattle.io"},
+				Resources: []string{"helmcharts", "helmchartconfigs"},
+				Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+			},
 		},
 	}
 }

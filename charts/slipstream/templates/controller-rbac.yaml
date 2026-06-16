@@ -72,6 +72,14 @@ rules:
   - apiGroups: [pgop.ruck.io]
     resources: [clusters, databases, roles, backups, backupruns]
     verbs: [get, list, watch, create, update, patch, delete]
+  # HelmChart CRDs — controller must hold these to grant them to project Roles
+  - apiGroups: [helm.cattle.io]
+    resources: [helmcharts, helmchartconfigs]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # CRD listing — read-only so project agents can discover installed CRDs
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch]
   # Lease for potential future leader election
   - apiGroups: [coordination.k8s.io]
     resources: [leases]
