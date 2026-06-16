@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: StatefulSet
+kind: DaemonSet
 metadata:
   name: slipstream-metrics-collector
   namespace: {{ .Release.Namespace }}
@@ -7,8 +7,6 @@ metadata:
     {{- include "slipstream.labels" . | nindent 4 }}
     app: slipstream-metrics-collector
 spec:
-  replicas: {{ .Values.metricsCollector.replicas }}
-  serviceName: slipstream-metrics-collector
   updateStrategy:
     type: RollingUpdate
   selector:
@@ -36,6 +34,10 @@ spec:
               name: metrics
           env:
             {{- include "slipstream.databaseEnv" . | nindent 12 }}
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: SCRAPE_INTERVAL_SECONDS
               value: {{ .Values.metricsCollector.scrapeIntervalSeconds | quote }}
             - name: METRICS_TOKEN
@@ -56,18 +58,3 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: slipstream-metrics-collector
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "slipstream.labels" . | nindent 4 }}
-spec:
-  clusterIP: None
-  selector:
-    app: slipstream-metrics-collector
-  ports:
-    - port: 8080
-      name: metrics

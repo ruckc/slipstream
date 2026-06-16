@@ -1,38 +1,17 @@
 use anyhow::{Context, Result};
 
-/// A single scraped metric value from a pod's /metrics endpoint.
-pub struct ScrapedMetric {
-    pub db_name: &'static str,
-    pub value: f64,
-}
-
-/// Metric name mappings: Prometheus name → usage_samples.metric string.
-/// Only metrics we care about are listed; others are ignored.
-static METRIC_MAP: &[(&str, &str)] = &[
-    ("slipstream_cpu_seconds_total", "cpu_seconds"),
-    ("slipstream_memory_bytes", "memory_byte_seconds"),
-    ("slipstream_disk_bytes", "disk_bytes"),
-    ("slipstream_home_disk_bytes", "home_disk_bytes"),
-    ("slipstream_network_ingress_bytes_total", "ingress_bytes"),
-    ("slipstream_network_egress_bytes_total", "egress_bytes"),
-    ("slipstream_last_activity_at", "last_activity_at"),
-    ("slipstream_active_sessions", "active_sessions"),
-];
-
-fn prometheus_name_to_db(name: &str) -> Option<&'static str> {
-    METRIC_MAP
-        .iter()
-        .find(|(prom, _)| *prom == name)
-        .map(|(_, db)| *db)
-}
-
-pub async fn scrape(
+/// Scrapes `slipstream_last_activity_at` from an agent pod's `/metrics`
+/// endpoint by pod IP. The DaemonSet only scrapes pods on its own node, so
+/// the pod IP is always directly reachable — no service DNS needed.
+///
+/// This is now the only metric the agent exposes; CPU/memory/network/disk
+/// come from cAdvisor and the Kubernetes API instead.
+pub async fn last_activity_at(
     client: &reqwest::Client,
-    project_id: &str,
+    pod_ip: &str,
     metrics_token: &str,
-) -> Result<Vec<ScrapedMetric>> {
-    let url =
-        format!("http://svc-{project_id}.project-{project_id}.svc.cluster.local:8080/metrics");
+) -> Result<f64> {
+    let url = format!("http://{pod_ip}:8080/metrics");
     let body = client
         .get(&url)
         .header("Authorization", format!("Bearer {metrics_token}"))
@@ -45,39 +24,23 @@ pub async fn scrape(
         .await
         .context("read /metrics body")?;
 
-    Ok(parse_prometheus_text(&body))
-}
-
-fn parse_prometheus_text(text: &str) -> Vec<ScrapedMetric> {
-    let mut results = Vec::new();
-    for line in text.lines() {
+    for line in body.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        // Format: metric_name{labels} value [timestamp]
-        // or:     metric_name value [timestamp]
-        let (name_part, rest) = if let Some(brace) = line.find('{') {
-            let end = line.find('}').unwrap_or(brace);
-            (&line[..brace], line[end + 1..].trim())
-        } else {
-            let mut parts = line.splitn(2, ' ');
-            let name = parts.next().unwrap_or("");
-            (name, parts.next().unwrap_or("").trim())
-        };
-
-        let db_name = match prometheus_name_to_db(name_part) {
-            Some(n) => n,
-            None => continue,
-        };
-
-        // rest is "value [timestamp]" — take first token
-        let value_str = rest.split_whitespace().next().unwrap_or("");
-        let Ok(value) = value_str.parse::<f64>() else {
+        let name = line.split(['{', ' ']).next().unwrap_or("");
+        if name != "slipstream_last_activity_at" {
             continue;
+        }
+        // Format: slipstream_last_activity_at{labels} value
+        let value_str = match line.find('}') {
+            Some(end) => line[end + 1..].split_whitespace().next().unwrap_or(""),
+            None => line.split_whitespace().nth(1).unwrap_or(""),
         };
-
-        results.push(ScrapedMetric { db_name, value });
+        if let Ok(v) = value_str.parse::<f64>() {
+            return Ok(v);
+        }
     }
-    results
+    anyhow::bail!("slipstream_last_activity_at not found")
 }

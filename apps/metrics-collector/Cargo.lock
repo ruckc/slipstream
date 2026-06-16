@@ -2014,6 +2014,7 @@ dependencies = [
  "axum",
  "chrono",
  "futures-util",
+ "http",
  "k8s-openapi",
  "kube",
  "reqwest",

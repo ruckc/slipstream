@@ -13,11 +13,13 @@ metadata:
   labels:
     {{- include "slipstream.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["slipstream.io"]
-    resources: ["projectenvironments"]
+  # Discover project pods scheduled on this node and their PVCs.
+  - apiGroups: [""]
+    resources: ["pods", "persistentvolumeclaims"]
     verbs: ["list", "watch"]
-  - apiGroups: ["apps"]
-    resources: ["statefulsets"]
+  # Scrape cAdvisor metrics through the API server proxy (CPU/memory/network).
+  - apiGroups: [""]
+    resources: ["nodes/proxy"]
     verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

@@ -193,19 +193,14 @@ harborCollector:
     limits:
       memory: 128Mi
 
+# Runs as a DaemonSet: one pod per node, each scraping only its own node's
+# project pods via the kubelet/cAdvisor (CPU/memory/network) plus the
+# Kubernetes API (PVC capacity). Scales automatically with the cluster.
 metricsCollector:
-  replicas: 1
-  scrapeIntervalSeconds: 30
+  scrapeIntervalSeconds: 60
   resources:
     requests:
       cpu: 50m
       memory: 64Mi
     limits:
       memory: 256Mi
-  hpa:
-    # Requires prometheus-adapter configured to surface
-    # slipstream_collector_saturation_ratio as a custom metric.
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 10
-    targetSaturation: "800m" # 0.8 expressed as milli-units
