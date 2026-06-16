@@ -33,12 +33,17 @@ rules:
     verbs: [get, list, watch, create, update, patch, delete]
   # Deployments
   - apiGroups: [apps]
-    resources: [deployments]
+    resources: [deployments, statefulsets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Services — controller grants project-agent access to these; must hold them itself
+  - apiGroups: [""]
+    resources: [services]
     verbs: [get, list, watch, create, update, patch, delete]
   # RBAC — for managing project-agent Role/RoleBinding per project namespace
+  # escalate is required so the controller can grant verbs it holds to project Roles
   - apiGroups: [rbac.authorization.k8s.io]
     resources: [roles, rolebindings]
-    verbs: [get, list, watch, create, update, patch, delete]
+    verbs: [get, list, watch, create, update, patch, delete, escalate, bind]
   # NetworkPolicy
   - apiGroups: [networking.k8s.io]
     resources: [networkpolicies]
