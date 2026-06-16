@@ -33,7 +33,7 @@ spec:
             {{- include "slipstream.databaseEnv" . | nindent 12 }}
           envFrom:
             - configMapRef:
-                name: slipstream-web-configmap
+                name: slipstream-web-config
             {{- if not .Values.database.pgopSecret.secretName }}
             - secretRef:
                 name: {{ include "slipstream.secretName" . }}
