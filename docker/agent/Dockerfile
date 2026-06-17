@@ -85,9 +85,13 @@ RUN printf '%s\n' \
     > /etc/profile.d/kubectl.sh
 # Configure docker buildx to use the moby/buildkit rootless sidecar via the
 # remote driver. /home/agent is a PVC at runtime (hiding any baked-in
-# ~/.docker), so the builder is (re)created idempotently on each login shell.
+# ~/.docker), so the builder is created idempotently on each login shell.
+# The remote-driver builder connects lazily (only at build time), so creation
+# does NOT require the buildkitd socket to exist yet — never guard on it, or a
+# terminal opened before the sidecar is ready leaves BUILDX_BUILDER pointing at
+# a non-existent builder ("no builder slipstream found").
 RUN printf '%s\n' \
-    'if command -v docker >/dev/null 2>&1 && [ -S /var/run/buildkit/buildkitd.sock ]; then' \
+    'if command -v docker >/dev/null 2>&1; then' \
     '  docker buildx inspect slipstream >/dev/null 2>&1 \' \
     '    || docker buildx create --name slipstream --driver remote --use unix:///var/run/buildkit/buildkitd.sock >/dev/null 2>&1 \' \
     '    || true' \
