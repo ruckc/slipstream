@@ -300,6 +300,14 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 					Secret: &corev1.SecretVolumeSource{
 						SecretName: registrySecretName,
 						Optional:   boolPtr(true),
+						// Remap the dockerconfigjson key to "config.json" so it
+						// lands as /home/user/.docker/config.json (and
+						// /etc/registry-auth/config.json) — the filename Docker
+						// and BuildKit actually read. Mounted as-is it would be
+						// ".dockerconfigjson" and silently ignored.
+						Items: []corev1.KeyToPath{
+							{Key: corev1.DockerConfigJsonKey, Path: "config.json"},
+						},
 					},
 				},
 			},

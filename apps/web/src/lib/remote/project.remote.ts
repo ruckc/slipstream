@@ -276,11 +276,38 @@ export const startProject = command(
 
     const cr = await getProjectEnvironment(arg.projectId)
     if (!cr) throw error(404, 'Project environment not found')
-    if (cr.spec.desiredState === 'running') return
 
-    const patch: Partial<(typeof cr)['spec']> = { desiredState: 'running' }
-    if (!cr.spec.namespaceSlug) patch.namespaceSlug = namespace.slug
-    if (!cr.spec.projectSlug) patch.projectSlug = project.slug
+    const patch: Partial<(typeof cr)['spec']> = {}
+    if (cr.spec.desiredState !== 'running') {
+      patch.desiredState = 'running'
+      if (!cr.spec.namespaceSlug) patch.namespaceSlug = namespace.slug
+      if (!cr.spec.projectSlug) patch.projectSlug = project.slug
+    }
+
+    // Backfill registry credentials for projects created before the namespace
+    // registry was provisioned (or before this feature existed). Provisioning
+    // is idempotent — it returns existing robots or creates them — so this is
+    // safe to run on every start. Runs even when the project is already running
+    // (patching registryAuth triggers a rollout that mounts the credentials).
+    // Best effort: a registry/Harbor outage must not block starting the project.
+    if (!cr.spec.registryAuth) {
+      try {
+        const registryResult = await provisionNamespaceRegistry(namespace.id, namespace.slug)
+        if (registryResult) {
+          patch.registryAuth = registryResult.pushPull
+          patch.registryPullAuth = registryResult.pullOnly
+        }
+      } catch (e) {
+        await logServerError((e as Error).message, {
+          route: 'startProject/registry',
+          stack: (e as Error).stack,
+          context: { projectId: arg.projectId, namespaceId: namespace.id },
+        })
+      }
+    }
+
+    // Nothing to do: already running and credentials already present.
+    if (Object.keys(patch).length === 0) return
 
     try {
       await patchProjectEnvironmentSpec(arg.projectId, patch)
