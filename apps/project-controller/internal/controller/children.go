@@ -221,61 +221,65 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 		{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 	}
 
-	// When the namespace has registry credentials, mount the dockerconfigjson
-	// Secret into both the agent and the buildkit sidecar, and wire up a shared
-	// Unix socket so `docker buildx build` in the agent connects to buildkitd.
+	// Always inject the rootless BuildKit sidecar so `docker build` /
+	// `docker buildx build` work in any project — building an image must not
+	// require a registry. The agent image registers a buildx remote-driver
+	// builder pointing at the shared unix:///var/run/buildkit/buildkitd.sock,
+	// so it talks to this sidecar without any additional configuration.
+	//
+	// Rootless BuildKit needs both seccomp AND AppArmor unconfined: on
+	// AppArmor-enabled nodes the runtime's default profile blocks the
+	// unshare/mount syscalls the rootless worker performs, which otherwise
+	// leaves buildkitd up but with no functional worker (builds hang).
+	containers[0].VolumeMounts = append(containers[0].VolumeMounts,
+		corev1.VolumeMount{Name: "buildkit", MountPath: "/var/run/buildkit"},
+	)
+
+	buildkitPrivileged := false
+	buildkitSidecar := corev1.Container{
+		Name:  "buildkit",
+		Image: cfg.BuildkitImage,
+		Args: []string{
+			"--addr", "unix:///var/run/buildkit/buildkitd.sock",
+			"--oci-worker-no-process-sandbox",
+		},
+		SecurityContext: &corev1.SecurityContext{
+			Privileged:               &buildkitPrivileged,
+			AllowPrivilegeEscalation: boolPtr(false),
+			SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeUnconfined},
+			AppArmorProfile:          &corev1.AppArmorProfile{Type: corev1.AppArmorProfileTypeUnconfined},
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{Name: "buildkit", MountPath: "/var/run/buildkit"},
+		},
+		// No readiness probe: buildkit must not gate the pod's readiness, or a
+		// buildkit hiccup would drop the pod from the Service endpoints and take
+		// the agent (files/shell/metrics) offline with it. buildkit comes up
+		// within a few seconds; builds simply wait for the socket.
+	}
+
+	volumes = append(volumes,
+		corev1.Volume{Name: "buildkit", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+	)
+
+	// Registry credentials are optional and only needed to PUSH to the private
+	// Harbor namespace (building works without them). When present, mount the
+	// dockerconfigjson Secret into the agent (docker config) and the buildkit
+	// sidecar (so buildkitd authenticates pushes), and surface REGISTRY_HOST.
 	if pe.Spec.RegistryAuth != nil {
 		containers[0].Env = append(containers[0].Env,
 			corev1.EnvVar{Name: "REGISTRY_HOST", Value: pe.Spec.RegistryAuth.Server},
 		)
-		// Mount the registry auth secret and the buildkit socket dir into the agent.
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts,
 			corev1.VolumeMount{
 				Name:      "registry-auth",
 				MountPath: "/etc/registry-auth",
 				ReadOnly:  true,
 			},
-			corev1.VolumeMount{
-				Name:      "buildkit",
-				MountPath: "/var/run/buildkit",
-			},
 		)
-
-		// buildkit sidecar: rootless BuildKit daemon. The agent image configures
-		// a buildx `remote`-driver builder pointing at
-		// unix:///var/run/buildkit/buildkitd.sock so `docker buildx` talks to
-		// this sidecar without any additional configuration.
-		// The registry is always accessed via its public FQDN (e.g. harbor.ruck.io)
-		// which has a valid TLS certificate, so no insecure config is needed.
-		buildkitPrivileged := false
-		buildkitSidecar := corev1.Container{
-			Name:  "buildkit",
-			Image: cfg.BuildkitImage,
-			Args: []string{
-				"--addr", "unix:///var/run/buildkit/buildkitd.sock",
-				"--oci-worker-no-process-sandbox",
-			},
-			SecurityContext: &corev1.SecurityContext{
-				Privileged:               &buildkitPrivileged,
-				AllowPrivilegeEscalation: boolPtr(false),
-				SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeUnconfined},
-			},
-			VolumeMounts: []corev1.VolumeMount{
-				{Name: "buildkit", MountPath: "/var/run/buildkit"},
-				{Name: "registry-auth", MountPath: "/home/user/.docker", ReadOnly: true},
-			},
-			ReadinessProbe: &corev1.Probe{
-				ProbeHandler: corev1.ProbeHandler{
-					Exec: &corev1.ExecAction{
-						Command: []string{"buildctl", "debug", "workers"},
-					},
-				},
-				InitialDelaySeconds: 5,
-				PeriodSeconds:       10,
-			},
-		}
-		containers = append(containers, buildkitSidecar)
-
+		buildkitSidecar.VolumeMounts = append(buildkitSidecar.VolumeMounts,
+			corev1.VolumeMount{Name: "registry-auth", MountPath: "/home/user/.docker", ReadOnly: true},
+		)
 		volumes = append(volumes,
 			corev1.Volume{
 				Name: "registry-auth",
@@ -286,9 +290,10 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 					},
 				},
 			},
-			corev1.Volume{Name: "buildkit", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		)
 	}
+
+	containers = append(containers, buildkitSidecar)
 
 	podLabels := projectLabels(pe)
 	podLabels["app"] = name
