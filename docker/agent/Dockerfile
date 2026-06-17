@@ -90,7 +90,18 @@ RUN printf '%s\n' \
 # does NOT require the buildkitd socket to exist yet — never guard on it, or a
 # terminal opened before the sidecar is ready leaves BUILDX_BUILDER pointing at
 # a non-existent builder ("no builder slipstream found").
+#
+# With the remote driver, `docker buildx --push` forwards registry credentials
+# from the CLIENT's docker config (this agent) to buildkitd — buildkitd does NOT
+# use its own config for client-driven pushes. The namespace robot creds arrive
+# as a read-only Secret at /etc/registry-auth/config.json; copy them into the
+# writable docker config so the CLI forwards them. Refreshed each login to pick
+# up credential rotation.
 RUN printf '%s\n' \
+    'if [ -f /etc/registry-auth/config.json ]; then' \
+    '  mkdir -p "$HOME/.docker"' \
+    '  cp -f /etc/registry-auth/config.json "$HOME/.docker/config.json"' \
+    'fi' \
     'if command -v docker >/dev/null 2>&1; then' \
     '  docker buildx inspect slipstream >/dev/null 2>&1 \' \
     '    || docker buildx create --name slipstream --driver remote --use unix:///var/run/buildkit/buildkitd.sock >/dev/null 2>&1 \' \
