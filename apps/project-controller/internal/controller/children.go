@@ -111,10 +111,18 @@ func buildNamespace(pe *v1alpha1.ProjectEnvironment) *corev1.Namespace {
 	labels := projectLabels(pe)
 	labels["slipstream.io/managed"] = "true"
 	labels[LabelProject] = "true"
-	// Enforce Pod Security Standards baseline profile: blocks privileged containers,
-	// hostNetwork, hostPID, hostIPC, and other cluster-impacting capabilities.
-	labels["pod-security.kubernetes.io/enforce"] = "baseline"
-	labels["pod-security.kubernetes.io/enforce-version"] = "latest"
+	// PodSecurity "privileged" is required because the rootless BuildKit sidecar
+	// must set seccomp + AppArmor to Unconfined (which "baseline"/"restricted"
+	// forbid). This is safe: only the project-controller creates pods in this
+	// namespace — the user's kubectl access is scoped to the separate workspace
+	// namespace, which stays "baseline" — and the agent container keeps its own
+	// locked-down securityContext (non-root, all caps dropped) regardless of the
+	// namespace level. We still surface warnings/audit at baseline.
+	labels["pod-security.kubernetes.io/enforce"] = "privileged"
+	labels["pod-security.kubernetes.io/warn"] = "baseline"
+	labels["pod-security.kubernetes.io/warn-version"] = "latest"
+	labels["pod-security.kubernetes.io/audit"] = "baseline"
+	labels["pod-security.kubernetes.io/audit-version"] = "latest"
 	return &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   projectNamespace(pe),
