@@ -58,6 +58,10 @@ func main() {
 		StorageClass:         os.Getenv("AGENT_STORAGE_CLASS"),
 		HarborNamespace:      os.Getenv("HARBOR_NAMESPACE"),
 		RegistryInsecure:     os.Getenv("REGISTRY_INSECURE"),
+		HarborURL:            os.Getenv("HARBOR_URL"),
+		HarborAdminUsername:  os.Getenv("HARBOR_ADMIN_USERNAME"),
+		HarborAdminPassword:  os.Getenv("HARBOR_ADMIN_PASSWORD"),
+		RegistryHost:         os.Getenv("REGISTRY_HOST"),
 	}
 
 	// Resolve the actual Kubernetes API server endpoint IP and port from the

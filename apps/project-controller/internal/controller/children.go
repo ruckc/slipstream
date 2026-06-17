@@ -52,52 +52,23 @@ func ciliumPolicyName(pe *v1alpha1.ProjectEnvironment) string {
 	return "cnp-" + pe.Spec.ProjectID
 }
 
-// registrySecretName is the dockerconfigjson Secret the controller materializes
-// from spec.registryAuth and the pod mounts at /etc/registry-auth.
+// registrySecretName is the push+pull dockerconfigjson Secret the controller
+// materializes in the project namespace; the pod mounts it at /etc/registry-auth
+// and the buildkit sidecar at /home/user/.docker.
 const registrySecretName = "slipstream-registry-auth"
 
 // registryPullSecretName is the pull-only dockerconfigjson Secret materialized
-// in the workspace namespace from spec.registryPullAuth.
+// in the workspace namespace.
 const registryPullSecretName = "slipstream-registry-pull-auth"
 
-func buildDockerConfigJSON(auth *v1alpha1.RegistryAuthSpec) []byte {
-	token := base64.StdEncoding.EncodeToString([]byte(auth.Username + ":" + auth.Password))
+// buildDockerConfigJSON renders a docker config.json auth entry for the given
+// registry host and robot credentials.
+func buildDockerConfigJSON(server, username, password string) []byte {
+	token := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 	return []byte(fmt.Sprintf(
 		`{"auths":{%q:{"username":%q,"password":%q,"auth":%q}}}`,
-		auth.Server, auth.Username, auth.Password, token,
+		server, username, password, token,
 	))
-}
-
-// buildRegistrySecret renders the namespace robot credentials as a
-// kubernetes.io/dockerconfigjson Secret in the project namespace.
-func buildRegistrySecret(pe *v1alpha1.ProjectEnvironment) *corev1.Secret {
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      registrySecretName,
-			Namespace: projectNamespace(pe),
-			Labels:    projectLabels(pe),
-		},
-		Type: corev1.SecretTypeDockerConfigJson,
-		Data: map[string][]byte{
-			corev1.DockerConfigJsonKey: buildDockerConfigJSON(pe.Spec.RegistryAuth),
-		},
-	}
-}
-
-// buildRegistryPullSecret renders the pull-only robot credentials as a
-// kubernetes.io/dockerconfigjson Secret in the workspace namespace.
-func buildRegistryPullSecret(pe *v1alpha1.ProjectEnvironment) *corev1.Secret {
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      registryPullSecretName,
-			Namespace: workspaceNamespace(pe),
-			Labels:    projectLabels(pe),
-		},
-		Type: corev1.SecretTypeDockerConfigJson,
-		Data: map[string][]byte{
-			corev1.DockerConfigJsonKey: buildDockerConfigJSON(pe.Spec.RegistryPullAuth),
-		},
-	}
 }
 
 func desiredReplicas(pe *v1alpha1.ProjectEnvironment) int32 {
@@ -275,13 +246,13 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 		corev1.Volume{Name: "buildkit", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 	)
 
-	// Registry credentials are optional and only needed to PUSH to the private
-	// Harbor namespace (building works without them). When present, mount the
-	// dockerconfigjson Secret into the agent (docker config) and the buildkit
-	// sidecar (so buildkitd authenticates pushes), and surface REGISTRY_HOST.
-	if pe.Spec.RegistryAuth != nil {
+	// When the registry is enabled, mount the namespace's robot credentials
+	// (materialized by ensureHarborRegistry) into the agent and the buildkit
+	// sidecar, and surface REGISTRY_HOST. Building works without them; they're
+	// needed to push/pull the private Harbor namespace.
+	if cfg.registryEnabled() {
 		containers[0].Env = append(containers[0].Env,
-			corev1.EnvVar{Name: "REGISTRY_HOST", Value: pe.Spec.RegistryAuth.Server},
+			corev1.EnvVar{Name: "REGISTRY_HOST", Value: cfg.RegistryHost},
 		)
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts,
 			corev1.VolumeMount{

@@ -207,11 +207,8 @@ func (c *Controller) ensureResources(ctx context.Context, pe *v1alpha1.ProjectEn
 	if err := c.ensurePVC(ctx, pe); err != nil {
 		return "", fmt.Errorf("ensure PVC: %w", err)
 	}
-	if err := c.ensureRegistrySecret(ctx, pe); err != nil {
-		return "", fmt.Errorf("ensure registry secret: %w", err)
-	}
-	if err := c.ensureRegistryPullSecret(ctx, pe); err != nil {
-		return "", fmt.Errorf("ensure registry pull secret: %w", err)
+	if err := c.ensureHarborRegistry(ctx, pe); err != nil {
+		return "", fmt.Errorf("ensure harbor registry: %w", err)
 	}
 	if err := c.ensureDeployment(ctx, pe); err != nil {
 		return "", fmt.Errorf("ensure deployment: %w", err)
@@ -322,66 +319,23 @@ func (c *Controller) ensureService(ctx context.Context, pe *v1alpha1.ProjectEnvi
 	return err
 }
 
-// ensureRegistrySecret materializes the namespace robot credentials as a
-// dockerconfigjson Secret in the project namespace. The password may rotate, so
-// we create-or-update. When the CR has no registryAuth (registry disabled), the
-// Secret is left absent — the pod's volume mount is optional.
-func (c *Controller) ensureRegistrySecret(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
-	if pe.Spec.RegistryAuth == nil {
-		return nil
-	}
-	ns := projectNamespace(pe)
-	desired := buildRegistrySecret(pe)
-	existing, err := c.kubeclient.CoreV1().Secrets(ns).Get(ctx, desired.Name, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		_, err = c.kubeclient.CoreV1().Secrets(ns).Create(ctx, desired, metav1.CreateOptions{})
-		return err
-	}
-	if err != nil {
-		return err
-	}
-	existing.Type = desired.Type
-	existing.Data = desired.Data
-	_, err = c.kubeclient.CoreV1().Secrets(ns).Update(ctx, existing, metav1.UpdateOptions{})
-	return err
-}
-
-// ensureRegistryPullSecret materializes the pull-only robot credentials as a
-// dockerconfigjson Secret in the workspace namespace. The workspace namespace is
-// created here if needed so the pull Secret is available independently of
-// KubeDeployAccess. When spec.registryPullAuth is nil, this is a no-op.
-func (c *Controller) ensureRegistryPullSecret(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
-	if pe.Spec.RegistryPullAuth == nil {
-		return nil
-	}
+// ensureWorkspaceNamespaceExists create-or-updates the workspace namespace. It
+// is created here (for the pull Secret) and by ensureKubeDeployAccess — both
+// idempotent.
+func (c *Controller) ensureWorkspaceNamespaceExists(ctx context.Context, pe *v1alpha1.ProjectEnvironment) error {
 	workspaceNS := workspaceNamespace(pe)
-
-	// Ensure the workspace namespace exists.
 	desiredWsNS := buildWorkspaceNamespace(pe)
 	existingWsNS, err := c.kubeclient.CoreV1().Namespaces().Get(ctx, workspaceNS, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		_, err = c.kubeclient.CoreV1().Namespaces().Create(ctx, desiredWsNS, metav1.CreateOptions{})
-	} else if err == nil {
-		updated := existingWsNS.DeepCopy()
-		updated.Labels = desiredWsNS.Labels
-		_, err = c.kubeclient.CoreV1().Namespaces().Update(ctx, updated, metav1.UpdateOptions{})
-	}
-	if err != nil {
-		return fmt.Errorf("workspace namespace for pull secret: %w", err)
-	}
-
-	desired := buildRegistryPullSecret(pe)
-	existing, err := c.kubeclient.CoreV1().Secrets(workspaceNS).Get(ctx, desired.Name, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		_, err = c.kubeclient.CoreV1().Secrets(workspaceNS).Create(ctx, desired, metav1.CreateOptions{})
 		return err
 	}
 	if err != nil {
 		return err
 	}
-	existing.Type = desired.Type
-	existing.Data = desired.Data
-	_, err = c.kubeclient.CoreV1().Secrets(workspaceNS).Update(ctx, existing, metav1.UpdateOptions{})
+	updated := existingWsNS.DeepCopy()
+	updated.Labels = desiredWsNS.Labels
+	_, err = c.kubeclient.CoreV1().Namespaces().Update(ctx, updated, metav1.UpdateOptions{})
 	return err
 }
 
@@ -397,9 +351,9 @@ func (c *Controller) ensureKubeDeployAccess(ctx context.Context, pe *v1alpha1.Pr
 			ignoreNotFound(c.kubeclient.RbacV1().Roles(workspaceNS).Delete(ctx, projectRoleName, metav1.DeleteOptions{})),
 			ignoreNotFound(c.kubeclient.RbacV1().RoleBindings(workspaceNS).Delete(ctx, projectRoleName, metav1.DeleteOptions{})),
 			// Only delete the workspace namespace when there is also no pull secret to host.
-			// ensureRegistryPullSecret creates and owns the namespace when needed.
+			// ensureHarborRegistry creates and owns the namespace when the registry is enabled.
 			func() error {
-				if pe.Spec.RegistryPullAuth != nil {
+				if c.cfg.registryEnabled() {
 					return nil
 				}
 				return ignoreNotFound(c.kubeclient.CoreV1().Namespaces().Delete(ctx, workspaceNS, metav1.DeleteOptions{}))

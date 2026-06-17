@@ -65,29 +65,6 @@ func (in *ProjectEnvironmentList) DeepCopyObject() runtime.Object {
 func (in *ProjectEnvironmentSpec) DeepCopyInto(out *ProjectEnvironmentSpec) {
 	*out = *in
 	in.EgressPolicy.DeepCopyInto(&out.EgressPolicy)
-	if in.RegistryAuth != nil {
-		in, out := &in.RegistryAuth, &out.RegistryAuth
-		*out = new(RegistryAuthSpec)
-		**out = **in
-	}
-	if in.RegistryPullAuth != nil {
-		in, out := &in.RegistryPullAuth, &out.RegistryPullAuth
-		*out = new(RegistryAuthSpec)
-		**out = **in
-	}
-}
-
-func (in *RegistryAuthSpec) DeepCopyInto(out *RegistryAuthSpec) {
-	*out = *in
-}
-
-func (in *RegistryAuthSpec) DeepCopy() *RegistryAuthSpec {
-	if in == nil {
-		return nil
-	}
-	out := new(RegistryAuthSpec)
-	in.DeepCopyInto(out)
-	return out
 }
 
 func (in *ProjectEnvironmentSpec) DeepCopy() *ProjectEnvironmentSpec {

@@ -124,10 +124,14 @@ struct ProjectRow {
 }
 
 async fn list_namespaces(pool: &PgPool) -> Result<Vec<NamespaceRow>> {
+    // Harbor projects are provisioned per namespace by the project-controller
+    // once a project exists, so enumerate namespaces that have at least one
+    // project. Harbor returns 404 for any namespace without a project (handled
+    // as empty), so this is safe even before provisioning completes.
     let rows = sqlx::query(
-        r#"SELECT nr.namespace_id, n.slug AS namespace_slug
-           FROM namespace_registry nr
-           JOIN namespaces n ON n.id = nr.namespace_id"#,
+        r#"SELECT DISTINCT n.id AS namespace_id, n.slug AS namespace_slug
+           FROM namespaces n
+           JOIN projects p ON p.namespace_id = n.id"#,
     )
     .fetch_all(pool)
     .await?;

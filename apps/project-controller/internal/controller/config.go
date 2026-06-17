@@ -14,8 +14,17 @@ type Config struct {
 	StorageClass         string // PVC storage class; empty string uses the cluster default
 	HarborNamespace      string // namespace where Harbor runs; pods get egress to it for push/pull
 	RegistryInsecure     string // "true" in dev so docker buildx treats REGISTRY_HOST as insecure (HTTP/self-signed)
+	HarborURL            string // Harbor API base URL for provisioning projects/robots (admin)
+	HarborAdminUsername  string // Harbor admin username
+	HarborAdminPassword  string // Harbor admin password
+	RegistryHost         string // host[:port] used in image references and the pods' docker config auth key
 	KubeAPIServerHost    string // actual API server endpoint IP (post-DNAT) — used to build the egress CIDR for kubeDeployAccess pods
 	KubeAPIServerPort    string // actual API server endpoint port (post-DNAT)
+}
+
+// registryEnabled reports whether Harbor provisioning should run.
+func (c *Config) registryEnabled() bool {
+	return c.HarborURL != "" && c.RegistryHost != ""
 }
 
 func (c *Config) JWKSUrl() string {

@@ -17,4 +17,8 @@ data:
   HARBOR_NAMESPACE: {{ .Values.registry.namespace | quote }}
   REGISTRY_INSECURE: {{ .Values.registry.insecure | quote }}
   BUILDKIT_IMAGE: {{ include "slipstream.buildkitImage" . | quote }}
+  # Harbor provisioning (project + push/pull robots) is performed by the controller.
+  HARBOR_URL: {{ .Values.registry.harborUrl | quote }}
+  HARBOR_ADMIN_USERNAME: {{ .Values.registry.adminUsername | quote }}
+  REGISTRY_HOST: {{ .Values.registry.host | quote }}
   {{- end }}

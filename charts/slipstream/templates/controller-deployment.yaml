@@ -37,6 +37,13 @@ spec:
                 secretKeyRef:
                   name: slipstream-web-secret
                   key: METRICS_TOKEN
+            {{- if .Values.registry.enabled }}
+            - name: HARBOR_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: slipstream-web-secret
+                  key: HARBOR_ADMIN_PASSWORD
+            {{- end }}
           resources:
             requests:
               cpu: 50m
