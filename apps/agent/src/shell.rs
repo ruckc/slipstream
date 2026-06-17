@@ -78,6 +78,22 @@ impl SessionStore {
         command: Option<Vec<String>>,
         working_dir: Option<String>,
     ) -> anyhow::Result<String> {
+        let session_id = Uuid::new_v4().to_string();
+        self.create_with_id(&session_id, command, working_dir)?;
+        Ok(session_id)
+    }
+
+    /// Build a session under a caller-supplied id and register it. Used both by
+    /// `create` (random id) and by the WS attach path, which recreates a session
+    /// under the same id the client is reconnecting to after the agent container
+    /// was restarted (e.g. by a project-controller reconcile) and lost its
+    /// in-memory sessions — avoiding an infinite client reconnect loop.
+    pub fn create_with_id(
+        &self,
+        session_id: &str,
+        command: Option<Vec<String>>,
+        working_dir: Option<String>,
+    ) -> anyhow::Result<Arc<Mutex<Session>>> {
         let pty_system = NativePtySystem::default();
 
         let pair = pty_system
@@ -150,15 +166,13 @@ impl SessionStore {
             }
         };
 
-        let session_id = Uuid::new_v4().to_string();
-
         let pty_writer = pair
             .master
             .take_writer()
             .map_err(|e| anyhow::anyhow!("Failed to take PTY writer: {}", e))?;
 
         let session = Session {
-            session_id: session_id.clone(),
+            session_id: session_id.to_string(),
             pty_writer: Arc::new(Mutex::new(pty_writer)),
             pty_master: pair.master,
             child,
@@ -168,11 +182,11 @@ impl SessionStore {
             active_connections: Arc::new(AtomicUsize::new(0)),
         };
 
-        self.sessions
-            .insert(session_id.clone(), Arc::new(Mutex::new(session)));
+        let arc = Arc::new(Mutex::new(session));
+        self.sessions.insert(session_id.to_string(), arc.clone());
 
         info!("Created session {}", session_id);
-        Ok(session_id)
+        Ok(arc)
     }
 
     pub fn list(&self) -> Vec<SessionInfo> {
@@ -296,10 +310,21 @@ pub async fn ws_attach(
 ) -> Result<impl IntoResponse, AppError> {
     require_permission(&claims, "shell")?;
 
-    let session_arc = state
-        .sessions
-        .get(&id)
-        .ok_or_else(|| AppError::NotFound(format!("Session '{}' not found", id)))?;
+    // If the session is gone — typically because the agent container was
+    // restarted by a project-controller reconcile and lost its in-memory
+    // sessions — recreate a fresh one under the same id instead of returning
+    // 404. That stops the client from spinning in an infinite reconnect loop
+    // and gives it a working shell again (with empty scrollback).
+    let session_arc = match state.sessions.get(&id) {
+        Some(s) => s,
+        None => {
+            info!("Session '{}' not found on attach; recreating", id);
+            state
+                .sessions
+                .create_with_id(&id, None, None)
+                .map_err(AppError::Internal)?
+        }
+    };
 
     state.idle.touch();
 

@@ -74,7 +74,13 @@ RUN printf '%s\n' \
     '__set_title() { printf "\033]2;bash\007"; }' \
     '__ps=0' \
     'trap '\''(( __ps == 0 )) && printf "\033]2;%s\007" "$BASH_COMMAND"'\'' DEBUG' \
-    'PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}__ps=1;__osc7;__set_title;__ps=0"' \
+    '# /home/agent is a PVC, so $HISTFILE persists across pod restarts. Flush' \
+    '# history after every command (history -a) so a SIGTERM/SIGKILL from a' \
+    '# project-controller reconcile cannot lose the in-memory history buffer.' \
+    'shopt -s histappend' \
+    'HISTSIZE=100000' \
+    'HISTFILESIZE=200000' \
+    'PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND;}__ps=1;history -a;__osc7;__set_title;__ps=0"' \
     > /etc/profile.d/slipstream.sh
 RUN printf '%s\n' \
     'if [ -n "${WORKSPACE_NAMESPACE:-}" ] && [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then' \
