@@ -252,8 +252,13 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 			"--oci-worker-no-process-sandbox",
 		},
 		SecurityContext: &corev1.SecurityContext{
-			Privileged:               &buildkitPrivileged,
-			AllowPrivilegeEscalation: boolPtr(false),
+			Privileged: &buildkitPrivileged,
+			// Must allow privilege escalation: rootless BuildKit relies on the
+			// setuid/file-capability binaries newuidmap & newgidmap to write the
+			// multi-range uid_map/gid_map. NoNewPrivs (set by
+			// AllowPrivilegeEscalation: false) blocks them with
+			// "newuidmap: Could not set caps".
+			AllowPrivilegeEscalation: boolPtr(true),
 			SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeUnconfined},
 			AppArmorProfile:          &corev1.AppArmorProfile{Type: corev1.AppArmorProfileTypeUnconfined},
 		},
