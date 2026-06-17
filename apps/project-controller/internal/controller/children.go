@@ -248,11 +248,16 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 
 	// When the registry is enabled, mount the namespace's robot credentials
 	// (materialized by ensureHarborRegistry) into the agent and the buildkit
-	// sidecar, and surface REGISTRY_HOST. Building works without them; they're
-	// needed to push/pull the private Harbor namespace.
+	// sidecar, and surface REGISTRY_HOST plus REGISTRY (the full
+	// host/namespace/project prefix for image refs). Building works without the
+	// creds; they're needed to push/pull the private Harbor namespace.
 	if cfg.registryEnabled() {
 		containers[0].Env = append(containers[0].Env,
 			corev1.EnvVar{Name: "REGISTRY_HOST", Value: cfg.RegistryHost},
+			corev1.EnvVar{
+				Name:  "REGISTRY",
+				Value: fmt.Sprintf("%s/%s/%s", cfg.RegistryHost, pe.Spec.NamespaceSlug, pe.Spec.ProjectSlug),
+			},
 		)
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts,
 			corev1.VolumeMount{
