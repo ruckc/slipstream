@@ -241,9 +241,10 @@ func buildDeployment(pe *v1alpha1.ProjectEnvironment, cfg *Config) *appsv1.Deplo
 			},
 		)
 
-		// buildkit sidecar: rootless BuildKit daemon. The agent image sets
-		// DOCKER_HOST=unix:///var/run/buildkit/buildkitd.sock so `docker buildx`
-		// talks to this sidecar without any additional configuration.
+		// buildkit sidecar: rootless BuildKit daemon. The agent image configures
+		// a buildx `remote`-driver builder pointing at
+		// unix:///var/run/buildkit/buildkitd.sock so `docker buildx` talks to
+		// this sidecar without any additional configuration.
 		// The registry is always accessed via its public FQDN (e.g. harbor.ruck.io)
 		// which has a valid TLS certificate, so no insecure config is needed.
 		buildkitPrivileged := false

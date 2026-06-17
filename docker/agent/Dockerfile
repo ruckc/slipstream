@@ -51,8 +51,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${KUBECTL_MINOR}/deb/ /" \
        > /etc/apt/sources.list.d/kubernetes.list \
     # Docker CE apt repo — provides docker-ce-cli + the buildx plugin (not the
-    # Debian-packaged docker.io). The CLI talks to the moby/buildkit sidecar via
-    # DOCKER_HOST, so only the client + buildx plugin are needed (no daemon).
+    # Debian-packaged docker.io). buildx talks to the moby/buildkit sidecar via a
+    # remote-driver builder (see /etc/profile.d/buildx.sh), so only the client +
+    # buildx plugin are needed — no daemon.
     && curl -fsSL --retry 5 --retry-delay 2 https://download.docker.com/linux/debian/gpg \
        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
@@ -82,14 +83,29 @@ RUN printf '%s\n' \
     '    "$KUBERNETES_SERVICE_HOST" "$KUBERNETES_SERVICE_PORT" "$WORKSPACE_NAMESPACE" > "$HOME/.kube/config"' \
     'fi' \
     > /etc/profile.d/kubectl.sh
+# Configure docker buildx to use the moby/buildkit rootless sidecar via the
+# remote driver. /home/agent is a PVC at runtime (hiding any baked-in
+# ~/.docker), so the builder is (re)created idempotently on each login shell.
+RUN printf '%s\n' \
+    'if command -v docker >/dev/null 2>&1 && [ -S /var/run/buildkit/buildkitd.sock ]; then' \
+    '  docker buildx inspect slipstream >/dev/null 2>&1 \' \
+    '    || docker buildx create --name slipstream --driver remote --use unix:///var/run/buildkit/buildkitd.sock >/dev/null 2>&1 \' \
+    '    || true' \
+    '  docker buildx use slipstream >/dev/null 2>&1 || true' \
+    'fi' \
+    > /etc/profile.d/buildx.sh
 RUN mkdir -p /workspace && chown agent:agent /workspace
 USER 1000
 WORKDIR /workspace
 COPY --from=builder /build/target/release/agent /usr/local/bin/agent
-# DOCKER_HOST points at the buildkitd socket served by the moby/buildkit:rootless
-# sidecar container. The socket is shared via a "buildkit" emptyDir volume mounted
-# at /var/run/buildkit in both containers.
+# The moby/buildkit:rootless sidecar exposes a standalone buildkitd over a Unix
+# socket (NOT a Docker daemon), shared via a "buildkit" emptyDir at
+# /var/run/buildkit. buildx must therefore use a `remote`-driver builder
+# pointing at that socket — DOCKER_HOST is intentionally unset (there is no
+# dockerd). BUILDX_BUILDER selects the builder created by
+# /etc/profile.d/buildx.sh so `docker build` / `docker buildx build` route to
+# the sidecar automatically.
 ENV WORKSPACE_PATH=/workspace \
-    DOCKER_HOST=unix:///var/run/buildkit/buildkitd.sock
+    BUILDX_BUILDER=slipstream
 EXPOSE 8080
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/agent"]
